@@ -1,0 +1,50 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="CC BY-NC 4.0"
+
+[[mods]]
+modId="everyonehashats"
+version="${version}"
+displayName="Everyone Has Hats"
+displayURL="https://www.n3g.de"
+authors="Karl Karlmann"
+logoFile="hats.png"
+description='''
+Das ultimative Upcycling für euer "Hutendlager"! Mit dieser Mod könnt ihr fast jeder lebenden Kreatur in eurer Minecraft-Welt die absurden und drolligen Hüte aus SimpleHats aufsetzen, austauschen und wieder abnehmen. Inklusive flexiblem Resourcepack-System zur Live-Anpassung der Huthöhe und -rotation!
+'''
+
+# -------------------------------------------------------------------------
+# ABHÄNGIGKEITEN (DEPENDENCIES)
+# -------------------------------------------------------------------------
+
+# 1. Forge API
+[[dependencies.everyonehashats]]
+modId="forge"
+mandatory=true
+versionRange="[47.2.0,)"
+ordering="NONE"
+side="BOTH"
+
+# 2. Minecraft Core
+[[dependencies.everyonehashats]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="BOTH"
+
+# 3. SimpleHats (Ohne die Hüte macht die Mod keinen Sinn!)
+[[dependencies.everyonehashats]]
+modId="simplehats"
+mandatory=true
+versionRange="[0.4.0,)"
+ordering="NONE"
+side="BOTH"
+
+
+[[dependencies.everyonehashats]]
+    modId="geckolib"
+    mandatory=false
+    versionRange="[4.8,)"
+    ordering="NONE"
+    side="CLIENT"

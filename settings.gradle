@@ -1,0 +1,13 @@
+pluginManagement {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net/' }
+        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+        mavenCentral()
+    }
+}
+
+rootProject.name = '150kbmods_workspace'
+
+// Hier trägst du alle deine kleinen, feinen 150kb Mods ein!
+// Jede Mod ist ein eigener Ordner im Workspace.
+include 'everyonehashats'

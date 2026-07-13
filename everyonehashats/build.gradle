@@ -1,0 +1,6 @@
+archivesBaseName = 'everyonehashats'
+
+dependencies {
+    implementation fg.deobf(fileTree(dir: rootProject.file('libs'), include: '*simplehats*.jar'))
+    implementation fg.deobf(fileTree(dir: rootProject.file('libs'), include: '*geckolib*.jar'))
+}
