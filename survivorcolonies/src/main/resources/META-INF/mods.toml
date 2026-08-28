@@ -1,0 +1,50 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="CC BY-NC 4.0"
+
+[[mods]]
+modId="survivorcolonies"
+version="${version}"
+displayName="Survivor Colonies"
+displayURL="https://www.n3g.de"
+authors="Karl Karlmann"
+logoFile="survivorcolonies.png"
+description='''
+Adds survivors to your world you can recruit
+'''
+
+# -------------------------------------------------------------------------
+# ABHÄNGIGKEITEN (DEPENDENCIES)
+# -------------------------------------------------------------------------
+
+# 1. Forge API
+[[dependencies.survivorcolonies]]
+modId="forge"
+mandatory=true
+versionRange="[47.2.0,)"
+ordering="NONE"
+side="BOTH"
+
+# 2. Minecraft Core
+[[dependencies.survivorcolonies]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="BOTH"
+
+# 3. Minecolonies
+[[dependencies.survivorcolonies]]
+modId="minecolonies"
+mandatory=true
+versionRange="[1.1.4,)"
+ordering="NONE"
+side="BOTH"
+
+# 5. Structurize (Zwingend für Minecolonies-Gebäude wie Feuerwache & Drachenhort)
+[[dependencies.survivorcolonies]]
+modId="structurize"
+mandatory=true
+versionRange="[1.0.0,)"
+ordering="NONE"
+side="BOTH"

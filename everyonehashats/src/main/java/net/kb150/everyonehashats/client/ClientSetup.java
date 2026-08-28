@@ -7,6 +7,7 @@ import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.commands.Commands;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
@@ -26,10 +27,11 @@ import java.util.*;
 public class ClientSetup {
 
     @SubscribeEvent
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public static void addEntityLayers(EntityRenderersEvent.AddLayers event) {
         Set<EntityRenderer<?>> processedRenderers = new HashSet<>();
 
-        // 1. NEU: GECKOLIB SOFT-DEPENDENCY CHECK
+        // 1. GECKOLIB SOFT-DEPENDENCY CHECK
         if (net.minecraftforge.fml.ModList.get().isLoaded("geckolib")) {
             try {
                 net.kb150.everyonehashats.compat.geckolib.GeckoCompat.addGeckoLayers(processedRenderers);
@@ -41,7 +43,8 @@ public class ClientSetup {
         // 2. VANILLA COMPATIBILTIY
         for (EntityType<?> entityType : ForgeRegistries.ENTITY_TYPES) {
             try {
-                EntityRenderer<?> renderer = Minecraft.getInstance().getEntityRenderDispatcher().renderers.get(entityType);
+                // FIX: Unchecked Cast für das Event, damit der Compiler nicht meckert
+                EntityRenderer<?> renderer = event.getRenderer((EntityType) entityType);
                 
                 // Wir überspringen den Renderer, falls GeckoCompat ihn oben schon ausgestattet hat!
                 if (renderer instanceof LivingEntityRenderer livingRenderer && !processedRenderers.contains(livingRenderer)) {
@@ -86,13 +89,9 @@ public class ClientSetup {
         event.registerReloadListener(HatOffsetLoader.INSTANCE);
     }
 
-    // =========================================================================
-    // INNER CLASS FOR FORGE BUS EVENTS (Client Commands)
-    // =========================================================================
     public static class ForgeEvents {
         @SubscribeEvent
         public static void registerClientCommands(RegisterClientCommandsEvent event) {
-            // Registriert den Ingame-Command /hatstudio
             event.getDispatcher().register(Commands.literal("hatstudio")
                 .executes(context -> {
                     Minecraft.getInstance().tell(() -> {
@@ -101,77 +100,95 @@ public class ClientSetup {
                     return 1;
                 })
             );
+			event.getDispatcher().register(Commands.literal("hatdebuglayers")
+				.executes(ctx -> {
+					EntityRenderer<?> renderer = Minecraft.getInstance().getEntityRenderDispatcher()
+						.renderers.get(EntityType.IRON_GOLEM);
+
+					EveryoneHasHats.LOGGER.info("HAT DEBUG LIVE: renderer instance = " + System.identityHashCode(renderer)
+						+ " class=" + renderer.getClass().getSimpleName());
+
+					if (renderer instanceof LivingEntityRenderer<?, ?> livingRenderer) {
+						for (Field field : LivingEntityRenderer.class.getDeclaredFields()) {
+							if (List.class.isAssignableFrom(field.getType())) {
+								try {
+									field.setAccessible(true);
+									List<?> layers = (List<?>) field.get(livingRenderer);
+									EveryoneHasHats.LOGGER.info("HAT DEBUG LIVE: layer count = " + layers.size());
+									for (Object l : layers) {
+										EveryoneHasHats.LOGGER.info("HAT DEBUG LIVE: -> " + l.getClass().getName()
+											+ " (identity=" + System.identityHashCode(l) + ")");
+									}
+								} catch (Exception e) {
+									EveryoneHasHats.LOGGER.error("HAT DEBUG LIVE: reflection failed", e);
+								}
+							}
+						}
+					}
+					return 1;
+				})
+			);
         }
     }
 
-    // =========================================================================
-    // HILFSKLASSE FÜR DAS RENDERING IN DER ECHTEN WELT
-    // =========================================================================
     public static class ModelBoneScanner {
 
-        /**
-         * Navigiert hierarchisch durch die ModelParts des Modells und wendet
-         * deren relative Translationen und Rotationen auf den PoseStack an.
-         * Kompatibel mit vom HatStudioScreen gespeicherten, obfuskierten Pfaden!
-         */
-		public static boolean applyBoneTransforms(EntityModel<?> model, String bonePath, PoseStack poseStack) {
-			if (model == null || bonePath == null || bonePath.trim().isEmpty()) return false;
+        public static boolean applyBoneTransforms(EntityModel<?> model, String bonePath, PoseStack poseStack) {
+            if (model == null || bonePath == null || bonePath.trim().isEmpty()) return false;
 
-			String[] pathParts = bonePath.split("/");
-			if (pathParts.length == 0) return false;
+            String[] pathParts = bonePath.split("/");
+            if (pathParts.length == 0) return false;
 
-			ModelPart currentPart = null;
-			Class<?> clazz = model.getClass();
+            ModelPart currentPart = null;
+            Class<?> clazz = model.getClass();
 
-			while (clazz != null && clazz != Object.class) {
-				try {
-					Field field = clazz.getDeclaredField(pathParts[0]);
-					field.setAccessible(true);
-					currentPart = (ModelPart) field.get(model);
-					if (currentPart != null) break;
-				} catch (Exception e) { /* weitersuchen */ }
-				clazz = clazz.getSuperclass();
-			}
+            while (clazz != null && clazz != Object.class) {
+                try {
+                    Field field = clazz.getDeclaredField(pathParts[0]);
+                    field.setAccessible(true);
+                    currentPart = (ModelPart) field.get(model);
+                    if (currentPart != null) break;
+                } catch (Exception e) { /* weitersuchen */ }
+                clazz = clazz.getSuperclass();
+            }
 
-			if (currentPart == null) return false;
+            if (currentPart == null) return false;
 
-			currentPart.translateAndRotate(poseStack);
+            currentPart.translateAndRotate(poseStack);
 
-			for (int i = 1; i < pathParts.length; i++) {
-				Map<String, ModelPart> children = getChildrenOf(currentPart);
-				if (children != null && children.containsKey(pathParts[i])) {
-					currentPart = children.get(pathParts[i]);
-					currentPart.translateAndRotate(poseStack);
-				} else {
-					return false;
-				}
-			}
-			return true;
-		}
+            for (int i = 1; i < pathParts.length; i++) {
+                Map<String, ModelPart> children = getChildrenOf(currentPart);
+                if (children != null && children.containsKey(pathParts[i])) {
+                    currentPart = children.get(pathParts[i]);
+                    currentPart.translateAndRotate(poseStack);
+                } else {
+                    return false;
+                }
+            }
+            return true;
+        }
 
-		// Gleiche Typ-basierte Lösung wie im Studio-Screen - findet das Kinder-Feld
-		// unabhängig von Version/Mapping, statt eine feste SRG-ID zu raten.
-		private static Field cachedChildrenField;
-		private static boolean childrenFieldResolved = false;
+        private static Field cachedChildrenField;
+        private static boolean childrenFieldResolved = false;
 
-		@SuppressWarnings("unchecked")
-		private static Map<String, ModelPart> getChildrenOf(ModelPart part) {
-			if (!childrenFieldResolved) {
-				childrenFieldResolved = true;
-				for (Field field : ModelPart.class.getDeclaredFields()) {
-					if (Map.class.isAssignableFrom(field.getType())) {
-						field.setAccessible(true);
-						cachedChildrenField = field;
-						break;
-					}
-				}
-			}
-			if (cachedChildrenField == null) return null;
-			try {
-				return (Map<String, ModelPart>) cachedChildrenField.get(part);
-			} catch (Exception e) {
-				return null;
-			}
-		}
-	}
+        @SuppressWarnings("unchecked")
+        private static Map<String, ModelPart> getChildrenOf(ModelPart part) {
+            if (!childrenFieldResolved) {
+                childrenFieldResolved = true;
+                for (Field field : ModelPart.class.getDeclaredFields()) {
+                    if (Map.class.isAssignableFrom(field.getType())) {
+                        field.setAccessible(true);
+                        cachedChildrenField = field;
+                        break;
+                    }
+                }
+            }
+            if (cachedChildrenField == null) return null;
+            try {
+                return (Map<String, ModelPart>) cachedChildrenField.get(part);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+    }
 }

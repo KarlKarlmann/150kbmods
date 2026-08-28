@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.kb150.rewardbox.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "rewardbox.refmap.json", 
+  "mixins": [
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

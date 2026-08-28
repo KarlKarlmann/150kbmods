@@ -1,0 +1,55 @@
+{
+  "box_id": "reward_box:default",
+  "texture": "reward_box:textures/entity/chest/reward_chest.png",
+  "break_drop_item": "minecraft:experience_bottle",
+  "guaranteed_items": [
+    {
+      "item": "minecraft:experience_bottle",
+      "min_tier": 1,
+      "count": 1,
+      "count_per_tier": 1
+    }
+  ],
+  "vanilla_loot_pools": [
+    {
+      "min_tier": 1,
+      "tables": [
+        "minecraft:chests/abandoned_mineshaft",
+        "minecraft:chests/simple_dungeon",
+        "minecraft:chests/ruined_portal",
+        "minecraft:chests/pillager_outpost"
+      ]
+    },
+    {
+      "min_tier": 4,
+      "tables": [
+        "minecraft:chests/bastion_treasure",
+        "minecraft:chests/desert_pyramid",
+        "minecraft:chests/shipwreck_treasure",
+        "minecraft:chests/igloo_chest"
+      ]
+    },
+    {
+      "min_tier": 7,
+      "tables": [
+        "minecraft:chests/end_city_treasure",
+        "minecraft:chests/stronghold_library",
+        "minecraft:chests/ancient_city",
+        "minecraft:chests/buried_treasure"
+      ]
+    },
+    {
+      "min_tier": 10,
+      "tables": [
+        "minecraft:chests/ancient_city",
+        "minecraft:chests/end_city_treasure",
+        "minecraft:chests/bastion_treasure",
+        "minecraft:chests/woodland_mansion"
+      ]
+    }
+  ],
+  "crazy_mod_items": {
+    "min_tier": 10,
+    "enchant_scaling": true
+  }
+}

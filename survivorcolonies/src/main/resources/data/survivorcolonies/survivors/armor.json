@@ -1,0 +1,22 @@
+{
+  "helmets": [
+    "minecraft:air",
+    "minecraft:leather_helmet",
+    "minecraft:iron_helmet"
+  ],
+  "chestplates": [
+    "minecraft:air",
+    "minecraft:leather_chestplate",
+    "minecraft:iron_chestplate"
+  ],
+  "leggings": [
+    "minecraft:air",
+    "minecraft:leather_leggings",
+    "minecraft:iron_leggings"
+  ],
+  "boots": [
+    "minecraft:air",
+    "minecraft:leather_boots",
+    "minecraft:iron_boots"
+  ]
+}

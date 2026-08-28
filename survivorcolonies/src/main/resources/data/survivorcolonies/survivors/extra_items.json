@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "extra_items": [
+    { "item": "minecraft:bread", "count": 4 },
+    { "item": "minecraft:cooked_beef", "count": 2 },
+    { "item": "minecraft:apple", "count": 5 },
+    { "item": "minecraft:torch", "count": 16 },
+    { "item": "minecraft:potion", "count": 1 }
+  ]
+}

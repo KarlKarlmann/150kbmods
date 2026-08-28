@@ -1,0 +1,20 @@
+{
+  "variants": {
+    "facing=east": {
+      "model": "dragoncolonies:block/blockhutfirestation",
+      "y": 0
+    },
+    "facing=south": {
+      "model": "dragoncolonies:block/blockhutfirestation",
+      "y": 90
+    },
+    "facing=west": {
+      "model": "dragoncolonies:block/blockhutfirestation",
+      "y": 180
+    },
+    "facing=north": {
+      "model": "dragoncolonies:block/blockhutfirestation",
+      "y": 270
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "variants": {
+    "facing=east": {
+      "model": "dragoncolonies:block/blockhutdragonroost",
+      "y": 0
+    },
+    "facing=south": {
+      "model": "dragoncolonies:block/blockhutdragonroost",
+      "y": 90
+    },
+    "facing=west": {
+      "model": "dragoncolonies:block/blockhutdragonroost",
+      "y": 180
+    },
+    "facing=north": {
+      "model": "dragoncolonies:block/blockhutdragonroost",
+      "y": 270
+    }
+  }
+}

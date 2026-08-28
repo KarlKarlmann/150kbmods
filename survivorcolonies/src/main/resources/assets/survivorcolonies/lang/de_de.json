@@ -1,0 +1,38 @@
+{
+  "gui.survivorcolonies.trade.title": "Überlebender - Handel",
+  "gui.survivorcolonies.trade.subtitle": "§8Handel & Tausch",
+  "gui.survivorcolonies.trade.offer_item": "%s anbieten",
+  "gui.survivorcolonies.trade.amount": "Menge: %s",
+  "gui.survivorcolonies.trade.finish": "Handel abschließen",
+  "gui.survivorcolonies.trade.choose_other": "« Anderes Item wählen",
+
+  "gui.survivorcolonies.recruit.title": "Überlebender",
+  "gui.survivorcolonies.recruit.subtitle": "§8Einsamer Überlebender",
+
+  "gui.survivorcolonies.btn.back": "« Zurück",
+  "gui.survivorcolonies.btn.cancel": "« Abbrechen",
+  "gui.survivorcolonies.btn.about": "Wer bist du?",
+  "gui.survivorcolonies.btn.trade": "Handel treiben",
+  "gui.survivorcolonies.btn.skills": "Fähigkeiten ansehen",
+  "gui.survivorcolonies.btn.recruit": "In Kolonie aufnehmen",
+  "gui.survivorcolonies.btn.goodbye": "Auf Wiedersehen",
+  "gui.survivorcolonies.btn.recruit_yes": "§aJa, willkommen!",
+  "gui.survivorcolonies.btn.recruit_no": "§cNein, noch nicht.",
+
+  "dialog.survivorcolonies.trade.empty": "Ich habe aktuell absolut nichts in meinem Rucksack, was ich entbehren könnte.",
+  "dialog.survivorcolonies.trade.has_items": "Das hier habe ich auf meinen Reisen gesammelt. Was davon brauchst du?",
+  "dialog.survivorcolonies.trade.player_empty": "Du hast nichts bei dir, was einen fairen Tausch wert wäre.",
+  "dialog.survivorcolonies.trade.player_offer": "Du willst also mein %s? Okay, was gibst du mir im Gegenzug?",
+  "dialog.survivorcolonies.trade.haggle_reject": "Nur %sx %s? Das reicht nicht. Ich brauche mehr davon.",
+  "dialog.survivorcolonies.trade.haggle_accept": "%sx %s? Ja, das ist ein fairer Tausch. Lass uns ins Geschäft kommen.",
+  "dialog.survivorcolonies.trade.done": "Ein guter Tausch. Pass da draußen auf dich auf.",
+
+  "dialog.survivorcolonies.recruit.story_1": "Ich habe tagelang in einer alten Höhle geflogen... Die Horden da draußen werden von Tag zu Tag aggressiver.",
+  "dialog.survivorcolonies.recruit.story_2": "Mein altes Lager wurde überrascht. Ich bin der Einzige, der es hierher geschafft hat.",
+  "dialog.survivorcolonies.recruit.story_3": "Ich wanderte wochenlang durch die Wildnis, immer auf der Suche nach einer sicheren Siedlung.",
+  "dialog.survivorcolonies.recruit.main": "Hallo Reisender! Schön, ein freundliches Gesicht zu sehen. Wie kann ich dir helfen?",
+  "dialog.survivorcolonies.recruit.skills_intro": "Ich habe folgende Talente auf Lager:",
+  "dialog.survivorcolonies.recruit.skills_none": "• Keine besonderen Vorkenntnisse.",
+  "dialog.survivorcolonies.recruit.skills_level": ": Lvl %s",
+  "dialog.survivorcolonies.recruit.confirm_cost": "Ich würde mich deiner Kolonie anschließen! Als Proviant benötige ich dafür %sx %s. Bist du einverstanden?"
+}

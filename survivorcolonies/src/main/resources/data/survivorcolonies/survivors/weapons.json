@@ -1,0 +1,13 @@
+{
+  "weapons": [
+    "minecraft:iron_sword",
+    "minecraft:stone_sword",
+    "minecraft:bow",
+    "minecraft:iron_axe"
+  ],
+  "offhand": [
+    "minecraft:air",
+    "minecraft:shield",
+    "minecraft:torch"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.kb150.dragoncolonies.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "dragoncolonies.refmap.json", 
+  "mixins": [
+  "DragonBaseMixin",
+  "AbstractEntityCitizenMixin",
+  "MinecoloniesAdvancedPathNavigateMixin",
+  "DragonBaseGoalMixin",
+  "DragonRestGoalMixin",
+  "AbstractEntityCitizenMixin",
+  "AIMovementComponentMixin",
+  "AbstractEntityAIGuardMixin",
+  "AbstractAISkeletonAccessor",
+  "EntityNavigationUtilsMixin"
+  ],
+  "client": [
+  "StructurePacksMixin",
+  "WindowBuildingBrowserMixin",
+  "client.CitizenDragonRiderRenderMixin",
+  "client.DragonRendererMatrixHookMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

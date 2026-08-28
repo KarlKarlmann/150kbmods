@@ -122,53 +122,51 @@ public class EveryoneHasHatsLayer<T extends LivingEntity, M extends EntityModel<
         poseStack.popPose();
     }
 
-    // Findet intelligent den Head-ModelPart – funktioniert dank Reflection bei fast jedem Modded-Tier!
-    private static ModelPart findHeadPart(EntityModel<?> model) {
-        if (model instanceof HeadedModel headedModel) {
-            return headedModel.getHead();
-        }
-        
-        Class<?> modelClass = model.getClass();
-        Field cachedField = HEAD_FIELD_CACHE.get(modelClass);
-        if (cachedField != null) {
-            try {
-                return (ModelPart) cachedField.get(model);
-            } catch (Exception ignored) {}
-        }
-        
-        // Durchsuche die Klassenhierarchie nach einem ModelPart-Feld, das "head" heißt oder entsprechende SRG-Mappings hat
-        Class<?> current = modelClass;
-        while (current != null && current != Object.class) {
-            for (Field field : current.getDeclaredFields()) {
-                if (field.getType() == net.minecraft.client.model.geom.ModelPart.class) {
-                    String name = field.getName().toLowerCase(Locale.ROOT);
-                    // Suchmuster für geläufige Kopf-Modellteile (inklusive Quadruped-SRG 'f_103498_' / 'f_113947_')
-                    if (name.contains("head") || name.equals("f_103498_") || name.equals("f_113947_")) {
-                        try {
-                            field.setAccessible(true);
-                            HEAD_FIELD_CACHE.put(modelClass, field);
-                            return (ModelPart) field.get(model);
-                        } catch (Exception ignored) {}
-                    }
-                }
-            }
-            current = current.getSuperclass();
-        }
-        
-        // Letzter Rettungsanker: Nimm das allererste ModelPart-Feld
-        current = modelClass;
-        while (current != null && current != Object.class) {
-            for (Field field : current.getDeclaredFields()) {
-                if (field.getType() == net.minecraft.client.model.geom.ModelPart.class) {
-                    try {
-                        field.setAccessible(true);
-                        HEAD_FIELD_CACHE.put(modelClass, field);
-                        return (ModelPart) field.get(model);
-                    } catch (Exception ignored) {}
-                }
-            }
-            current = current.getSuperclass();
-        }
-        return null;
-    }
+	private static ModelPart findHeadPart(EntityModel<?> model) {
+		if (model instanceof HeadedModel headedModel) {
+			return headedModel.getHead();
+		}
+		
+		Class<?> modelClass = model.getClass();
+		Field cachedField = HEAD_FIELD_CACHE.get(modelClass);
+		if (cachedField != null) {
+			try {
+				return (ModelPart) cachedField.get(model);
+			} catch (Exception ignored) {}
+		}
+		
+		Class<?> current = modelClass;
+		while (current != null && current != Object.class) {
+			for (Field field : current.getDeclaredFields()) {
+				if (field.getType() == net.minecraft.client.model.geom.ModelPart.class) {
+					String name = field.getName().toLowerCase(Locale.ROOT);
+					// Erweiterte SRG-Muster: f_102948_ (Golem), f_103846_ (Spinne), f_103498_ / f_113947_ (Quadruped)
+					if (name.contains("head") || name.equals("f_102948_") || name.equals("f_103846_") || name.equals("f_103498_") || name.equals("f_113947_")) {
+						try {
+							field.setAccessible(true);
+							HEAD_FIELD_CACHE.put(modelClass, field);
+							return (ModelPart) field.get(model);
+						} catch (Exception ignored) {}
+					}
+				}
+			}
+			current = current.getSuperclass();
+		}
+		
+		// Fallback: Erstes ModelPart-Feld
+		current = modelClass;
+		while (current != null && current != Object.class) {
+			for (Field field : current.getDeclaredFields()) {
+				if (field.getType() == net.minecraft.client.model.geom.ModelPart.class) {
+					try {
+						field.setAccessible(true);
+						HEAD_FIELD_CACHE.put(modelClass, field);
+						return (ModelPart) field.get(model);
+					} catch (Exception ignored) {}
+				}
+			}
+			current = current.getSuperclass();
+		}
+		return null;
+	}
 }

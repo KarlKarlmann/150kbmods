@@ -11,3 +11,8 @@ rootProject.name = '150kbmods_workspace'
 // Hier trägst du alle deine kleinen, feinen 150kb Mods ein!
 // Jede Mod ist ein eigener Ordner im Workspace.
 include 'everyonehashats'
+include 'dragoncolonies'
+include 'meteorshower'
+include 'reward_box'
+include 'survivorcolonies'
+include 'gridmasternine'

@@ -1,0 +1,6 @@
+{
+  "itemGroup.reward_box": "Reward Boxes",
+  "container.reward_box.chest": "Reward Box",
+  "gui.reward_box.unknown_owner": "Unknown",
+  "message.reward_box.locked": "This chest belongs to %s! Locked for: %dm %ds"
+}

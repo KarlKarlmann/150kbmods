@@ -34,9 +34,9 @@ public class EveryoneHasHatsEvents {
         for (Item item : ForgeRegistries.ITEMS) {
             ResourceLocation res = ForgeRegistries.ITEMS.getKey(item);
             if (res != null && res.getNamespace().equals("simplehats")) {
-                String path = res.getPath();
-                if (!path.equals("special") && !path.contains("hatbag") && 
-                    !path.contains("hatscraps") && !path.contains("haticon") && !path.contains("hatdisplay")) {
+                // FIX: Prüft auf die echte Java-Klasse statt fehleranfälliger Pfadnamen
+                String className = item.getClass().getSimpleName();
+                if ((className.equals("HatItem") || className.equals("HatItemDyeable")) && !res.getPath().equals("special")) {
                     CACHED_HATS.add(item);
                 }
             }
@@ -55,9 +55,13 @@ public class EveryoneHasHatsEvents {
         
         // Prüfe, ob das gehaltene Item ein valider SimpleHats-Hut ist
         ResourceLocation heldItemKey = ForgeRegistries.ITEMS.getKey(heldStack.getItem());
-        boolean isSimpleHat = heldItemKey != null && heldItemKey.getNamespace().equals("simplehats") && 
-                              !heldItemKey.getPath().equals("special") && !heldItemKey.getPath().contains("bag") && 
-                              !heldItemKey.getPath().contains("scraps") && !heldItemKey.getPath().contains("display");
+        boolean isSimpleHat = false;
+        
+        if (heldItemKey != null && heldItemKey.getNamespace().equals("simplehats")) {
+            // FIX: Auch hier auf die Klasse checken, damit keine Lootbags aufgesetzt werden können
+            String className = heldStack.getItem().getClass().getSimpleName();
+            isSimpleHat = (className.equals("HatItem") || className.equals("HatItemDyeable")) && !heldItemKey.getPath().equals("special");
+        }
         
         ItemStack currentHat = living.getItemBySlot(EquipmentSlot.HEAD);
         ResourceLocation currentHatKey = ForgeRegistries.ITEMS.getKey(currentHat.getItem());

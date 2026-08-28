@@ -1,0 +1,38 @@
+{
+  "gui.survivorcolonies.trade.title": "Survivor - Trade",
+  "gui.survivorcolonies.trade.subtitle": "§8Trade & Barter",
+  "gui.survivorcolonies.trade.offer_item": "Offer %s",
+  "gui.survivorcolonies.trade.amount": "Amount: %s",
+  "gui.survivorcolonies.trade.finish": "Complete Trade",
+  "gui.survivorcolonies.trade.choose_other": "« Choose other item",
+
+  "gui.survivorcolonies.recruit.title": "Survivor",
+  "gui.survivorcolonies.recruit.subtitle": "§8Lone Survivor",
+
+  "gui.survivorcolonies.btn.back": "« Back",
+  "gui.survivorcolonies.btn.cancel": "« Cancel",
+  "gui.survivorcolonies.btn.about": "Who are you?",
+  "gui.survivorcolonies.btn.trade": "Trade",
+  "gui.survivorcolonies.btn.skills": "View skills",
+  "gui.survivorcolonies.btn.recruit": "Recruit to colony",
+  "gui.survivorcolonies.btn.goodbye": "Goodbye",
+  "gui.survivorcolonies.btn.recruit_yes": "§aYes, welcome!",
+  "gui.survivorcolonies.btn.recruit_no": "§cNo, not yet.",
+
+  "dialog.survivorcolonies.trade.empty": "I currently have absolutely nothing in my backpack that I could spare.",
+  "dialog.survivorcolonies.trade.has_items": "This is what I've gathered on my travels. What do you need?",
+  "dialog.survivorcolonies.trade.player_empty": "You don't have anything on you that would be worth a fair trade.",
+  "dialog.survivorcolonies.trade.player_offer": "So you want my %s? Okay, what will you give me in return?",
+  "dialog.survivorcolonies.trade.haggle_reject": "Only %sx %s? That's not enough. I need more of that.",
+  "dialog.survivorcolonies.trade.haggle_accept": "%sx %s? Yes, that's a fair trade. Let's do business.",
+  "dialog.survivorcolonies.trade.done": "A good trade. Take care out there.",
+
+  "dialog.survivorcolonies.recruit.story_1": "I hid in an old cave for days... The hordes out there are getting more aggressive by the day.",
+  "dialog.survivorcolonies.recruit.story_2": "My old camp was ambushed. I'm the only one who made it here.",
+  "dialog.survivorcolonies.recruit.story_3": "I wandered through the wilderness for weeks, always searching for a safe settlement.",
+  "dialog.survivorcolonies.recruit.main": "Hello traveler! It's good to see a friendly face. How can I help you?",
+  "dialog.survivorcolonies.recruit.skills_intro": "I have the following skills to offer:",
+  "dialog.survivorcolonies.recruit.skills_none": "• No special skills.",
+  "dialog.survivorcolonies.recruit.skills_level": ": Lvl %s",
+  "dialog.survivorcolonies.recruit.confirm_cost": "I would gladly join your colony! As provisions, I'll need %sx %s. Do we have a deal?"
+}

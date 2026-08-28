@@ -1,0 +1,7 @@
+{
+  "recruit_costs": [
+    { "item": "minecraft:emerald", "count": 5 },
+    { "item": "minecraft:bread", "count": 12 },
+    { "item": "minecraft:cooked_beef", "count": 8 }
+  ]
+}

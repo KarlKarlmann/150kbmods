@@ -1,0 +1,14 @@
+{
+  "icon": "interior.png",
+  "name": "Interior only",
+  "authors": [
+    "Karl Karlmann and Friends"
+  ],
+  "desc": "Custom interior-only modules for existing buildings.",
+  "mods": [
+    "structurize",
+    "minecolonies"
+  ],
+  "version": "1",
+  "pack-format": "1"
+}
