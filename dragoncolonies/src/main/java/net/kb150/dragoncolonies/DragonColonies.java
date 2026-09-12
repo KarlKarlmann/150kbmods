@@ -5,6 +5,7 @@ import com.minecolonies.api.sounds.ModSoundEvents;
 import com.minecolonies.api.util.Tuple;
 import net.kb150.dragoncolonies.network.DragonColoniesNetwork;
 import net.kb150.dragoncolonies.registry.DragonColoniesRegistries;
+import net.kb150.dragoncolonies.export.DragonExportManager; 
 import net.minecraft.sounds.SoundEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -31,11 +32,17 @@ public class DragonColonies {
 
         MinecraftForge.EVENT_BUS.register(this);
     }
-
+	@net.minecraftforge.eventbus.api.SubscribeEvent
+    public void onServerTick(net.minecraftforge.event.TickEvent.ServerTickEvent event) {
+        if (event.phase == net.minecraftforge.event.TickEvent.Phase.END && event.getServer() != null) {
+            net.kb150.dragoncolonies.ai.DragonNavigationHandler.serverTick(event.getServer());
+        }
+    }
     private void setup(final FMLCommonSetupEvent event) {
         DragonColoniesNetwork.register(); 
 
         event.enqueueWork(() -> {
+			DragonExportManager.loadConfig();
             Map<EventType, List<Tuple<SoundEvent, SoundEvent>>> unemployedSounds = ModSoundEvents.CITIZEN_SOUND_EVENTS.get("unemployed");
 
             if (unemployedSounds != null) {

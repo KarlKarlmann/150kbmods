@@ -95,22 +95,25 @@ public class SurvivorRecruitScreen extends Screen {
         int startY = this.topPos + 140;
 
         switch (this.dialogState) {
-            case "main" -> {
-                addBtn(btnX, startY, btnW, Component.translatable("gui.survivorcolonies.btn.about"), b -> switchState("about"));
-                
-                addBtn(btnX, startY + 22, btnW, Component.translatable("gui.survivorcolonies.btn.trade"), b -> {
-                    Minecraft.getInstance().setScreen(new SurvivorTradeScreen(this.survivor, this));
-                });
+		case "main" -> {
+			// ÄNDERUNG: Leitet direkt zum separaten Dialog-Screen weiter
+			addBtn(btnX, startY, btnW, Component.translatable("gui.survivorcolonies.btn.about"), b -> {
+				Minecraft.getInstance().setScreen(new SurvivorDialogScreen(this.survivor, this));
+			});
+			
+			addBtn(btnX, startY + 22, btnW, Component.translatable("gui.survivorcolonies.btn.trade"), b -> {
+				Minecraft.getInstance().setScreen(new SurvivorTradeScreen(this.survivor, this));
+			});
 
-                addBtn(btnX, startY + 44, btnW, Component.translatable("gui.survivorcolonies.btn.skills"), b -> switchState("skills"));
+			addBtn(btnX, startY + 44, btnW, Component.translatable("gui.survivorcolonies.btn.skills"), b -> switchState("skills"));
 
-                if (survivor.getTrust() >= 70) {
-                    addBtn(btnX, startY + 66, btnW, Component.translatable("gui.survivorcolonies.btn.recruit"), b -> switchState("recruit_confirm"));
-                    addBtn(btnX, startY + 88, btnW, Component.translatable("gui.survivorcolonies.btn.goodbye"), b -> this.onClose());
-                } else {
-                    addBtn(btnX, startY + 66, btnW, Component.translatable("gui.survivorcolonies.btn.goodbye"), b -> this.onClose());
-                }
-            }
+			if (survivor.getTrust() >= 70) {
+				addBtn(btnX, startY + 66, btnW, Component.translatable("gui.survivorcolonies.btn.recruit"), b -> switchState("recruit_confirm"));
+				addBtn(btnX, startY + 88, btnW, Component.translatable("gui.survivorcolonies.btn.goodbye"), b -> this.onClose());
+			} else {
+				addBtn(btnX, startY + 66, btnW, Component.translatable("gui.survivorcolonies.btn.goodbye"), b -> this.onClose());
+			}
+		}
             case "about", "skills" -> {
                 addBtn(btnX, startY + 66, btnW, Component.translatable("gui.survivorcolonies.btn.back"), b -> switchState("main"));
             }

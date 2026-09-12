@@ -1,13 +1,17 @@
 package net.kb150.survivorcolonies;
 
 import com.mojang.logging.LogUtils;
+import net.kb150.survivorcolonies.data.DialogManager; // <-- NEU IMPORTIERT
 import net.kb150.survivorcolonies.data.SurvivorDataLoader;
 import net.kb150.survivorcolonies.entity.ModEntities;
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
 import net.kb150.survivorcolonies.network.ModMessages;
+import net.minecraft.world.entity.SpawnPlacements;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
+import net.minecraftforge.event.entity.SpawnPlacementRegisterEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -23,33 +27,42 @@ public class SurvivorColonies {
     public SurvivorColonies() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
-        // 1. Entity DeferredRegister am Mod-Event-Bus anmelden
         ModEntities.register(modEventBus);
 
-        // 2. Event-Listener für Lifecycle und Entity-Attribute
         modEventBus.addListener(this::commonSetup);
         modEventBus.addListener(this::registerEntityAttributes);
+        
+        // --- Listener für die Spawn-Regeln ---
+        modEventBus.addListener(this::registerSpawnPlacements);
 
-        // 3. Forge Event-Bus für Runtime-Events (ReloadListener etc.)
         MinecraftForge.EVENT_BUS.register(this);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
-            // Netzwerk-Kanal und Pakete registrieren
             ModMessages.register();
             LOGGER.info("Survivor Colonies erfolgreich geladen.");
         });
     }
 
     private void registerEntityAttributes(EntityAttributeCreationEvent event) {
-        // Verbindet die Attribute aus SurvivorEntity mit dem registrierten EntityType
         event.put(ModEntities.SURVIVOR.get(), SurvivorEntity.createAttributes().build());
+    }
+
+    private void registerSpawnPlacements(SpawnPlacementRegisterEvent event) {
+        event.register(
+            ModEntities.SURVIVOR.get(),
+            SpawnPlacements.Type.ON_GROUND,
+            Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+            SurvivorEntity::checkSurvivorSpawnRules,
+            SpawnPlacementRegisterEvent.Operation.OR
+        );
     }
 
     @SubscribeEvent
     public void onAddReloadListeners(AddReloadListenerEvent event) {
-        // Registriert den JSON-DataLoader für Ausrüstung, Namen, Pools & Kosten
         event.addListener(new SurvivorDataLoader());
+        // --- NEU: Lädt die dialog_logic.json zur Laufzeit ---
+        event.addListener(new DialogManager()); 
     }
 }

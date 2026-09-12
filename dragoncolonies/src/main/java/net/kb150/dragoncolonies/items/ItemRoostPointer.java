@@ -27,10 +27,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
- * Der Hort-Leitstab. 
- * Ein temporäres Werkzeug zum Rufen eines Drachens in die Obhut des Drachenhorts.
+ * Der Hort-Leitstab.
+ * Erlaubt das Einlagern von Drachen in den Drachenhort unter
+ * Beibehaltung oder Neuvergabe einer festen RoostDragonID.
  */
 public class ItemRoostPointer extends Item {
 
@@ -38,9 +40,6 @@ public class ItemRoostPointer extends Item {
         super(properties.stacksTo(1));
     }
 
-    /**
-     * Erstellt einen neuen Leitstab, der an einen konkreten Drachenhort gebunden ist.
-     */
     public static ItemStack createBoundPointer(BlockPos roostPos) {
         ItemStack stack = new ItemStack(net.kb150.dragoncolonies.registry.DragonColoniesRegistries.ROOST_POINTER.get());
         CompoundTag tag = stack.getOrCreateTag();
@@ -54,83 +53,82 @@ public class ItemRoostPointer extends Item {
 
         if (target instanceof DragonBase dragon) {
 
-            // Nur auf dem Server ausführen
             if (!level.isClientSide() && level instanceof ServerLevel serverLevel) {
 
-                // 1. NBT-Daten des Ziel-Horts auslesen
                 CompoundTag tag = stack.getTag();
                 if (tag == null || !tag.contains("RoostPos")) {
-                    player.sendSystemMessage(Component.literal("§c[DragonColonies] Dieser Leitstab ist an keinen Drachenhort gebunden!"));
+                    player.sendSystemMessage(Component.translatable("dragoncolonies.message.pointer.unbound"));
                     return InteractionResult.FAIL;
                 }
 
                 BlockPos roostPos = NbtUtils.readBlockPos(tag.getCompound("RoostPos"));
 
                 if (!dragon.isTame() || dragon.getOwnerUUID() == null || !dragon.getOwnerUUID().equals(player.getUUID())) {
-                    player.sendSystemMessage(Component.literal("§c[DragonColonies] Dieser Drache gehört dir nicht!"));
+                    player.sendSystemMessage(Component.translatable("dragoncolonies.message.pointer.not_owner"));
                     return InteractionResult.FAIL;
                 }
 
                 IColony colony = IMinecoloniesAPI.getInstance().getColonyManager().getColonyByPosFromWorld(serverLevel, roostPos);
                 if (colony == null) {
-                    player.sendSystemMessage(Component.literal("§c[DragonColonies] Der Drachenhort existiert nicht mehr!"));
+                    player.sendSystemMessage(Component.translatable("dragoncolonies.message.pointer.roost_missing"));
                     return InteractionResult.FAIL;
                 }
 
                 IBuilding building = colony.getServerBuildingManager().getBuilding(roostPos);
                 if (!(building instanceof BuildingDragonRoost roost)) {
-                    player.sendSystemMessage(Component.literal("§c[DragonColonies] Ungültiger Drachenhort!"));
+                    player.sendSystemMessage(Component.translatable("dragoncolonies.message.pointer.invalid_roost"));
                     return InteractionResult.FAIL;
                 }
 
                 DragonStorageModule storageModule = roost.getStorageModule();
-                
-                // Vor dem Speichern alle Passagiere absetzen
+                if (storageModule == null) return InteractionResult.FAIL;
+
                 dragon.ejectPassengers();
 
-                // Drachen-Daten vollständig serialisieren
                 CompoundTag dragonNbt = new CompoundTag();
                 dragon.saveWithoutId(dragonNbt);
 
-                // ZWINGEND: Entity-ID "id" mitspeichern, damit loadEntityRecursive die Klasse wiederfindet
                 ResourceLocation entityKey = ForgeRegistries.ENTITY_TYPES.getKey(dragon.getType());
                 if (entityKey != null) {
                     dragonNbt.putString("id", entityKey.toString());
                 }
 
-                // Rest-Passagierdaten entfernen
                 dragonNbt.remove("Passengers");
 
-                // Lesbaren Namen für das UI sichern
                 String dragonDisplayName = dragon.hasCustomName() ? dragon.getCustomName().getString() : dragon.getName().getString();
                 dragonNbt.putString("CustomName", dragonDisplayName);
 
-                boolean success = false;
+                // RoostDragonID ermitteln: Beibehalten, falls vorhanden, sonst neu anlegen
+                UUID roostDragonId;
+                if (dragon.getPersistentData().hasUUID("DragonColonies_RoostDragonID")) {
+                    roostDragonId = dragon.getPersistentData().getUUID("DragonColonies_RoostDragonID");
+                } else {
+                    roostDragonId = UUID.randomUUID();
+                }
 
-                // Prüfen, ob der Drache bereits im Hort registriert ist
-                if (storageModule.getDragonByUUID(dragon.getUUID()).isPresent()) {
-                    // Er ist "Auf Reisen" (oder aus einem Bug noch da), also updaten wir nur
-                    storageModule.updateDragonData(dragon.getUUID(), dragonNbt);
+                dragonNbt.putUUID(DragonStorageModule.TAG_ROOST_DRAGON_ID, roostDragonId);
+
+                boolean success;
+
+                if (storageModule.getDragonByRoostId(roostDragonId).isPresent()) {
+                    storageModule.updateDragonData(roostDragonId, dragonNbt);
                     success = true;
                 } else {
-                    // Er ist komplett neu für diesen Hort. Haben wir noch Platz?
                     if (!storageModule.canStoreMore()) {
-                        player.sendSystemMessage(Component.literal("§c[DragonColonies] Der Drachenhort ist voll! (Kapazität: " + storageModule.getCapacity() + ")"));
+                        player.sendSystemMessage(Component.translatable("dragoncolonies.message.pointer.roost_full", storageModule.getCapacity()));
                         return InteractionResult.FAIL;
                     }
-                    
-                    // Neu hinzufügen
                     success = storageModule.addDragon(dragonNbt);
                 }
 
                 if (success) {
-                    // Wenn der Drache auch noch das Failsafe-Tag für den Chunk-Unload hatte, 
-                    // löschen wir es sicherheitshalber aus der physischen Entität, bevor wir sie discarden.
                     dragon.getPersistentData().remove("DragonColonies_RoostPos");
-                    
-                    // Drache aus der Welt entfernen
+                    dragon.getPersistentData().remove("DragonColonies_RoostDragonID");
+                    dragon.getPersistentData().remove("DragonColonies_GuardDeployed");
+                    dragon.getPersistentData().remove("DragonColonies_GuardUUID");
+
                     dragon.discard();
-                    player.sendSystemMessage(Component.literal("§a[DragonColonies] " + dragonDisplayName + " wurde sicher im Drachenhort eingelagert!"));
+                    player.sendSystemMessage(Component.translatable("dragoncolonies.message.pointer.success", dragonDisplayName));
                     return InteractionResult.SUCCESS;
                 }
             }
@@ -142,10 +140,9 @@ public class ItemRoostPointer extends Item {
 
     @Override
     public boolean onDroppedByPlayer(ItemStack item, Player player) {
-        // Sobald der Spieler Q drückt oder den Stab wegwirft, löscht er sich im Flug
         item.setCount(0);
         if (player.level().isClientSide()) {
-            player.sendSystemMessage(Component.literal("§7[DragonColonies] Hort-Leitstab hat sich aufgelöst."));
+            player.sendSystemMessage(Component.translatable("dragoncolonies.message.pointer.destroyed"));
         } else {
             player.level().playSound(null, player.blockPosition(), SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 0.5F, 1.5F);
         }
@@ -154,14 +151,14 @@ public class ItemRoostPointer extends Item {
 
     @Override
     public void appendHoverText(@NotNull ItemStack stack, @Nullable Level level, @NotNull List<Component> tooltip, @NotNull TooltipFlag flag) {
-        tooltip.add(Component.literal("§7Klicke auf einen deiner Drachen, um ihn"));
-        tooltip.add(Component.literal("§7in die Obhut des Drachenhorts zu übergeben."));
-        tooltip.add(Component.literal("§8(Löscht sich beim Wegwerfen automatisch)"));
+        tooltip.add(Component.translatable("item.dragoncolonies.roost_pointer.tooltip.line1"));
+        tooltip.add(Component.translatable("item.dragoncolonies.roost_pointer.tooltip.line2"));
+        tooltip.add(Component.translatable("item.dragoncolonies.roost_pointer.tooltip.line3"));
 
         CompoundTag tag = stack.getTag();
         if (tag != null && tag.contains("RoostPos")) {
             BlockPos pos = NbtUtils.readBlockPos(tag.getCompound("RoostPos"));
-            tooltip.add(Component.literal("§eHort bei: §fX: " + pos.getX() + " Y: " + pos.getY() + " Z: " + pos.getZ()));
+            tooltip.add(Component.translatable("item.dragoncolonies.roost_pointer.tooltip.pos", pos.getX(), pos.getY(), pos.getZ()));
         }
     }
 }

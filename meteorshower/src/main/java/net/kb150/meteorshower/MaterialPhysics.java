@@ -7,66 +7,60 @@ import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Beschreibt die physikalischen Eigenschaften eines Blocks
- * für die Ejecta-Simulation eines Meteoriteneinschlags.
- *
- * Die Werte sind bewusst kontinuierlich und nicht an konkrete
- * Blocktypen gebunden.
+ * für die Ejecta-Simulation und das Deformationsverhalten
+ * bei einem Meteoriteneinschlag.
  */
 public final class MaterialPhysics {
 
     /**
-     * 0 = extrem leicht
-     * 1 = extrem schwer
+     * 0 = extrem leicht, 1 = extrem schwer
      */
     public final double mass;
 
     /**
-     * 0 = zerfällt sehr leicht
-     * 1 = sehr kohärentes Material
+     * 0 = zerfällt sehr leicht, 1 = sehr kohärentes Material
      */
     public final double cohesion;
 
     /**
-     * 0 = wenig Fragmentierung
-     * 1 = sehr starke Fragmentierung
+     * 0 = wenig Fragmentierung, 1 = sehr starke Fragmentierung
      */
     public final double fragmentation;
 
     /**
-     * 0 = bleibt fast vollständig am Krater
-     * 1 = kann weit ausgeworfen werden
+     * 0 = bleibt fast vollständig am Krater, 1 = kann weit ausgeworfen werden
      */
     public final double mobility;
 
     /**
-     * 0 = kaum seitliche Streuung
-     * 1 = starke seitliche Streuung
+     * 0 = kaum seitliche Streuung, 1 = starke seitliche Streuung
      */
     public final double lateralSpread;
 
     /**
-     * Normierte Härte.
+     * Normierte Härte (0.0 bis 1.0).
      */
     public final double hardness;
 
     /**
-     * Ob Minecraft den Block als Spitzhacken-Material klassifiziert.
+     * 1.0 = vollwertige, tragfähige Blockfläche, 0.0 = keine
+     * belastbare Oberfläche für das Meteor-Settlement.
+     *
+     * Die Information wird aus der tatsächlichen Minecraft-Kollisionsform
+     * des BlockStates abgeleitet und kennt deshalb keine einzelnen
+     * Blocktypen wie Schnee, Blätter oder Mod-Blöcke.
      */
+    public final double supportStrength;
+
+    /** True, wenn der Block überhaupt eine feste Kollisionsstruktur besitzt. */
+    public final boolean hasSolidCollision;
+
+    /** True, wenn die Kollisionsform den kompletten Block ausfüllt. */
+    public final boolean fullCollision;
+
     public final boolean pickaxe;
-
-    /**
-     * Ob Minecraft den Block als Schaufel-Material klassifiziert.
-     */
     public final boolean shovel;
-
-    /**
-     * Ob Minecraft den Block als Axt-Material klassifiziert.
-     */
     public final boolean axe;
-
-    /**
-     * Ob Minecraft den Block als Hacken-Material klassifiziert.
-     */
     public final boolean hoe;
 
     private MaterialPhysics(
@@ -76,6 +70,9 @@ public final class MaterialPhysics {
             double mobility,
             double lateralSpread,
             double hardness,
+            double supportStrength,
+            boolean hasSolidCollision,
+            boolean fullCollision,
             boolean pickaxe,
             boolean shovel,
             boolean axe,
@@ -87,6 +84,9 @@ public final class MaterialPhysics {
         this.mobility = mobility;
         this.lateralSpread = lateralSpread;
         this.hardness = hardness;
+        this.supportStrength = supportStrength;
+        this.hasSolidCollision = hasSolidCollision;
+        this.fullCollision = fullCollision;
         this.pickaxe = pickaxe;
         this.shovel = shovel;
         this.axe = axe;
@@ -94,8 +94,7 @@ public final class MaterialPhysics {
     }
 
     /**
-     * Analysiert einen Block ausschließlich anhand seiner
-     * Minecraft-Eigenschaften.
+     * Analysiert einen Block anhand seiner Spieleigenschaften.
      */
     public static MaterialPhysics analyze(
             ServerLevel level,
@@ -103,6 +102,14 @@ public final class MaterialPhysics {
             BlockState state
     ) {
         double rawHardness = state.getDestroySpeed(level, pos);
+
+        boolean hasSolidCollision =
+                state.getFluidState().isEmpty() && !state.isAir() && state.blocksMotion();
+
+        boolean fullCollision =
+                hasSolidCollision && state.isCollisionShapeFullBlock(level, pos);
+
+        double supportStrength = fullCollision ? 1.0 : 0.0;
 
         if (rawHardness < 0.0) {
             return new MaterialPhysics(
@@ -112,6 +119,9 @@ public final class MaterialPhysics {
                     0.0,
                     0.0,
                     1.0,
+                    supportStrength,
+                    hasSolidCollision,
+                    fullCollision,
                     false,
                     false,
                     false,
@@ -119,14 +129,6 @@ public final class MaterialPhysics {
             );
         }
 
-        /*
-         * Minecraft-Härte ist nicht physikalisch identisch mit Dichte.
-         * Sie ist aber ein sehr brauchbarer Indikator dafür, wie viel
-         * Energie notwendig ist, um Material aus dem Boden zu lösen.
-         *
-         * Logarithmische Normalisierung verhindert, dass extrem harte
-         * Blöcke alles dominieren.
-         */
         double hardness = normalizeHardness(rawHardness);
 
         boolean pickaxe = state.is(BlockTags.MINEABLE_WITH_PICKAXE);
@@ -134,21 +136,6 @@ public final class MaterialPhysics {
         boolean axe = state.is(BlockTags.MINEABLE_WITH_AXE);
         boolean hoe = state.is(BlockTags.MINEABLE_WITH_HOE);
 
-        /*
-         * Werkzeugtyp beeinflusst die angenommene Materialstruktur.
-         *
-         * Schaufel:
-         *   eher loses / granuläres Material
-         *
-         * Spitzhacke:
-         *   eher kompaktes mineralisches Material
-         *
-         * Axt:
-         *   eher faseriges organisches Material
-         *
-         * Hacke:
-         *   eher Pflanzen / weiches organisches Material
-         */
         double cohesion = 0.25 + hardness * 0.65;
         double fragmentation = 0.70 - hardness * 0.45;
         double mobility = 0.65 - hardness * 0.25;
@@ -187,14 +174,6 @@ public final class MaterialPhysics {
         mobility = clamp01(mobility);
         lateralSpread = clamp01(lateralSpread);
 
-        /*
-         * "Mass" ist absichtlich nicht einfach hardness.
-         *
-         * Ein harter Block soll nicht automatisch physikalisch schwer
-         * sein. Für die Ejecta-Simulation brauchen wir hier vielmehr
-         * eine Näherung dafür, wie stark er sich unter Impaktenergie
-         * bewegt.
-         */
         double mass = 0.25
                 + hardness * 0.55
                 + (pickaxe ? 0.12 : 0.0)
@@ -209,6 +188,9 @@ public final class MaterialPhysics {
                 mobility,
                 lateralSpread,
                 hardness,
+                supportStrength,
+                hasSolidCollision,
+                fullCollision,
                 pickaxe,
                 shovel,
                 axe,
@@ -220,11 +202,6 @@ public final class MaterialPhysics {
         if (hardness <= 0.0) {
             return 0.0;
         }
-
-        /*
-         * 1.0 wird bereits bei relativ moderaten Härten erreicht,
-         * ohne dass normale Minecraft-Blöcke alle bei ~0 landen.
-         */
         return clamp01(Math.log1p(hardness) / Math.log1p(50.0));
     }
 

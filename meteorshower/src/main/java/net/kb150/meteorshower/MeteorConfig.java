@@ -18,7 +18,7 @@ public class MeteorConfig {
     
     public static double METEORS_PER_100_CHUNKS = 2.0; 
     public static int MIN_METEORS = 5;
-    public static int MAX_METEORS = 1000;
+    public static int MAX_METEORS = 100;
 
     // Wie oft spawnt der exklusive Mittelblock (z.B. in jedem 5. Meteor)
     public static int RARE_BLOCK_INTERVAL = 5; 
@@ -30,13 +30,16 @@ public class MeteorConfig {
     // Pool für das exklusive Zentrum (Gewichtung steuert die Chance)
     public static final List<RareReward> RARE_CORE_REWARDS = List.of(
         // Wertvoller Hauptblock mit hohem Gewicht (z. B. Gewicht 20)
-        new RareReward(RewardType.BLOCK, "stones:stone", null, 20),
+        new RareReward(RewardType.BLOCK, "stones:runestone", null, 20),
 
         // Dracheneier mit jeweils Gewicht 1 (8 Eier = Gesamtwahrscheinlichkeit 8)
         new RareReward(RewardType.ENTITY, "bookofdragons:dragon_egg", "{DragonType:\"hideous_zippleback\",RequiredActivationTime:1200,TotalHatchTime:2400,CurrentHatchTime:2400}", 1),
         new RareReward(RewardType.ENTITY, "bookofdragons:dragon_egg", "{DragonType:\"monstrous_nightmare\",RequiredActivationTime:1200,TotalHatchTime:2400,CurrentHatchTime:2400}", 1),
         new RareReward(RewardType.ENTITY, "bookofdragons:dragon_egg", "{DragonType:\"deadly_nadder\",RequiredActivationTime:1200,TotalHatchTime:2400,CurrentHatchTime:2400}", 1),
-        new RareReward(RewardType.ENTITY, "bookofdragons:dragon_egg", "{DragonType:\"gronckle\",RequiredActivationTime:1200,TotalHatchTime:2400,CurrentHatchTime:2400}", 1)
+        new RareReward(RewardType.ENTITY, "bookofdragons:dragon_egg", "{DragonType:\"gronckle\",RequiredActivationTime:1200,TotalHatchTime:2400,CurrentHatchTime:2400}", 1),
+        new RareReward(RewardType.ENTITY, "bookofdragons:dragon_egg", "{DragonType:\"nightfury\",RequiredActivationTime:1200,TotalHatchTime:2400,CurrentHatchTime:2400}", 1),
+        new RareReward(RewardType.ENTITY, "bookofdragons:dragon_egg", "{DragonType:\"skrill\",RequiredActivationTime:1200,TotalHatchTime:2400,CurrentHatchTime:2400}", 1),
+        new RareReward(RewardType.ENTITY, "bookofdragons:dragon_egg", "{DragonType:\"whispering_death\",RequiredActivationTime:1200,TotalHatchTime:2400,CurrentHatchTime:2400}", 1)
     );
 
     public static final List<String> CORE_BLOCKS = List.of(

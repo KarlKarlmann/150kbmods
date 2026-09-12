@@ -86,7 +86,7 @@ public abstract class DragonBaseGoalMixin {
                     cir.setReturnValue(canContinue);
                     return;
                 }
-                
+                System.out.println("[DRAGON-DEBUG] Blockiertes Goal während des Reitens: " + goalName);
                 cir.setReturnValue(false);
             }
         }

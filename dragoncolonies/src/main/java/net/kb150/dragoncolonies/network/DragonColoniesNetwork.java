@@ -5,6 +5,10 @@ import net.kb150.dragoncolonies.network.message.RequestRoostPointerMessage;
 import net.kb150.dragoncolonies.network.message.RetrieveDragonMessage;
 import net.kb150.dragoncolonies.network.message.ReleaseDragonMessage;
 import net.kb150.dragoncolonies.network.message.EmergencyRecallMessage;
+import net.kb150.dragoncolonies.network.message.RequestExportOffersMessage;
+import net.kb150.dragoncolonies.network.message.OpenExportWindowMessage;
+import net.kb150.dragoncolonies.network.message.AcceptExportOfferMessage;
+import net.kb150.dragoncolonies.network.message.ToggleBreedingStatusMessage; // <-- NEU
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
@@ -25,7 +29,6 @@ public class DragonColoniesNetwork {
     private static int packetId = 0;
 
     public static void register() {
-        // Paket 1: Anforderung des Hort-Leitstabs vom Client an den Server
         CHANNEL.registerMessage(
                 packetId++,
                 RequestRoostPointerMessage.class,
@@ -34,7 +37,6 @@ public class DragonColoniesNetwork {
                 RequestRoostPointerMessage::handle
         );
 
-        // Paket 2: Drachen aus dem NBT-Speicher in die Welt holen
         CHANNEL.registerMessage(
                 packetId++,
                 RetrieveDragonMessage.class,
@@ -43,7 +45,6 @@ public class DragonColoniesNetwork {
                 RetrieveDragonMessage::handle
         );
 
-        // Paket 3: Drachen endgültig aus dem Speicher freilassen
         CHANNEL.registerMessage(
                 packetId++,
                 ReleaseDragonMessage.class,
@@ -52,7 +53,6 @@ public class DragonColoniesNetwork {
                 ReleaseDragonMessage::handle
         );
         
-        // Paket 4: Notfall-Rückruf (Setzt Deployed Status auf false)
         CHANNEL.registerMessage(
                 packetId++,
                 EmergencyRecallMessage.class,
@@ -61,6 +61,39 @@ public class DragonColoniesNetwork {
                 EmergencyRecallMessage::handle
         );
         
+        CHANNEL.registerMessage(
+                packetId++,
+                RequestExportOffersMessage.class,
+                RequestExportOffersMessage::encode,
+                RequestExportOffersMessage::decode,
+                RequestExportOffersMessage::handle
+        );
+
+        CHANNEL.registerMessage(
+                packetId++,
+                OpenExportWindowMessage.class,
+                OpenExportWindowMessage::encode,
+                OpenExportWindowMessage::decode,
+                OpenExportWindowMessage::handle
+        );
+
+        CHANNEL.registerMessage(
+                packetId++,
+                AcceptExportOfferMessage.class,
+                AcceptExportOfferMessage::encode,
+                AcceptExportOfferMessage::decode,
+                AcceptExportOfferMessage::handle
+        );
+
+        // Paket 8: Zucht Status Umschalter
+        CHANNEL.registerMessage(
+                packetId++,
+                ToggleBreedingStatusMessage.class,
+                ToggleBreedingStatusMessage::encode,
+                ToggleBreedingStatusMessage::decode,
+                ToggleBreedingStatusMessage::handle
+        );
+
         DragonColonies.LOGGER.info("DragonColonies: Netzwerk-Kanal registriert. Pakete für Drachenhort sind bereit.");
     }
 }

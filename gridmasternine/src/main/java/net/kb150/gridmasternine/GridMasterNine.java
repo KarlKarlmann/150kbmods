@@ -11,26 +11,29 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Mod("gridmasternine")
 @Mod.EventBusSubscriber
@@ -44,67 +47,90 @@ public class GridMasterNine {
     
     private static final int GRID_SPACING = 16;
     private static final int SIZE_X = 8;
-    private static final int SIZE_Y = 6;     // Raum- und Deckenhöhe im Grid (Y=0 bis Y=5)
-    private static final int SAVE_HEIGHT = 5; // Exportiert NUR Y=0 bis Y=4 (Decke auf Y=5 wird ignoriert!)
+    private static final int SIZE_Y = 6;     
+    private static final int SAVE_HEIGHT = 5; 
     private static final int SIZE_Z = 8;
 
-    private static final Block[] LEVEL_BLOCKS = {
-        Blocks.IRON_BLOCK,
-        Blocks.GOLD_BLOCK,
-        Blocks.EMERALD_BLOCK,
-        Blocks.DIAMOND_BLOCK,
-        Blocks.NETHERITE_BLOCK
-    };
-
-    private static final Map<String, String> BUILDING_CATEGORIES = Map.ofEntries(
-        Map.entry("baker", "craftsmanship/luxury"),
-        Map.entry("blacksmith", "craftsmanship/metallurgy"),
-        Map.entry("builder", "fundamentals"),
-        Map.entry("residence", "fundamentals"),
-        Map.entry("deliveryman", "craftsmanship/storage"),
-        Map.entry("farmer", "agriculture/horticulture"),
-        Map.entry("fisherman", "agriculture/husbandry"),
-        Map.entry("guardtower", "military"),
-        Map.entry("lumberjack", "fundamentals"),
-        Map.entry("miner", "fundamentals"),
-        Map.entry("stonemason", "craftsmanship/masonry"),
-        Map.entry("townhall", "fundamentals"),
-        Map.entry("warehouse", "craftsmanship/storage"),
-        Map.entry("shepherd", "agriculture/husbandry"),
-        Map.entry("cowboy", "agriculture/husbandry"),
-        Map.entry("swineherder", "agriculture/husbandry"),
-        Map.entry("chickenherder", "agriculture/husbandry"),
-        Map.entry("cook", "fundamentals"),
-        Map.entry("kitchen", "fundamentals"),
-        Map.entry("smeltery", "craftsmanship/metallurgy"),
-        Map.entry("composter", "agriculture/horticulture"),
-        Map.entry("library", "education"),
-        Map.entry("archery", "military"),
-        Map.entry("combatacademy", "military"),
-        Map.entry("sawmill", "craftsmanship/carpentry"),
-        Map.entry("stonesmeltery", "craftsmanship/masonry"),
-        Map.entry("crusher", "craftsmanship/masonry"),
-        Map.entry("sifter", "craftsmanship/masonry"),
-        Map.entry("florist", "agriculture/horticulture"),
-        Map.entry("enchanter", "craftsmanship/luxury"),
-        Map.entry("university", "education"),
-        Map.entry("hospital", "fundamentals"),
-        Map.entry("school", "education"),
-        Map.entry("glassblower", "craftsmanship/luxury"),
-        Map.entry("dyer", "craftsmanship/luxury"),
-        Map.entry("fletcher", "craftsmanship/carpentry"),
-        Map.entry("mechanic", "craftsmanship/metallurgy"),
-        Map.entry("tavern", "fundamentals"),
-        Map.entry("plantation", "agriculture/horticulture"),
-        Map.entry("plantationfield", "agriculture/horticulture"),
-        Map.entry("rabbithutch", "agriculture/husbandry"),
-        Map.entry("concretemixer", "craftsmanship/luxury"),
-        Map.entry("beekeeper", "agriculture/husbandry"),
-        Map.entry("mysticalsite", "mystic"),
-        Map.entry("netherworker", "mystic")
+    private static final List<String> DO_LAMPS = List.of(
+        "domum_ornamentum:vertical_light",
+        "domum_ornamentum:crossed_light",
+        "domum_ornamentum:framed_light",
+        "domum_ornamentum:horizontal_light",
+        "domum_ornamentum:fancy_light",
+        "domum_ornamentum:four_light",
+        "domum_ornamentum:center_light"
     );
 
-    private static final List<String> BUILDINGS = List.copyOf(BUILDING_CATEGORIES.keySet());
+    private static final List<String> LIGHT_SOURCES = List.of(
+        "minecraft:sea_lantern",
+        "minecraft:glowstone",
+        "minecraft:ochre_froglight",
+        "minecraft:pearlescent_froglight",
+        "minecraft:verdant_froglight"
+    );
+
+    private static final Map<Integer, List<String>> LEVEL_MATERIAL_POOLS = Map.of(
+        1, List.of("minecraft:iron_block", "minecraft:copper_block", "minecraft:coal_block", "minecraft:bone_block"),
+        2, List.of("minecraft:gold_block", "minecraft:redstone_block", "minecraft:stripped_dark_oak_wood", "minecraft:raw_iron_block"),
+        3, List.of("minecraft:emerald_block", "minecraft:lapis_block", "minecraft:raw_gold_block", "minecraft:amethyst_block"),
+        4, List.of("minecraft:diamond_block", "minecraft:obsidian", "minecraft:crying_obsidian", "minecraft:purpur_block"),
+        5, List.of("minecraft:netherite_block", "minecraft:gilded_blackstone")
+    );
+
+    // Strikt deterministische LinkedHashMap (Gleiche Reihenfolge wie in Python)
+    private static final Map<String, String> BUILDING_CATEGORIES;
+    private static final List<String> BUILDINGS;
+
+    static {
+        Map<String, String> map = new LinkedHashMap<>();
+        map.put("baker", "craftsmanship/luxury");
+        map.put("blacksmith", "craftsmanship/metallurgy");
+        map.put("builder", "fundamentals");
+        map.put("residence", "fundamentals");
+        map.put("deliveryman", "craftsmanship/storage");
+        map.put("farmer", "agriculture/horticulture");
+        map.put("fisherman", "agriculture/husbandry");
+        map.put("guardtower", "military");
+        map.put("lumberjack", "fundamentals");
+        map.put("stonemason", "craftsmanship/masonry");
+        map.put("townhall", "fundamentals");
+        map.put("warehouse", "craftsmanship/storage");
+        map.put("shepherd", "agriculture/husbandry");
+        map.put("cowboy", "agriculture/husbandry");
+        map.put("swineherder", "agriculture/husbandry");
+        map.put("chickenherder", "agriculture/husbandry");
+        map.put("cook", "fundamentals");
+        map.put("kitchen", "fundamentals");
+        map.put("smeltery", "craftsmanship/metallurgy");
+        map.put("composter", "agriculture/horticulture");
+        map.put("library", "education");
+        map.put("archery", "military");
+        map.put("combatacademy", "military");
+        map.put("sawmill", "craftsmanship/carpentry");
+        map.put("stonesmeltery", "craftsmanship/masonry");
+        map.put("crusher", "craftsmanship/masonry");
+        map.put("sifter", "craftsmanship/masonry");
+        map.put("florist", "agriculture/horticulture");
+        map.put("enchanter", "craftsmanship/luxury");
+        map.put("university", "education");
+        map.put("hospital", "fundamentals");
+        map.put("school", "education");
+        map.put("glassblower", "craftsmanship/luxury");
+        map.put("dyer", "craftsmanship/luxury");
+        map.put("fletcher", "craftsmanship/carpentry");
+        map.put("mechanic", "craftsmanship/metallurgy");
+        map.put("tavern", "fundamentals");
+        map.put("plantation", "agriculture/horticulture");
+        map.put("plantationfield", "agriculture/horticulture");
+        map.put("rabbithutch", "agriculture/husbandry");
+        map.put("concretemixer", "craftsmanship/luxury");
+        map.put("beekeeper", "agriculture/husbandry");
+        map.put("mysticalsite", "mystic");
+        map.put("netherworker", "mystic");
+
+        BUILDING_CATEGORIES = Collections.unmodifiableMap(map);
+        BUILDINGS = List.copyOf(map.keySet());
+    }
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
@@ -113,7 +139,8 @@ public class GridMasterNine {
                 .then(Commands.literal("loadgrid").executes(GridMasterNine::loadGrid))
                 .then(Commands.literal("savegrid").executes(GridMasterNine::saveGrid))
                 .then(Commands.literal("removegrid").executes(GridMasterNine::removeGrid))
-                
+                .then(Commands.literal("whereami").executes(GridMasterNine::whereAmI))
+                .then(Commands.literal("pos").executes(GridMasterNine::whereAmI))
                 .then(Commands.literal("copyroom")
                         .then(Commands.argument("roomtype", StringArgumentType.word())
                                 .suggests((ctx, builder) -> {
@@ -128,7 +155,8 @@ public class GridMasterNine {
                                                 .executes(ctx -> executeCopyRoom(ctx, 
                                                         StringArgumentType.getString(ctx, "roomtype"),
                                                         IntegerArgumentType.getInteger(ctx, "fromLvl"), 
-                                                        IntegerArgumentType.getInteger(ctx, "toStartLvl"), 5))
+                                                        IntegerArgumentType.getInteger(ctx, "toStartLvl"), 
+                                                        IntegerArgumentType.getInteger(ctx, "toStartLvl")))
                                                 .then(Commands.argument("toEndLvl", IntegerArgumentType.integer(1, 5))
                                                         .executes(ctx -> executeCopyRoom(ctx, 
                                                                 StringArgumentType.getString(ctx, "roomtype"),
@@ -140,6 +168,51 @@ public class GridMasterNine {
                         )
                 )
         );
+    }
+
+    private static int whereAmI(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        Vec3 pos = source.getPosition();
+
+        int px = (int) Math.floor(pos.x);
+        int py = (int) Math.floor(pos.y);
+        int pz = (int) Math.floor(pos.z);
+
+        int relX = px - START_POS.getX();
+        int relY = py - START_POS.getY();
+        int relZ = pz - START_POS.getZ();
+
+        int bIndex = (relX >= 0) ? (relX / GRID_SPACING) : -1;
+        int modX = (relX >= 0) ? (relX % GRID_SPACING) : -1;
+
+        int lvlIndex = (relZ >= 0) ? (relZ / GRID_SPACING) : -1;
+        int modZ = (relZ >= 0) ? (relZ % GRID_SPACING) : -1;
+        int lvl = lvlIndex + 1;
+
+        if (bIndex >= 0 && bIndex < BUILDINGS.size() && lvl >= 1 && lvl <= 5) {
+            String buildingName = BUILDINGS.get(bIndex);
+            boolean inX = modX >= 0 && modX < SIZE_X;
+            boolean inZ = modZ >= 0 && modZ < SIZE_Z;
+            boolean inY = relY >= 0 && relY < SIZE_Y;
+
+            if (inX && inY && inZ) {
+                source.sendSuccess(() -> Component.literal(
+                    String.format("📍 Raum: §a%s§r (Index %d) | §eLevel %d§r [Relativ: X=%d, Y=%d, Z=%d]",
+                        buildingName, bIndex, lvl, modX, relY, modZ)
+                ), false);
+            } else {
+                source.sendSuccess(() -> Component.literal(
+                    String.format("⚠️ Zwischenraum nahe §a%s§r (Index %d), Level %d.",
+                        buildingName, bIndex, lvl)
+                ), false);
+            }
+            return 1;
+        }
+
+        source.sendSuccess(() -> Component.literal(
+            String.format("❌ Außerhalb des Grids! (Welt-Pos: X=%d, Y=%d, Z=%d)", px, py, pz)
+        ), false);
+        return 1;
     }
 
     private static int executeCopyRoom(CommandContext<CommandSourceStack> context, String roomType, int fromLvl, int toStartLvl, int toEndLvl) {
@@ -155,19 +228,35 @@ public class GridMasterNine {
         int targetStart = (toStartLvl == -1) ? (fromLvl + 1) : toStartLvl;
         int targetEnd = Math.min(5, Math.max(targetStart, toEndLvl));
 
-        if (targetStart > 5 || (fromLvl == targetStart && fromLvl == targetEnd)) {
+        if (targetStart > 5 || fromLvl < 1 || fromLvl > 5) {
             source.sendFailure(Component.literal("Ungültiger Level-Bereich zum Kopieren."));
             return 0;
         }
 
         String buildingName = BUILDINGS.get(bIndex);
         BlockPos srcPos = START_POS.offset(bIndex * GRID_SPACING, 0, (fromLvl - 1) * GRID_SPACING);
+
+        // Erzwingt das Laden des Quell-Chunks
+        level.getChunk(srcPos);
+
+        // Sicherheitsprüfung: Ist der Quellraum geladen und nicht leer?
+        if (level.getBlockState(srcPos.offset(0, 1, 0)).isAir() && level.getBlockState(srcPos.offset(0, 0, 0)).isAir()) {
+            source.sendFailure(Component.literal("Quellraum '" + buildingName + "' (Level " + fromLvl + ") scheint leer zu sein! Bitte erst '/arnis loadgrid' ausführen."));
+            return 0;
+        }
+
         int copiedCount = 0;
+
+        // Flag 18 (UPDATE_CLIENTS = 2 | UPDATE_KNOWN_SHAPE = 16): Synchronisiert mit Clients, unterdrückt aber Betten-Zerstörung
+        int copyFlags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
 
         for (int tLvl = targetStart; tLvl <= targetEnd; tLvl++) {
             if (tLvl == fromLvl) continue;
 
             BlockPos dstPos = START_POS.offset(bIndex * GRID_SPACING, 0, (tLvl - 1) * GRID_SPACING);
+
+            // Erzwingt das Laden des Ziel-Chunks
+            level.getChunk(dstPos);
 
             for (int x = 0; x < SIZE_X; x++) {
                 for (int y = 0; y < SIZE_Y; y++) {
@@ -176,24 +265,30 @@ public class GridMasterNine {
                         BlockPos dBlockPos = dstPos.offset(x, y, z);
 
                         BlockState state = level.getBlockState(sBlockPos);
-                        BlockEntity be = level.getBlockEntity(sBlockPos);
+                        BlockEntity srcBe = level.getBlockEntity(sBlockPos);
 
-                        level.setBlock(dBlockPos, state, 3);
+                        level.setBlock(dBlockPos, state, copyFlags);
 
-                        if (be != null) {
-                            CompoundTag nbt = be.saveWithFullMetadata();
+                        if (srcBe != null) {
+                            CompoundTag nbt = srcBe.saveWithFullMetadata();
+                            nbt.putInt("x", dBlockPos.getX());
+                            nbt.putInt("y", dBlockPos.getY());
+                            nbt.putInt("z", dBlockPos.getZ());
+
                             BlockEntity targetBe = level.getBlockEntity(dBlockPos);
                             if (targetBe != null) {
                                 targetBe.load(nbt);
                                 targetBe.setChanged();
                             }
                         }
+
+                        level.sendBlockUpdated(dBlockPos, Blocks.AIR.defaultBlockState(), state, 3);
                     }
                 }
             }
 
-            BlockPos levelBlockPos = dstPos.offset(6, 1, 6);
-            level.setBlock(levelBlockPos, LEVEL_BLOCKS[tLvl - 1].defaultBlockState(), 3);
+            setDOLamp(level, dstPos.offset(2, 4, 2), bIndex, tLvl);
+            setDOLamp(level, dstPos.offset(5, 4, 5), bIndex, tLvl);
 
             copiedCount++;
         }
@@ -207,6 +302,45 @@ public class GridMasterNine {
         ), true);
 
         return 1;
+    }
+
+    private static void setDOLamp(ServerLevel level, BlockPos pos, int bIndex, int targetLevel) {
+        List<String> materials = LEVEL_MATERIAL_POOLS.get(targetLevel);
+        
+        List<String[]> combinations = new ArrayList<>();
+        for (String mat : materials) {
+            for (String light : LIGHT_SOURCES) {
+                for (String lamp : DO_LAMPS) {
+                    combinations.add(new String[]{lamp, light, mat});
+                }
+            }
+        }
+        
+        Collections.shuffle(combinations, new Random(1337 + targetLevel));
+        
+        String[] config = combinations.get(bIndex % combinations.size());
+        String lampId = config[0];
+        String lightSource = config[1];
+        String selectedMaterial = config[2];
+
+        Block doBlock = ForgeRegistries.BLOCKS.getValue(new ResourceLocation(lampId));
+        if (doBlock == null) return;
+
+        BlockState state = doBlock.defaultBlockState();
+        level.setBlock(pos, state, 3);
+
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be != null) {
+            CompoundTag nbt = be.saveWithFullMetadata();
+            CompoundTag textureData = new CompoundTag();
+            textureData.putString("minecraft:block/glowstone", lightSource);
+            textureData.putString("minecraft:block/oak_planks", selectedMaterial);
+            nbt.put("textureData", textureData);
+            
+            be.load(nbt);
+            be.setChanged();
+            level.sendBlockUpdated(pos, state, state, 3);
+        }
     }
 
     private static int loadGrid(CommandContext<CommandSourceStack> context) {
@@ -264,11 +398,32 @@ public class GridMasterNine {
             for (int lvl = 1; lvl <= 5; lvl++) {
                 BlockPos savePos = START_POS.offset(bIndex * GRID_SPACING, 0, (lvl - 1) * GRID_SPACING);
                 BlockPos hutBlockPos = savePos.offset(0, 1, 0);
-
                 String schematicName = building + lvl;
 
-                // --- DYNAMISCHER STRUCTURE_VOID TRICK ---
-                // 1. Alle AIR-Blöcke im Export-Bereich sammeln & temporär auf STRUCTURE_VOID setzen
+                // 1. CLEANSING
+                AABB moduleBox = new AABB(savePos, savePos.offset(SIZE_X, SIZE_Y, SIZE_Z));
+                List<ItemEntity> droppedItems = level.getEntitiesOfClass(ItemEntity.class, moduleBox);
+                droppedItems.forEach(Entity::discard);
+
+                // 2. NBT-EXPORT
+                try {
+                    StructureTemplate fullTemplate = new StructureTemplate();
+                    fullTemplate.fillFromWorld(level, savePos, new BlockPos(SIZE_X, SIZE_Y, SIZE_Z), false, Blocks.STRUCTURE_VOID);
+                    CompoundTag fullNbtTag = fullTemplate.save(new CompoundTag());
+
+                    File nbtDir = new File(LOAD_DIR + "/" + building);
+                    if (!nbtDir.exists()) nbtDir.mkdirs();
+
+                    File nbtFile = new File(nbtDir, schematicName + ".nbt");
+                    try (FileOutputStream fos = new FileOutputStream(nbtFile)) {
+                        NbtIo.writeCompressed(fullNbtTag, fos);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Fehler beim Speichern des NBTs: " + schematicName);
+                    e.printStackTrace();
+                }
+
+                // 3. BLUEPRINT-EXPORT
                 List<BlockPos> tempVoids = new ArrayList<>();
                 BlockPos saveEnd = savePos.offset(SIZE_X - 1, SAVE_HEIGHT - 1, SIZE_Z - 1);
 
@@ -279,7 +434,6 @@ public class GridMasterNine {
                     }
                 }
 
-                // 2. Structurize-Blueprint erstellen (erfasst jetzt STRUCTURE_VOID statt AIR)
                 Blueprint blueprint = BlueprintUtil.createBlueprint(
                         level,
                         savePos,
@@ -291,7 +445,6 @@ public class GridMasterNine {
                         Optional.of(hutBlockPos)
                 );
 
-                // 3. Sofort wieder alle Blöcke in der Spielwelt auf AIR zurücksetzen
                 for (BlockPos p : tempVoids) {
                     level.setBlock(p, Blocks.AIR.defaultBlockState(), 2);
                 }
@@ -314,7 +467,7 @@ public class GridMasterNine {
         }
 
         final int finalCount = count;
-        source.sendSuccess(() -> Component.literal("BuildingPack-Export abgeschlossen! " + finalCount + " Dateien inkl. Assets gespeichert."), true);
+        source.sendSuccess(() -> Component.literal("Cleaned & Exported! " + finalCount + " NBTs + Blueprints gesichert."), true);
         return 1;
     }
 

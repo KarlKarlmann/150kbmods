@@ -4,6 +4,7 @@ import com.minecolonies.api.IMinecoloniesAPI;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import net.kb150.dragoncolonies.buildings.BuildingDragonRoost;
+import net.kb150.dragoncolonies.buildings.modules.DragonStorageModule;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
@@ -18,9 +19,12 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
- * Nachricht vom Client an den Server, um einen Drachen aus dem NBT-Speicher des Hortes physisch in die Welt zu spawnen.
+ * Netzwerkpaket zum Entnehmen eines Drachens aus dem Hort in die Spielwelt.
+ * Erzeugt eine frische Entity-UUID, während die unveränderliche RoostDragonID
+ * als Anker im Storage hinterlegt bleibt.
  */
 public class RetrieveDragonMessage {
+
     private final BlockPos roostPos;
     private final UUID dragonId;
 
@@ -42,54 +46,62 @@ public class RetrieveDragonMessage {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
             ServerPlayer player = context.getSender();
-            if (player != null) {
-                ServerLevel level = player.serverLevel();
-                
-                IColony colony = IMinecoloniesAPI.getInstance().getColonyManager().getColonyByPosFromWorld(level, message.roostPos);
-                if (colony != null) {
-                    IBuilding building = colony.getServerBuildingManager().getBuilding(message.roostPos);
-                    
-                    if (building instanceof BuildingDragonRoost roost) {
-                        // 1. Lese NBT-Daten aus dem Speichermodul
-                        Optional<CompoundTag> optDragonTag;
-                        
-                        // TEST-MODUS: Wenn die UUID 0-0-0-0 ist, holen wir einfach den ersten Drachen aus der Liste, der nicht auf Reisen ist
-                        if (message.dragonId.equals(new UUID(0, 0))) {
-                            optDragonTag = roost.getStorageModule().getAllDragons().stream().filter(t -> !t.getBoolean("Deployed")).findFirst();
-                        } else {
-                            optDragonTag = roost.getStorageModule().getDragonByUUID(message.dragonId);
-                        }
-                        
-                        if (optDragonTag.isPresent()) {
-                            CompoundTag dragonTag = optDragonTag.get();
-                            
-                            // ZWINGEND: Neue UUID generieren, falls eine Vanilla-Geisterentität den Spawn blockiert
-                            UUID newUuid = UUID.randomUUID();
-                            dragonTag.putUUID("UUID", newUuid);
-                            roost.getStorageModule().markDirty();
+            if (player == null) return;
 
-                            // Sicherstellen, dass "id" vorhanden ist
-                            if (!dragonTag.contains("id") && dragonTag.contains("DragonType")) {
-                                dragonTag.putString("id", "bookofdragons:" + dragonTag.getString("DragonType").toLowerCase());
-                            }
+            ServerLevel level = player.serverLevel();
+            IColony colony = IMinecoloniesAPI.getInstance().getColonyManager().getColonyByPosFromWorld(level, message.roostPos);
+            if (colony == null) return;
 
-                            // 2. Erschaffe die Entität aus dem NBT-Datensatz
-                            Entity entity = EntityType.loadEntityRecursive(dragonTag, level, (e) -> {
-                                e.moveTo(roost.getPosition().getX() + 0.5, roost.getPosition().getY() + 1.0, roost.getPosition().getZ() + 0.5, 0, 0);
-                                
-                                // QoL: Speichere den Hort, damit der Drache bei Chunk-Unloads nicht verloren geht!
-                                e.getPersistentData().putLong("DragonColonies_RoostPos", roost.getPosition().asLong());
-                                // Wichtig: Wir setzen hier KEIN "GuardDeployed", damit er draußen bleibt!
-                                return e;
-                            });
+            IBuilding building = colony.getServerBuildingManager().getBuilding(message.roostPos);
+            if (!(building instanceof BuildingDragonRoost roost)) return;
 
-                            if (entity != null) {
-                                // 3. Markiere als deployed (mit der neuen UUID) und spawne in die Welt
-                                roost.getStorageModule().setDeployedStatus(newUuid, true);
-                                level.addFreshEntity(entity);
-                            }
-                        }
-                    }
+            DragonStorageModule storage = roost.getStorageModule();
+            if (storage == null) return;
+
+            Optional<CompoundTag> optDragonTag;
+            if (message.dragonId.equals(new UUID(0, 0))) {
+                optDragonTag = storage.getAllDragons().stream()
+                        .filter(t -> !t.getBoolean(DragonStorageModule.TAG_DEPLOYED) && !t.getBoolean(DragonStorageModule.TAG_IS_DEAD))
+                        .findFirst();
+            } else {
+                optDragonTag = storage.getDragonByRoostId(message.dragonId);
+                if (optDragonTag.isEmpty()) {
+                    optDragonTag = storage.getDragonByUUID(message.dragonId);
+                }
+            }
+
+            if (optDragonTag.isPresent()) {
+                CompoundTag dragonTag = optDragonTag.get();
+
+                // 1. RoostDragonID sicherstellen
+                UUID roostDragonId = dragonTag.hasUUID(DragonStorageModule.TAG_ROOST_DRAGON_ID)
+                        ? dragonTag.getUUID(DragonStorageModule.TAG_ROOST_DRAGON_ID)
+                        : UUID.randomUUID();
+                dragonTag.putUUID(DragonStorageModule.TAG_ROOST_DRAGON_ID, roostDragonId);
+
+                // 2. Frische Entity-UUID erzeugen (verhindert Engine-UUID-Kollisionen im Chunk-Lader)
+                UUID newEntityUuid = UUID.randomUUID();
+                dragonTag.putUUID("UUID", newEntityUuid);
+
+                if (!dragonTag.contains("id") && dragonTag.contains("DragonType")) {
+                    dragonTag.putString("id", "bookofdragons:" + dragonTag.getString("DragonType").toLowerCase());
+                }
+
+                // 3. Status und aktive Entity-UUID im Hort registrieren
+                storage.setDeployedStatus(roostDragonId, true, newEntityUuid);
+                storage.markDirty();
+
+                // 4. Entität instanziieren und Spawntags stempeln
+                Entity entity = EntityType.loadEntityRecursive(dragonTag, level, (e) -> {
+                    e.moveTo(roost.getPosition().getX() + 0.5, roost.getPosition().getY() + 1.0, roost.getPosition().getZ() + 0.5, 0, 0);
+
+                    e.getPersistentData().putLong("DragonColonies_RoostPos", roost.getPosition().asLong());
+                    e.getPersistentData().putUUID("DragonColonies_RoostDragonID", roostDragonId);
+                    return e;
+                });
+
+                if (entity != null) {
+                    level.addFreshEntity(entity);
                 }
             }
         });

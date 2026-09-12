@@ -40,6 +40,8 @@ import java.util.Map;
 import java.util.Set;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.ai.goal.AvoidEntityGoal;
 
 public class SurvivorEntity extends PathfinderMob {
 
@@ -116,38 +118,68 @@ public class SurvivorEntity extends PathfinderMob {
 		// --- AKTIONEN (goalSelector: Was tut er?) ---
 		this.goalSelector.addGoal(0, new FloatGoal(this));
 		
-		// Angreifen hat höchste Prio, damit er sich nicht während eines Kampfes bückt, um Loot aufzuheben
-		this.goalSelector.addGoal(1, new MeleeAttackGoal(this, 1.2D, true));
-		
-		this.goalSelector.addGoal(2, new SurvivorInteractGoal(this));
-		
-		// Scavenge stark nach oben priorisiert, direkt nach der Spieler-Interaktion
-		this.goalSelector.addGoal(3, new SurvivorScavengeGoal(this));
+		// Flucht-Verhalten: Flieht vor Monstern, wenn HP unter 50% ODER das Monster aktuell mehr HP hat
+		this.goalSelector.addGoal(1, new AvoidEntityGoal<>(
+			this, 
+			Monster.class, 
+			16.0F, 
+			1.3D,  
+			1.5D,  
+			(entity) -> {
+				boolean isLowHealth = this.getHealth() < (this.getMaxHealth() * 0.5F);
+				boolean isEnemyStronger = entity.getHealth() > this.getHealth();
+				return isLowHealth || isEnemyStronger;
+			}
+		));
+
+		this.goalSelector.addGoal(2, new MeleeAttackGoal(this, 1.2D, true));
+		this.goalSelector.addGoal(3, new SurvivorInteractGoal(this));
+		this.goalSelector.addGoal(4, new SurvivorScavengeGoal(this));
 
 		if (ModList.get().isLoaded("zombiesleeping")) {
-			this.goalSelector.addGoal(4, new SurvivorHarvestRemainsGoal(this));
+			this.goalSelector.addGoal(5, new SurvivorHarvestRemainsGoal(this));
 		}
 
-		this.goalSelector.addGoal(5, new SurvivorEatGoal(this));
+		this.goalSelector.addGoal(6, new SurvivorEatGoal(this));
 
 		this.campfireGoal = new SurvivorCampfireGoal(this);
-		this.goalSelector.addGoal(6, this.campfireGoal);
+		this.goalSelector.addGoal(7, this.campfireGoal);
 
-		this.goalSelector.addGoal(7, new SurvivorSeekShelterGoal(this));
-		this.goalSelector.addGoal(8, new SurvivorSentryGoal(this));
+		this.goalSelector.addGoal(8, new SurvivorSeekShelterGoal(this));
+		this.goalSelector.addGoal(9, new SurvivorSentryGoal(this));
 
 		// --- ZIELERFASSUNG (targetSelector: Wen greift er an?) ---
-		// 1. Wenn er getroffen wird, schlägt er sofort sein aktuelles Ziel (Angriff erwidern)
-		this.targetSelector.addGoal(1, new HurtByTargetGoal(this));
+		// 1. Gegenschlag nur, wenn eigene Gesundheit über 50% ist UND der Angreifer nicht mehr HP hat
+		this.targetSelector.addGoal(1, new HurtByTargetGoal(this) {
+			@Override
+			public boolean canUse() {
+				if (!super.canUse()) return false;
+				
+				net.minecraft.world.entity.LivingEntity attacker = SurvivorEntity.this.getLastHurtByMob();
+				if (attacker != null) {
+					boolean isHealthyEnough = SurvivorEntity.this.getHealth() >= (SurvivorEntity.this.getMaxHealth() * 0.5F);
+					boolean isEnemyWeakerOrEqual = attacker.getHealth() <= SurvivorEntity.this.getHealth();
+					return isHealthyEnough && isEnemyWeakerOrEqual;
+				}
+				return false;
+			}
+		});
 
-		// 2. Monster proaktiv angreifen, ABER Creeper durch das Prädikat komplett ausschließen
+		// 2. Proaktiver Angriff nur, wenn eigene Gesundheit über 50% ist UND das Ziel nicht mehr HP hat
 		this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(
 			this, 
 			Monster.class, 
-			10,    // Random Interval (spart Performance)
-			true,  // Muss das Ziel sehen
-			false, // Muss den Weg nicht vorher berechnen können
-			target -> !(target instanceof Creeper) // IGNORIERT Creeper!
+			10,    
+			true,  
+			false, 
+			target -> {
+				if (target instanceof Creeper) return false;
+				
+				boolean isHealthyEnough = this.getHealth() >= (this.getMaxHealth() * 0.5F);
+				boolean isEnemyWeakerOrEqual = target.getHealth() <= this.getHealth();
+				
+				return isHealthyEnough && isEnemyWeakerOrEqual;
+			}
 		));
 	}
 
@@ -178,26 +210,67 @@ public class SurvivorEntity extends PathfinderMob {
             }
         }
     }
-    @Override
-    public void tick() {
-        super.tick();
+	
+	public static boolean checkSurvivorSpawnRules(EntityType<SurvivorEntity> type, ServerLevelAccessor level, MobSpawnType spawnType, BlockPos pos, RandomSource random) {
+		// Verhindert den Spawn in Wasser/Lava und erzwingt festen Boden
+		return level.getFluidState(pos).isEmpty() 
+			&& level.getFluidState(pos.below()).isEmpty() 
+			&& level.getBlockState(pos.below()).isSolid();
+	}
+	
+	@Override
+	public void tick() {
+		super.tick();
 
-        if (!this.level().isClientSide) {
-            // Campfire Failsafe
-            if (this.isPassenger() && (this.campfireGoal == null || !this.campfireGoal.isRunning())) {
-                this.stopRiding();
-            }
+		if (!this.level().isClientSide) {
+			// Campfire Failsafe
+			if (this.isPassenger() && (this.campfireGoal == null || !this.campfireGoal.isRunning())) {
+				this.stopRiding();
+			}
 
-            // Passive Vertrauens-Gewinnung bei Nähe (+1 Vertrauen pro Minute)
-            this.trustUpdateTimer++;
-            if (this.trustUpdateTimer >= TRUST_TICK_INTERVAL) {
-                this.trustUpdateTimer = 0;
-                if (this.level().getNearestPlayer(this, 16.0D) != null) {
-                    this.addTrust(1);
-                }
-            }
-        }
-    }
+			// Passive Vertrauens-Gewinnung bei Nähe (+1 Vertrauen pro Minute)
+			this.trustUpdateTimer++;
+			if (this.trustUpdateTimer >= TRUST_TICK_INTERVAL) {
+				this.trustUpdateTimer = 0;
+				if (this.level().getNearestPlayer(this, 16.0D) != null) {
+					this.addTrust(1);
+				}
+			}
+
+			// NEU: Automatisches Aufsammeln ("Staubsauger")
+			// Nur alle 10 Ticks prüfen, um Server-Performance zu sparen
+			if (this.tickCount % 10 == 0 && this.isAlive()) {
+				java.util.List<net.minecraft.world.entity.item.ItemEntity> items = 
+					this.level().getEntitiesOfClass(
+						net.minecraft.world.entity.item.ItemEntity.class,
+						this.getBoundingBox().inflate(3.0D), // 3 Blöcke Aufhebe-Radius
+						item -> item.isAlive() && !item.getItem().isEmpty()
+					);
+
+				for (net.minecraft.world.entity.item.ItemEntity itemEntity : items) {
+					net.minecraft.world.item.ItemStack stack = itemEntity.getItem();
+					
+					// Zuerst prüfen, ob es eine bessere Waffe/Rüstung ist und ausgerüstet werden kann
+					if (this.tryEquipBetterItem(stack)) {
+						itemEntity.discard();
+					} else {
+						// Wenn nicht ausgerüstet, versuchen ins Inventar zu legen
+						net.minecraft.world.item.ItemStack remainder = this.inventory.addItem(stack);
+						
+						if (remainder.isEmpty()) {
+							// Komplett im Inventar verstaut
+							itemEntity.discard();
+							this.playSound(net.minecraft.sounds.SoundEvents.ITEM_PICKUP, 0.2F, 1.0F);
+						} else if (remainder.getCount() < stack.getCount()) {
+							// Inventar wurde voll, Rest bleibt auf dem Boden liegen
+							itemEntity.setItem(remainder);
+							this.playSound(net.minecraft.sounds.SoundEvents.ITEM_PICKUP, 0.2F, 1.0F);
+						}
+					}
+				}
+			}
+		}
+	}
 
 	@Override
 	public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType reason, @Nullable SpawnGroupData spawnData, @Nullable CompoundTag dataTag) {
@@ -407,5 +480,14 @@ public class SurvivorEntity extends PathfinderMob {
         skills.forEach(tag::putInt);
         this.entityData.set(SKILLS_TAG, tag);
         this.applySkillAttributes();
+    }
+	
+	public boolean hasUsedOption(int optionId) {
+        // Wandelt die Integer-ID in einen String um und nutzt das existierende System
+        return this.hasReadDialogue(String.valueOf(optionId));
+    }
+
+    public void markOptionUsed(int optionId) {
+        this.markDialogueRead(String.valueOf(optionId));
     }
 }

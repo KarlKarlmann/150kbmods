@@ -175,21 +175,45 @@ public class SurvivorCampfireGoal extends Goal {
         return this.isGoalRunning;
     }
 
-    private BlockPos findSafeAdjacentPos(BlockPos firePos) {
-        for (Direction dir : Direction.Plane.HORIZONTAL) {
-            BlockPos adj = firePos.relative(dir);
-            boolean canStand = this.survivor.level().getBlockState(adj).getCollisionShape(this.survivor.level(), adj).isEmpty();
-            boolean isSolidGround = this.survivor.level().getBlockState(adj.below()).isSolid();
-            
-            if (canStand && isSolidGround) {
-                return adj.immutable();
-            }
-        }
-        
-        BlockPos forced = firePos.south();
-        if (!this.survivor.level().isClientSide) {
-            this.survivor.level().destroyBlock(forced, true); 
-        }
-        return forced.immutable();
-    }
+	private BlockPos findSafeAdjacentPos(BlockPos firePos) {
+		// Richtungen in eine Liste packen und mischen, damit nicht jeder den gleichen Platz (z. B. Norden) wählt
+		java.util.List<Direction> directions = new java.util.ArrayList<>();
+		for (Direction d : Direction.Plane.HORIZONTAL) {
+			directions.add(d);
+		}
+		java.util.Collections.shuffle(directions);
+
+		for (Direction dir : directions) {
+			BlockPos adj = firePos.relative(dir);
+			
+			boolean canStand = this.survivor.level().getBlockState(adj).getCollisionShape(this.survivor.level(), adj).isEmpty();
+			boolean isSolidGround = this.survivor.level().getBlockState(adj.below()).isSolid();
+			
+			if (canStand && isSolidGround) {
+				// Prüfen, ob der Platz bereits von einem anderen Überlebenden besetzt ist
+				net.minecraft.world.phys.AABB checkBox = new net.minecraft.world.phys.AABB(adj);
+				java.util.List<SurvivorEntity> others = this.survivor.level().getEntitiesOfClass(SurvivorEntity.class, checkBox);
+				
+				boolean isOccupied = false;
+				for (SurvivorEntity other : others) {
+					if (other != this.survivor) {
+						isOccupied = true;
+						break;
+					}
+				}
+				
+				// Wenn der Platz leer ist, nehmen wir ihn
+				if (!isOccupied) {
+					return adj.immutable();
+				}
+			}
+		}
+		
+		// Fallback, falls alle 4 Plätze um das Feuer besetzt oder blockiert sind
+		BlockPos forced = firePos.south();
+		if (!this.survivor.level().isClientSide) {
+			this.survivor.level().destroyBlock(forced, true); 
+		}
+		return forced.immutable();
+	}
 }

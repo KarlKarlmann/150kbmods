@@ -14,7 +14,8 @@
   "AIMovementComponentMixin",
   "AbstractEntityAIGuardMixin",
   "AbstractAISkeletonAccessor",
-  "EntityNavigationUtilsMixin"
+  "EntityNavigationUtilsMixin",
+  "AIPathResolverBridgeMixin"
   ],
   "client": [
   "StructurePacksMixin",

@@ -1,0 +1,781 @@
+{
+  "npc_lines": {
+    "anxious|ex_soldier|community|5|trust_low": [
+      57
+    ],
+    "anxious|ex_soldier|curiosity|1|trust_high": [
+      168
+    ],
+    "anxious|ex_soldier|curiosity|5|small_talk": [
+      164
+    ],
+    "anxious|ex_soldier|curiosity|5|trust_high": [
+      225
+    ],
+    "anxious|ex_soldier|curiosity|9|trust_low": [
+      55
+    ],
+    "anxious|ex_soldier|revenge|1|trust_high": [
+      114
+    ],
+    "anxious|ex_soldier|survival|9|backstory_reveal": [
+      148
+    ],
+    "anxious|former_trader|community|1|small_talk": [
+      202
+    ],
+    "anxious|former_trader|community|9|backstory_reveal": [
+      125
+    ],
+    "anxious|former_trader|community|9|trust_high": [
+      227
+    ],
+    "anxious|former_trader|curiosity|1|small_talk": [
+      217
+    ],
+    "anxious|former_trader|curiosity|1|trust_low": [
+      122
+    ],
+    "anxious|former_trader|curiosity|5|trust_high": [
+      206
+    ],
+    "anxious|former_trader|curiosity|9|small_talk": [
+      197
+    ],
+    "anxious|former_trader|revenge|9|trust_high": [
+      153
+    ],
+    "anxious|former_trader|survival|5|backstory_reveal": [
+      205
+    ],
+    "anxious|lost_family|curiosity|1|small_talk": [
+      198
+    ],
+    "anxious|lost_family|curiosity|9|small_talk": [
+      229
+    ],
+    "anxious|lost_family|redemption|1|small_talk": [
+      45
+    ],
+    "anxious|lost_family|revenge|1|backstory_reveal": [
+      59
+    ],
+    "anxious|lost_family|revenge|1|trust_low": [
+      142
+    ],
+    "anxious|lost_family|survival|5|trust_low": [
+      82
+    ],
+    "anxious|runaway|community|1|trust_low": [
+      194
+    ],
+    "anxious|runaway|community|5|backstory_reveal": [
+      139
+    ],
+    "anxious|runaway|curiosity|1|backstory_reveal": [
+      115
+    ],
+    "anxious|runaway|curiosity|9|trust_low": [
+      56
+    ],
+    "anxious|runaway|survival|1|small_talk": [
+      33
+    ],
+    "anxious|runaway|survival|1|trust_high": [
+      200
+    ],
+    "anxious|runaway|survival|5|small_talk": [
+      228
+    ],
+    "anxious|runaway|survival|5|trust_low": [
+      42
+    ],
+    "anxious|scientist|community|1|trust_high": [
+      61
+    ],
+    "anxious|scientist|curiosity|5|backstory_reveal": [
+      173
+    ],
+    "anxious|scientist|redemption|5|backstory_reveal": [
+      90
+    ],
+    "anxious|scientist|redemption|9|trust_high": [
+      180
+    ],
+    "anxious|scientist|revenge|1|backstory_reveal": [
+      94
+    ],
+    "anxious|scientist|revenge|1|trust_high": [
+      127
+    ],
+    "anxious|scientist|revenge|9|trust_low": [
+      68
+    ],
+    "cheerful|ex_soldier|community|1|small_talk": [
+      63
+    ],
+    "cheerful|ex_soldier|community|1|trust_high": [
+      208
+    ],
+    "cheerful|ex_soldier|survival|1|trust_high": [
+      220
+    ],
+    "cheerful|ex_soldier|survival|9|backstory_reveal": [
+      129
+    ],
+    "cheerful|ex_soldier|survival|9|small_talk": [
+      69
+    ],
+    "cheerful|former_trader|community|1|backstory_reveal": [
+      53
+    ],
+    "cheerful|former_trader|curiosity|5|small_talk": [
+      79
+    ],
+    "cheerful|former_trader|curiosity|9|backstory_reveal": [
+      211
+    ],
+    "cheerful|former_trader|curiosity|9|small_talk": [
+      70
+    ],
+    "cheerful|former_trader|redemption|5|small_talk": [
+      99
+    ],
+    "cheerful|former_trader|redemption|9|small_talk": [
+      105
+    ],
+    "cheerful|former_trader|revenge|1|small_talk": [
+      108
+    ],
+    "cheerful|former_trader|revenge|9|small_talk": [
+      165
+    ],
+    "cheerful|former_trader|revenge|9|trust_high": [
+      140
+    ],
+    "cheerful|lost_family|redemption|9|small_talk": [
+      41
+    ],
+    "cheerful|lost_family|revenge|9|trust_high": [
+      189
+    ],
+    "cheerful|lost_family|survival|1|small_talk": [
+      150
+    ],
+    "cheerful|runaway|community|9|small_talk": [
+      192
+    ],
+    "cheerful|runaway|community|9|trust_low": [
+      151
+    ],
+    "cheerful|runaway|revenge|1|trust_high": [
+      221
+    ],
+    "cheerful|runaway|revenge|5|backstory_reveal": [
+      102
+    ],
+    "cheerful|runaway|revenge|9|trust_low": [
+      46
+    ],
+    "cheerful|runaway|survival|5|small_talk": [
+      107
+    ],
+    "cheerful|scientist|redemption|1|small_talk": [
+      147
+    ],
+    "cheerful|scientist|redemption|5|small_talk": [
+      44
+    ],
+    "cheerful|scientist|redemption|9|small_talk": [
+      167
+    ],
+    "cheerful|scientist|revenge|1|trust_high": [
+      47
+    ],
+    "cheerful|scientist|revenge|9|small_talk": [
+      86
+    ],
+    "friendly|ex_soldier|curiosity|5|trust_low": [
+      35
+    ],
+    "friendly|ex_soldier|redemption|5|backstory_reveal": [
+      162
+    ],
+    "friendly|ex_soldier|redemption|5|small_talk": [
+      113
+    ],
+    "friendly|ex_soldier|redemption|9|backstory_reveal": [
+      191
+    ],
+    "friendly|ex_soldier|redemption|9|trust_low": [
+      101
+    ],
+    "friendly|ex_soldier|revenge|9|trust_high": [
+      54
+    ],
+    "friendly|ex_soldier|survival|1|small_talk": [
+      177
+    ],
+    "friendly|ex_soldier|survival|1|trust_high": [
+      141
+    ],
+    "friendly|ex_soldier|survival|5|backstory_reveal": [
+      78
+    ],
+    "friendly|ex_soldier|survival|5|trust_high": [
+      50
+    ],
+    "friendly|former_trader|community|1|trust_low": [
+      188
+    ],
+    "friendly|former_trader|community|5|small_talk": [
+      100
+    ],
+    "friendly|former_trader|community|9|small_talk": [
+      66
+    ],
+    "friendly|former_trader|community|9|trust_high": [
+      93
+    ],
+    "friendly|lost_family|community|5|small_talk": [
+      83
+    ],
+    "friendly|lost_family|curiosity|5|backstory_reveal": [
+      119
+    ],
+    "friendly|lost_family|redemption|1|backstory_reveal": [
+      155
+    ],
+    "friendly|lost_family|redemption|1|trust_low": [
+      76
+    ],
+    "friendly|lost_family|revenge|5|trust_low": [
+      174
+    ],
+    "friendly|runaway|community|5|small_talk": [
+      71
+    ],
+    "friendly|runaway|community|9|trust_low": [
+      131
+    ],
+    "friendly|runaway|curiosity|5|backstory_reveal": [
+      154
+    ],
+    "friendly|runaway|curiosity|5|small_talk": [
+      124
+    ],
+    "friendly|runaway|revenge|1|trust_low": [
+      169
+    ],
+    "friendly|runaway|revenge|5|trust_high": [
+      91
+    ],
+    "friendly|runaway|survival|1|small_talk": [
+      130
+    ],
+    "friendly|scientist|community|1|small_talk": [
+      160
+    ],
+    "friendly|scientist|community|5|backstory_reveal": [
+      39
+    ],
+    "friendly|scientist|community|5|trust_low": [
+      106
+    ],
+    "friendly|scientist|community|9|trust_high": [
+      51
+    ],
+    "friendly|scientist|curiosity|5|backstory_reveal": [
+      49
+    ],
+    "friendly|scientist|redemption|5|trust_high": [
+      89
+    ],
+    "friendly|scientist|redemption|9|backstory_reveal": [
+      112
+    ],
+    "friendly|scientist|redemption|9|small_talk": [
+      104
+    ],
+    "friendly|scientist|revenge|5|backstory_reveal": [
+      62
+    ],
+    "friendly|scientist|survival|9|small_talk": [
+      72
+    ],
+    "friendly|scientist|survival|9|trust_low": [
+      182
+    ],
+    "grumpy|ex_soldier|community|1|trust_low": [
+      123
+    ],
+    "grumpy|ex_soldier|curiosity|1|backstory_reveal": [
+      92
+    ],
+    "grumpy|ex_soldier|curiosity|1|small_talk": [
+      185
+    ],
+    "grumpy|former_trader|community|1|backstory_reveal": [
+      214
+    ],
+    "grumpy|former_trader|community|5|trust_high": [
+      74
+    ],
+    "grumpy|former_trader|curiosity|5|small_talk": [
+      209
+    ],
+    "grumpy|former_trader|curiosity|5|trust_low": [
+      159
+    ],
+    "grumpy|former_trader|curiosity|9|backstory_reveal": [
+      190
+    ],
+    "grumpy|former_trader|redemption|5|small_talk": [
+      219
+    ],
+    "grumpy|former_trader|revenge|1|trust_high": [
+      157
+    ],
+    "grumpy|lost_family|community|1|trust_low": [
+      103
+    ],
+    "grumpy|lost_family|community|9|backstory_reveal": [
+      34
+    ],
+    "grumpy|lost_family|community|9|trust_low": [
+      222
+    ],
+    "grumpy|lost_family|curiosity|1|backstory_reveal": [
+      181
+    ],
+    "grumpy|lost_family|curiosity|1|trust_high": [
+      81
+    ],
+    "grumpy|lost_family|redemption|5|small_talk": [
+      111
+    ],
+    "grumpy|lost_family|revenge|5|small_talk": [
+      143
+    ],
+    "grumpy|lost_family|survival|5|trust_high": [
+      36
+    ],
+    "grumpy|runaway|community|1|backstory_reveal": [
+      87
+    ],
+    "grumpy|runaway|community|1|trust_high": [
+      52
+    ],
+    "grumpy|runaway|community|5|trust_low": [
+      65
+    ],
+    "grumpy|runaway|redemption|1|small_talk": [
+      161
+    ],
+    "grumpy|runaway|redemption|9|small_talk": [
+      224
+    ],
+    "grumpy|runaway|survival|9|backstory_reveal": [
+      126
+    ],
+    "grumpy|scientist|community|5|trust_low": [
+      85
+    ],
+    "grumpy|scientist|curiosity|1|trust_low": [
+      118
+    ],
+    "grumpy|scientist|curiosity|5|small_talk": [
+      48
+    ],
+    "grumpy|scientist|redemption|1|small_talk": [
+      203
+    ],
+    "grumpy|scientist|redemption|5|small_talk": [
+      172
+    ],
+    "grumpy|scientist|redemption|9|trust_high": [
+      116
+    ],
+    "grumpy|scientist|revenge|1|trust_high": [
+      132
+    ],
+    "grumpy|scientist|revenge|1|trust_low": [
+      193
+    ],
+    "grumpy|scientist|revenge|9|trust_high": [
+      80
+    ],
+    "grumpy|scientist|survival|9|backstory_reveal": [
+      175
+    ],
+    "sarcastic|ex_soldier|curiosity|1|small_talk": [
+      134
+    ],
+    "sarcastic|ex_soldier|redemption|1|small_talk": [
+      97
+    ],
+    "sarcastic|ex_soldier|revenge|1|trust_high": [
+      158
+    ],
+    "sarcastic|ex_soldier|revenge|1|trust_low": [
+      77
+    ],
+    "sarcastic|ex_soldier|survival|1|backstory_reveal": [
+      137
+    ],
+    "sarcastic|ex_soldier|survival|5|trust_low": [
+      196
+    ],
+    "sarcastic|ex_soldier|survival|9|small_talk": [
+      138
+    ],
+    "sarcastic|former_trader|curiosity|1|trust_low": [
+      213
+    ],
+    "sarcastic|former_trader|redemption|1|trust_high": [
+      210
+    ],
+    "sarcastic|former_trader|revenge|1|backstory_reveal": [
+      170
+    ],
+    "sarcastic|former_trader|survival|1|small_talk": [
+      163
+    ],
+    "sarcastic|former_trader|survival|1|trust_high": [
+      146
+    ],
+    "sarcastic|former_trader|survival|5|backstory_reveal": [
+      67
+    ],
+    "sarcastic|former_trader|survival|9|trust_low": [
+      176
+    ],
+    "sarcastic|lost_family|curiosity|9|small_talk": [
+      186
+    ],
+    "sarcastic|lost_family|revenge|1|trust_low": [
+      84
+    ],
+    "sarcastic|lost_family|revenge|9|trust_high": [
+      223
+    ],
+    "sarcastic|runaway|curiosity|1|backstory_reveal": [
+      117
+    ],
+    "sarcastic|runaway|curiosity|9|trust_high": [
+      96
+    ],
+    "sarcastic|runaway|redemption|9|small_talk": [
+      212
+    ],
+    "sarcastic|runaway|revenge|1|backstory_reveal": [
+      149
+    ],
+    "sarcastic|runaway|revenge|9|small_talk": [
+      120
+    ],
+    "sarcastic|scientist|community|5|small_talk": [
+      37
+    ],
+    "sarcastic|scientist|curiosity|9|trust_high": [
+      75
+    ],
+    "sarcastic|scientist|redemption|1|small_talk": [
+      60
+    ],
+    "sarcastic|scientist|redemption|5|trust_high": [
+      135
+    ],
+    "sarcastic|scientist|revenge|5|trust_high": [
+      184
+    ],
+    "sarcastic|scientist|revenge|9|backstory_reveal": [
+      88
+    ],
+    "stoic|ex_soldier|community|5|trust_high": [
+      195
+    ],
+    "stoic|ex_soldier|community|9|trust_high": [
+      204
+    ],
+    "stoic|ex_soldier|curiosity|5|trust_low": [
+      73
+    ],
+    "stoic|ex_soldier|curiosity|9|trust_high": [
+      110
+    ],
+    "stoic|ex_soldier|redemption|5|small_talk": [
+      201
+    ],
+    "stoic|ex_soldier|revenge|9|backstory_reveal": [
+      98
+    ],
+    "stoic|ex_soldier|survival|9|backstory_reveal": [
+      178
+    ],
+    "stoic|former_trader|community|1|trust_low": [
+      207
+    ],
+    "stoic|former_trader|redemption|5|small_talk": [
+      109
+    ],
+    "stoic|former_trader|revenge|9|trust_low": [
+      215
+    ],
+    "stoic|lost_family|community|1|trust_high": [
+      133
+    ],
+    "stoic|lost_family|curiosity|1|trust_low": [
+      121
+    ],
+    "stoic|lost_family|revenge|5|backstory_reveal": [
+      144
+    ],
+    "stoic|lost_family|revenge|5|trust_low": [
+      187
+    ],
+    "stoic|lost_family|survival|1|trust_low": [
+      128
+    ],
+    "stoic|lost_family|survival|9|trust_high": [
+      58
+    ],
+    "stoic|runaway|community|1|trust_high": [
+      179
+    ],
+    "stoic|runaway|community|9|backstory_reveal": [
+      40
+    ],
+    "stoic|runaway|curiosity|5|backstory_reveal": [
+      199
+    ],
+    "stoic|runaway|curiosity|9|trust_low": [
+      64
+    ],
+    "stoic|runaway|redemption|9|small_talk": [
+      95
+    ],
+    "stoic|runaway|revenge|5|backstory_reveal": [
+      43
+    ],
+    "stoic|runaway|revenge|9|small_talk": [
+      171
+    ],
+    "stoic|runaway|survival|5|backstory_reveal": [
+      166
+    ],
+    "stoic|runaway|survival|9|backstory_reveal": [
+      156
+    ],
+    "stoic|runaway|survival|9|trust_high": [
+      136
+    ],
+    "stoic|scientist|community|5|trust_high": [
+      152
+    ],
+    "stoic|scientist|community|9|trust_low": [
+      183
+    ],
+    "stoic|scientist|curiosity|5|trust_high": [
+      218
+    ],
+    "stoic|scientist|redemption|5|small_talk": [
+      145
+    ],
+    "stoic|scientist|redemption|9|small_talk": [
+      38
+    ],
+    "stoic|scientist|revenge|5|trust_high": [
+      226
+    ],
+    "stoic|scientist|survival|5|trust_high": [
+      216
+    ]
+  },
+  "player_options": {
+    "1": [
+      {
+        "once": false,
+        "option_id": 1,
+        "stance": "supportive",
+        "text_id": 9,
+        "trust_delta": 0
+      },
+      {
+        "once": true,
+        "option_id": 2,
+        "stance": "curious",
+        "text_id": 10,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 3,
+        "stance": "dismissive",
+        "text_id": 11,
+        "trust_delta": 1
+      }
+    ],
+    "2": [
+      {
+        "once": false,
+        "option_id": 4,
+        "stance": "supportive",
+        "text_id": 12,
+        "trust_delta": 0
+      },
+      {
+        "once": true,
+        "option_id": 5,
+        "stance": "curious",
+        "text_id": 13,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 6,
+        "stance": "dismissive",
+        "text_id": 14,
+        "trust_delta": 1
+      }
+    ],
+    "3": [
+      {
+        "once": false,
+        "option_id": 7,
+        "stance": "supportive",
+        "text_id": 15,
+        "trust_delta": 0
+      },
+      {
+        "once": true,
+        "option_id": 8,
+        "stance": "curious",
+        "text_id": 16,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 9,
+        "stance": "dismissive",
+        "text_id": 17,
+        "trust_delta": 1
+      }
+    ],
+    "4": [
+      {
+        "once": false,
+        "option_id": 10,
+        "stance": "supportive",
+        "text_id": 18,
+        "trust_delta": 0
+      },
+      {
+        "once": true,
+        "option_id": 11,
+        "stance": "curious",
+        "text_id": 19,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 12,
+        "stance": "dismissive",
+        "text_id": 20,
+        "trust_delta": 1
+      }
+    ],
+    "5": [
+      {
+        "once": true,
+        "option_id": 13,
+        "stance": "supportive",
+        "text_id": 21,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 14,
+        "stance": "curious",
+        "text_id": 22,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 15,
+        "stance": "dismissive",
+        "text_id": 23,
+        "trust_delta": -1
+      }
+    ],
+    "6": [
+      {
+        "once": true,
+        "option_id": 16,
+        "stance": "supportive",
+        "text_id": 24,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 17,
+        "stance": "curious",
+        "text_id": 25,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 18,
+        "stance": "dismissive",
+        "text_id": 26,
+        "trust_delta": -1
+      }
+    ],
+    "7": [
+      {
+        "once": true,
+        "option_id": 19,
+        "stance": "supportive",
+        "text_id": 27,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 20,
+        "stance": "curious",
+        "text_id": 28,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 21,
+        "stance": "dismissive",
+        "text_id": 29,
+        "trust_delta": -1
+      }
+    ],
+    "8": [
+      {
+        "once": true,
+        "option_id": 22,
+        "stance": "supportive",
+        "text_id": 30,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 23,
+        "stance": "curious",
+        "text_id": 31,
+        "trust_delta": 1
+      },
+      {
+        "once": true,
+        "option_id": 24,
+        "stance": "dismissive",
+        "text_id": 32,
+        "trust_delta": -1
+      }
+    ]
+  }
+}

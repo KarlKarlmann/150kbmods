@@ -28,7 +28,7 @@ public class DragonStorageModuleView extends AbstractBuildingModuleView {
 
     @Override
     public Component getDesc() {
-        return Component.literal("Drachenhort");
+        return Component.translatable("dragoncolonies.gui.module.dragon_storage.title");
     }
 
     @Override
