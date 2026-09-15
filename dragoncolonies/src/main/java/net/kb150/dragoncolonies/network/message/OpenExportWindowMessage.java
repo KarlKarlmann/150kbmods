@@ -1,20 +1,20 @@
 package net.kb150.dragoncolonies.network.message;
 
-import com.ldtteam.blockui.BOScreen; // <-- HIER IST DIE ÄNDERUNG
-import net.kb150.dragoncolonies.client.gui.WindowDragonExport;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
+import net.minecraftforge.fml.DistExecutor;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
 import java.util.UUID;
 import java.util.function.Supplier;
 
 public class OpenExportWindowMessage {
-    private final BlockPos roostPos;
-    private final UUID dragonId;
-    private final CompoundTag offersTag;
+    public final BlockPos roostPos;
+    public final UUID dragonId;
+    public final CompoundTag offersTag;
 
     public OpenExportWindowMessage(BlockPos roostPos, UUID dragonId, CompoundTag offersTag) {
         this.roostPos = roostPos;
@@ -35,9 +35,19 @@ public class OpenExportWindowMessage {
     public static void handle(OpenExportWindowMessage message, Supplier<NetworkEvent.Context> contextSupplier) {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
-            // Minecolonies schließt das alte Fenster automatisch, wenn ein neues SetScreen gefeuert wird.
-            Minecraft.getInstance().setScreen(new BOScreen(new WindowDragonExport(message.roostPos, message.dragonId, message.offersTag))); // <-- UND HIER
+            // Führt den Code NUR auf dem physischen Client aus
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> handleClient(message));
         });
         context.setPacketHandled(true);
+    }
+
+    // Isoliert den Client-Only Code, damit der Server ihn beim Laden der Klasse nicht verifiziert
+    @OnlyIn(Dist.CLIENT)
+    private static void handleClient(OpenExportWindowMessage message) {
+        net.minecraft.client.Minecraft.getInstance().setScreen(
+            new com.ldtteam.blockui.BOScreen(
+                new net.kb150.dragoncolonies.client.gui.WindowDragonExport(message.roostPos, message.dragonId, message.offersTag)
+            )
+        );
     }
 }

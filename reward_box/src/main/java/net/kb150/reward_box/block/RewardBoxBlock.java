@@ -99,7 +99,6 @@ public class RewardBoxBlock extends BaseEntityBlock {
     @Override
     public boolean onDestroyedByPlayer(BlockState state, Level level, BlockPos pos, Player player, boolean willHarvest, FluidState fluid) {
         if (level.getBlockEntity(pos) instanceof RewardBoxBlockEntity rewardBox) {
-            // Lock-Prüfung sowohl auf Client als auch Server ausführen, um Desyncs zu vermeiden
             if (rewardBox.isLockedFor(player)) {
                 if (!level.isClientSide()) {
                     long remainingSeconds = rewardBox.getRemainingLockSeconds();
@@ -112,7 +111,7 @@ public class RewardBoxBlock extends BaseEntityBlock {
                         true
                     );
                 }
-                return false; // Verhindert den Abbau synchron auf Client & Server
+                return false; 
             }
         }
         return super.onDestroyedByPlayer(state, level, pos, player, willHarvest, fluid);
@@ -137,8 +136,19 @@ public class RewardBoxBlock extends BaseEntityBlock {
                     return InteractionResult.CONSUME;
                 }
 
-                rewardBox.generateLootNow();
-                NetworkHooks.openScreen(serverPlayer, rewardBox, pos);
+                // Boolean abfragen, ob die Truhe exakt jetzt befüllt wurde
+                boolean justGenerated = rewardBox.generateLootNow();
+                
+                // HIER: Wenn der Loot JETZT generiert wurde, triggern wir den optischen Burst (ID 2) für umstehende Spieler!
+                if (justGenerated) {
+                    level.blockEvent(pos, state.getBlock(), 2, 0); 
+                }
+                
+                // Wir senden die BlockPos UND den Boolean ans Client-UI Menü!
+                NetworkHooks.openScreen(serverPlayer, rewardBox, buf -> {
+                    buf.writeBlockPos(pos);
+                    buf.writeBoolean(justGenerated);
+                });
             }
         }
         return InteractionResult.sidedSuccess(level.isClientSide());
@@ -150,11 +160,7 @@ public class RewardBoxBlock extends BaseEntityBlock {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof RewardBoxBlockEntity rewardBox) {
                 rewardBox.clearContent();
-                // Verhindert, dass onRemove() gleich danach neuen Loot generiert und droppt -
-                // im Kreativmodus soll das Abbauen bewusst keinen Loot erzeugen.
                 rewardBox.preventFutureLootGeneration();
-                // Markiert den Vorgang als Kreativ-Abbau, damit onRemove() auch das
-                // Fallback-Drop-Item (z. B. Iron Nuggets) nicht droppt.
                 rewardBox.markCreativeDestroy();
             }
         }
@@ -168,20 +174,9 @@ public class RewardBoxBlock extends BaseEntityBlock {
             if (be instanceof RewardBoxBlockEntity rewardBox) {
                 if (!level.isClientSide()) {
                     try {
-                        // 0. Falls die Kiste noch nie geöffnet wurde, jetzt Loot generieren,
-                        //    damit beim Abbauen nicht einfach eine leere Kiste droppt.
-                        //    generateLootNow() ist idempotent (lootGenerated-Flag), also unbedenklich
-                        //    auch dann aufzurufen, wenn der Loot schon existiert.
                         rewardBox.generateLootNow();
-
-                        // 1. Inhalt der Kiste immer verstreuen, wenn sie zerstört wird.
-                        //    Das Lock steuert nur, WER abbauen darf (siehe onDestroyedByPlayer),
-                        //    nicht ob der bereits erlaubte Abbau auch den Inhalt droppt.
                         Containers.dropContents(level, pos, rewardBox);
 
-                        // 2. Standard-Fallback: Iron Nuggets in zufälliger Menge (1-8) statt der Box selbst,
-                        //    damit man beim Abbau nicht einfach wieder eine leere Kiste bekommt.
-                        //    Im Kreativmodus wird kein Fallback-Item gedroppt (siehe playerWillDestroy).
                         if (!rewardBox.isCreativeDestroy()) {
                             Item dropItem = Items.IRON_NUGGET;
                             int dropCount = 1 + level.random.nextInt(8);
@@ -191,13 +186,10 @@ public class RewardBoxBlock extends BaseEntityBlock {
                                 Item customItem = ForgeRegistries.ITEMS.getValue(new ResourceLocation(def.breakDropItem().trim()));
                                 if (customItem != null && customItem != Items.AIR) {
                                     dropItem = customItem;
-                                    // Nur eine explizit konfigurierte Anzahl übernehmen (Sentinel -1 = nicht gesetzt)
                                     dropCount = def.breakDropCount() > 0 ? def.breakDropCount() : 1;
                                 }
                             }
 
-                            // 3. Drop erzeugen - BoxId/RewardTier NBT nur setzen, wenn tatsächlich wieder
-                            //    eine Reward-Box gedroppt wird (z. B. wenn im Config explizit die Box als break_drop_item steht)
                             ItemStack dropStack = new ItemStack(dropItem, dropCount);
                             if (RewardBoxRegistry.REWARD_BOX_ITEM.isPresent() && dropItem == RewardBoxRegistry.REWARD_BOX_ITEM.get()) {
                                 CompoundTag tag = dropStack.getOrCreateTag();
@@ -226,21 +218,14 @@ public class RewardBoxBlock extends BaseEntityBlock {
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        // WICHTIG: Ohne diesen Ticker läuft RewardBoxBlockEntity.lidAnimateTick() nie,
-        // wodurch chestLidController.tickLid() nie aufgerufen wird - der Openness-Wert
-        // bleibt dauerhaft bei 0, selbst wenn triggerEvent() korrekt shouldBeOpen(true) setzt.
-        // Nur clientseitig nötig, da die Animation rein visuell ist.
+        // HIER IST DER FIX: Wir nutzen nun unsere neuen, synchronisierten Ticker für Client UND Server!
         return level.isClientSide
-            ? createTickerHelper(type, RewardBoxRegistry.REWARD_BOX_BE.get(), RewardBoxBlockEntity::lidAnimateTick)
-            : null;
+            ? createTickerHelper(type, RewardBoxRegistry.REWARD_BOX_BE.get(), RewardBoxBlockEntity::clientTick)
+            : createTickerHelper(type, RewardBoxRegistry.REWARD_BOX_BE.get(), RewardBoxBlockEntity::serverTick);
     }
 
     @Override
     public boolean triggerEvent(BlockState state, Level level, BlockPos pos, int id, int param) {
-        // WICHTIG: BaseEntityBlock leitet Block-Events standardmäßig NICHT an die BlockEntity weiter.
-        // Ohne dieses Override kommt das über level.blockEvent() ausgelöste Event nie bei
-        // RewardBoxBlockEntity.triggerEvent() an -> chestLidController.shouldBeOpen() wird nie
-        // aufgerufen -> der Deckel öffnet sich nie, obwohl der Container serverseitig geöffnet ist.
         super.triggerEvent(state, level, pos, id, param);
         BlockEntity blockEntity = level.getBlockEntity(pos);
         return blockEntity != null && blockEntity.triggerEvent(id, param);

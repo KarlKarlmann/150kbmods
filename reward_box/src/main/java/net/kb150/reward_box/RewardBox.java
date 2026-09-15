@@ -9,6 +9,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.kb150.reward_box.init.RewardBoxRegistry;
 import net.kb150.reward_box.init.RewardBoxCreativeTab;
+import net.kb150.reward_box.init.RewardBoxSounds;
 import net.kb150.reward_box.util.RewardBoxConfigManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,7 +25,8 @@ public class RewardBox {
         // 1. Core-Komponenten (Block, Item, BlockEntity, Creative Tab) auf dem Mod-Bus registrieren
         RewardBoxRegistry.register(modEventBus);
         RewardBoxCreativeTab.register(modEventBus);
-
+		RewardBoxSounds.register(modEventBus);
+		
         // 2. Lifecycle Events
         modEventBus.addListener(this::commonSetup);
 

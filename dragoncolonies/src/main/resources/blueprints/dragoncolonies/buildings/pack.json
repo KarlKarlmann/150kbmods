@@ -1,14 +1,14 @@
 {
-  "icon": "warped.png",
-  "name": "buildings",
-  "authors": [
-    "Cugo"
-  ],
-  "desc": "The perfect pack to build up a colony in the nether. Beware of Zombified Piglins!",
-  "mods": [
-  "structurize",
-  "minecolonies"
-  ],
-  "version": "1",
-  "pack-format": "1"
+"icon": "dragoncolonies.png",
+"name": "dragoncolonies",
+"authors": [
+"Karl Karlmann"
+],
+"desc": "DragonColonies - Expansion pack adding dragon roosts, beastmasters, and dragon riders to your colony.",
+"mods": [
+"structurize",
+"minecolonies"
+],
+"version": "1",
+"pack-format": "1"
 }

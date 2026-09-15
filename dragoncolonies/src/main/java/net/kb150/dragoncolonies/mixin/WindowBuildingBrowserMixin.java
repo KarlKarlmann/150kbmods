@@ -12,20 +12,30 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Mixin(value = WindowBuildingBrowser.class, remap = false)
 public class WindowBuildingBrowserMixin {
 
     private static StructurePackMeta getOurPack() {
         for (StructurePackMeta meta : StructurePacks.getPackMetas()) {
-            if ("dragoncolonies".equals(meta.getOwner()) || "dragoncolonies".equals(meta.getName()) || "buildings".equals(meta.getName())) {
+            if ("dragoncolonies".equalsIgnoreCase(meta.getName()) 
+                    || "dragoncolonies".equalsIgnoreCase(meta.getOwner())
+                    || "buildings".equalsIgnoreCase(meta.getName())) {
                 return meta;
             }
         }
         return null;
+    }
+
+    private static String extractFolder(String path) {
+        if (path == null) return "";
+        String clean = path.replace('\\', '/');
+        while (clean.endsWith("/")) {
+            clean = clean.substring(0, clean.length() - 1);
+        }
+        int lastSlash = clean.lastIndexOf('/');
+        return lastSlash >= 0 ? clean.substring(lastSlash + 1) : clean;
     }
 
     @Inject(method = "discoverBuildings(Lcom/ldtteam/structurize/storage/StructurePackMeta;Ljava/util/List;)Ljava/util/Map;", at = @At("RETURN"), remap = false)
@@ -34,8 +44,7 @@ public class WindowBuildingBrowserMixin {
         Map buildings = cir.getReturnValue();
         StructurePackMeta ourPack = getOurPack();
 
-        // Wenn unser Pack nicht da ist oder das Baumenü gerade unser Pack direkt scannt: abbrechen.
-        if (ourPack == null || ourPack.getName().equals(currentWandPack.getName())) {
+        if (ourPack == null || ourPack.getName().equalsIgnoreCase(currentWandPack.getName())) {
             return;
         }
 
@@ -44,39 +53,57 @@ public class WindowBuildingBrowserMixin {
             Method createMethod = buildingInfoClass.getDeclaredMethod("create", StructurePackMeta.class, Blueprint.class, boolean.class);
             createMethod.setAccessible(true);
 
-            // 1. DYNAMISCH alle Ordner in deinem Pack abfragen (z.B. "military", "mystic", "brot")
-            List<StructurePacks.Category> categories = StructurePacks.getCategories(ourPack.getName(), "");
-            if (categories == null) return;
+            String activeStyle = currentWandPack.getName().toLowerCase(Locale.ROOT);
 
-            for (StructurePacks.Category category : categories) {
-                String catName = category.subPath; 
-                
-                // 2. DYNAMISCH alle Blueprints aus diesem Ordner abfragen
-                List<Blueprint> ourBlueprints = StructurePacks.getBlueprints(ourPack.getName(), catName);
-                if (ourBlueprints == null) continue;
+            // 1. Alle Kategorien ermitteln (sowohl aus "default" als auch aus dem spezifischen Stil-Ordner)
+            Set<String> categories = new LinkedHashSet<>();
 
-                for (Blueprint bp : ourBlueprints) {
-                    // 3. DYNAMISCH den Anker-Block des Blueprints auslesen (z.B. Feuerwachen-Block)
+            List<StructurePacks.Category> defaultCats = StructurePacks.getCategories(ourPack.getName(), "default");
+            if (defaultCats != null) {
+                for (StructurePacks.Category c : defaultCats) {
+                    String catName = extractFolder(c.subPath);
+                    if (!catName.isEmpty()) categories.add(catName);
+                }
+            }
+
+            List<StructurePacks.Category> styleCats = StructurePacks.getCategories(ourPack.getName(), activeStyle);
+            if (styleCats != null) {
+                for (StructurePacks.Category c : styleCats) {
+                    String catName = extractFolder(c.subPath);
+                    if (!catName.isEmpty()) categories.add(catName);
+                }
+            }
+
+            // 2. Für jede Kategorie Blueprints abfragen (Stil-Ordner hat Vorrang vor default)
+            for (String category : categories) {
+                List<Blueprint> blueprintsToUse = StructurePacks.getBlueprints(ourPack.getName(), activeStyle + "/" + category);
+
+                // Fallback auf default, wenn dieser Stil keine eigenen Blueprints für diese Kategorie hat
+                if (blueprintsToUse == null || blueprintsToUse.isEmpty()) {
+                    blueprintsToUse = StructurePacks.getBlueprints(ourPack.getName(), "default/" + category);
+                }
+
+                if (blueprintsToUse == null || blueprintsToUse.isEmpty()) continue;
+
+                for (Blueprint bp : blueprintsToUse) {
                     BlockPos anchorPos = bp.getPrimaryBlockOffset();
                     com.ldtteam.structurize.util.BlockInfo info = bp.getBlockInfoAsMap().get(anchorPos);
-                    
-                    if (info == null || info.getState() == null) continue;
-                    Block anchorBlock = info.getState().getBlock(); // Hier verwenden wir jetzt den unverschleierten MojMap-Namen
 
-                    // 4. Prüfen, ob das Baumenü sich für diesen Block interessiert
+                    if (info == null || info.getState() == null) continue;
+                    Block anchorBlock = info.getState().getBlock();
+
                     if (browsableBlocks.contains(anchorBlock)) {
                         @SuppressWarnings("unchecked")
                         List<Object> list = (List<Object>) buildings.computeIfAbsent(anchorBlock, k -> new ArrayList<>());
 
-                        // 5. Tarnen und einschleusen!
-                        Blueprint disguisedBp = createDisguisedBlueprint(bp, currentWandPack, catName);
+                        Blueprint disguisedBp = createDisguisedBlueprint(bp, currentWandPack, category);
                         Object buildingInfo = createMethod.invoke(null, currentWandPack, disguisedBp, false);
                         list.add(buildingInfo);
                     }
                 }
             }
         } catch (Exception e) {
-            // Silently fail, um GUI-Abstürze zu verhindern
+            // Silently fail, um GUI-Abstürze abzufangen
         }
     }
 

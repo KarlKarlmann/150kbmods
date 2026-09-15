@@ -24,18 +24,25 @@ public class ModMessages {
     }
 
     public static void register() {
-        // 1. Rekrutierungs-Paket
+        // 1. Rekrutierungs-Paket (Client -> Server)
         INSTANCE.messageBuilder(C2SRecruitSurvivorPacket.class, id(), NetworkDirection.PLAY_TO_SERVER)
                 .decoder(C2SRecruitSurvivorPacket::new)
                 .encoder(C2SRecruitSurvivorPacket::encode)
                 .consumerMainThread(C2SRecruitSurvivorPacket::handle)
                 .add();
 
-        // 2. NEU: Handels-Paket
+        // 2. Handels-Paket (Client -> Server)
         INSTANCE.messageBuilder(C2STradeOfferPacket.class, id(), NetworkDirection.PLAY_TO_SERVER)
                 .decoder(C2STradeOfferPacket::new)
                 .encoder(C2STradeOfferPacket::toBytes)
                 .consumerMainThread(C2STradeOfferPacket::handle)
+                .add();
+
+        // 3. Dialog-Optionen-Paket (Client -> Server)
+        INSTANCE.messageBuilder(C2SDialogOptionPacket.class, id(), NetworkDirection.PLAY_TO_SERVER)
+                .decoder(C2SDialogOptionPacket::new)
+                .encoder(C2SDialogOptionPacket::encode)
+                .consumerMainThread(C2SDialogOptionPacket::handle)
                 .add();
     }
 

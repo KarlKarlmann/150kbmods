@@ -9,6 +9,9 @@ import net.kb150.reward_box.RewardBox;
 import net.kb150.reward_box.client.renderer.RewardChestRenderer;
 import net.kb150.reward_box.init.RewardBoxRegistry;
 import net.kb150.reward_box.util.RewardBoxConfigManager;
+import net.kb150.reward_box.client.screen.RewardBoxAnimationScreen;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraft.client.gui.screens.MenuScreens;
 
 @Mod.EventBusSubscriber(modid = RewardBox.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientSetup {
@@ -23,4 +26,11 @@ public class ClientSetup {
     public static void registerClientReloadListeners(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener(new RewardBoxConfigManager());
     }
+	
+	@SubscribeEvent
+	public static void onClientSetup(FMLClientSetupEvent event) {
+	   event.enqueueWork(() -> {
+		   MenuScreens.register(RewardBoxRegistry.REWARD_BOX_MENU.get(), RewardBoxAnimationScreen::new);
+	   });
+	}
 }

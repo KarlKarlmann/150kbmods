@@ -1,0 +1,53 @@
+{
+"box_charge": {
+"category": "player",
+"sounds": [
+"reward_box:box_charge"
+]
+},
+"box_burst": {
+"category": "player",
+"sounds": [
+"reward_box:box_burst"
+]
+},
+"item_swoosh": {
+"category": "player",
+"sounds": [
+"reward_box:item_swoosh_1",
+"reward_box:item_swoosh_2",
+"reward_box:item_swoosh_3",
+"reward_box:item_swoosh_4",
+"reward_box:item_swoosh_5",
+"reward_box:item_swoosh_6",
+"reward_box:item_swoosh_7",
+"reward_box:item_swoosh_8",
+"reward_box:item_swoosh_9",
+"reward_box:item_swoosh_10",
+"reward_box:item_swoosh_11",
+"reward_box:item_swoosh_12",
+"reward_box:item_swoosh_13",
+"reward_box:item_swoosh_14",
+"reward_box:item_swoosh_15",
+"reward_box:item_swoosh_16",
+"reward_box:item_swoosh_17",
+"reward_box:item_swoosh_18",
+"reward_box:item_swoosh_19",
+"reward_box:item_swoosh_20",
+"reward_box:item_swoosh_21",
+"reward_box:item_swoosh_22",
+"reward_box:item_swoosh_23",
+"reward_box:item_swoosh_24",
+"reward_box:item_swoosh_25",
+"reward_box:item_swoosh_26",
+"reward_box:item_swoosh_27",
+"reward_box:item_swoosh_28"
+]
+},
+"item_land": {
+"category": "player",
+"sounds": [
+"reward_box:item_land"
+]
+}
+}

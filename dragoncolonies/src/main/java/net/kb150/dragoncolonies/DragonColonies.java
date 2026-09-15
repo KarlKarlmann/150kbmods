@@ -42,12 +42,11 @@ public class DragonColonies {
         DragonColoniesNetwork.register(); 
 
         event.enqueueWork(() -> {
-			DragonExportManager.loadConfig();
+            DragonExportManager.loadConfig();
             Map<EventType, List<Tuple<SoundEvent, SoundEvent>>> unemployedSounds = ModSoundEvents.CITIZEN_SOUND_EVENTS.get("unemployed");
 
             if (unemployedSounds != null) {
                 ModSoundEvents.CITIZEN_SOUND_EVENTS.put("beastmaster", unemployedSounds);
-                ModSoundEvents.CITIZEN_SOUND_EVENTS.put("firefighter", unemployedSounds);
                 ModSoundEvents.CITIZEN_SOUND_EVENTS.put("dragonrider", unemployedSounds);
                 LOGGER.info("[DragonColonies] Custom-Job-Sounds erfolgreich registriert!");
             } else {

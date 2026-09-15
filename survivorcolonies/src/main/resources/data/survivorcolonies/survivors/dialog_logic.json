@@ -1,781 +1,4407 @@
 {
-  "npc_lines": {
-    "anxious|ex_soldier|community|5|trust_low": [
-      57
-    ],
-    "anxious|ex_soldier|curiosity|1|trust_high": [
-      168
-    ],
-    "anxious|ex_soldier|curiosity|5|small_talk": [
-      164
-    ],
-    "anxious|ex_soldier|curiosity|5|trust_high": [
-      225
-    ],
-    "anxious|ex_soldier|curiosity|9|trust_low": [
-      55
-    ],
-    "anxious|ex_soldier|revenge|1|trust_high": [
-      114
-    ],
-    "anxious|ex_soldier|survival|9|backstory_reveal": [
-      148
-    ],
-    "anxious|former_trader|community|1|small_talk": [
-      202
-    ],
-    "anxious|former_trader|community|9|backstory_reveal": [
-      125
-    ],
-    "anxious|former_trader|community|9|trust_high": [
-      227
-    ],
-    "anxious|former_trader|curiosity|1|small_talk": [
-      217
-    ],
-    "anxious|former_trader|curiosity|1|trust_low": [
-      122
-    ],
-    "anxious|former_trader|curiosity|5|trust_high": [
-      206
-    ],
-    "anxious|former_trader|curiosity|9|small_talk": [
-      197
-    ],
-    "anxious|former_trader|revenge|9|trust_high": [
-      153
-    ],
-    "anxious|former_trader|survival|5|backstory_reveal": [
-      205
-    ],
-    "anxious|lost_family|curiosity|1|small_talk": [
-      198
-    ],
-    "anxious|lost_family|curiosity|9|small_talk": [
-      229
-    ],
-    "anxious|lost_family|redemption|1|small_talk": [
-      45
-    ],
-    "anxious|lost_family|revenge|1|backstory_reveal": [
-      59
-    ],
-    "anxious|lost_family|revenge|1|trust_low": [
-      142
-    ],
-    "anxious|lost_family|survival|5|trust_low": [
-      82
-    ],
-    "anxious|runaway|community|1|trust_low": [
-      194
-    ],
-    "anxious|runaway|community|5|backstory_reveal": [
-      139
-    ],
-    "anxious|runaway|curiosity|1|backstory_reveal": [
-      115
-    ],
-    "anxious|runaway|curiosity|9|trust_low": [
-      56
-    ],
-    "anxious|runaway|survival|1|small_talk": [
-      33
-    ],
-    "anxious|runaway|survival|1|trust_high": [
-      200
-    ],
-    "anxious|runaway|survival|5|small_talk": [
-      228
-    ],
-    "anxious|runaway|survival|5|trust_low": [
-      42
-    ],
-    "anxious|scientist|community|1|trust_high": [
-      61
-    ],
-    "anxious|scientist|curiosity|5|backstory_reveal": [
-      173
-    ],
-    "anxious|scientist|redemption|5|backstory_reveal": [
-      90
-    ],
-    "anxious|scientist|redemption|9|trust_high": [
-      180
-    ],
-    "anxious|scientist|revenge|1|backstory_reveal": [
-      94
-    ],
-    "anxious|scientist|revenge|1|trust_high": [
-      127
-    ],
-    "anxious|scientist|revenge|9|trust_low": [
-      68
-    ],
-    "cheerful|ex_soldier|community|1|small_talk": [
-      63
-    ],
-    "cheerful|ex_soldier|community|1|trust_high": [
-      208
-    ],
-    "cheerful|ex_soldier|survival|1|trust_high": [
-      220
-    ],
-    "cheerful|ex_soldier|survival|9|backstory_reveal": [
-      129
-    ],
-    "cheerful|ex_soldier|survival|9|small_talk": [
-      69
-    ],
-    "cheerful|former_trader|community|1|backstory_reveal": [
-      53
-    ],
-    "cheerful|former_trader|curiosity|5|small_talk": [
-      79
-    ],
-    "cheerful|former_trader|curiosity|9|backstory_reveal": [
-      211
-    ],
-    "cheerful|former_trader|curiosity|9|small_talk": [
-      70
-    ],
-    "cheerful|former_trader|redemption|5|small_talk": [
-      99
-    ],
-    "cheerful|former_trader|redemption|9|small_talk": [
-      105
-    ],
-    "cheerful|former_trader|revenge|1|small_talk": [
-      108
-    ],
-    "cheerful|former_trader|revenge|9|small_talk": [
-      165
-    ],
-    "cheerful|former_trader|revenge|9|trust_high": [
-      140
-    ],
-    "cheerful|lost_family|redemption|9|small_talk": [
-      41
-    ],
-    "cheerful|lost_family|revenge|9|trust_high": [
-      189
-    ],
-    "cheerful|lost_family|survival|1|small_talk": [
-      150
-    ],
-    "cheerful|runaway|community|9|small_talk": [
-      192
-    ],
-    "cheerful|runaway|community|9|trust_low": [
-      151
-    ],
-    "cheerful|runaway|revenge|1|trust_high": [
-      221
-    ],
-    "cheerful|runaway|revenge|5|backstory_reveal": [
-      102
-    ],
-    "cheerful|runaway|revenge|9|trust_low": [
-      46
-    ],
-    "cheerful|runaway|survival|5|small_talk": [
-      107
-    ],
-    "cheerful|scientist|redemption|1|small_talk": [
-      147
-    ],
-    "cheerful|scientist|redemption|5|small_talk": [
-      44
-    ],
-    "cheerful|scientist|redemption|9|small_talk": [
-      167
-    ],
-    "cheerful|scientist|revenge|1|trust_high": [
-      47
-    ],
-    "cheerful|scientist|revenge|9|small_talk": [
-      86
-    ],
-    "friendly|ex_soldier|curiosity|5|trust_low": [
-      35
-    ],
-    "friendly|ex_soldier|redemption|5|backstory_reveal": [
-      162
-    ],
-    "friendly|ex_soldier|redemption|5|small_talk": [
-      113
-    ],
-    "friendly|ex_soldier|redemption|9|backstory_reveal": [
-      191
-    ],
-    "friendly|ex_soldier|redemption|9|trust_low": [
-      101
-    ],
-    "friendly|ex_soldier|revenge|9|trust_high": [
-      54
-    ],
-    "friendly|ex_soldier|survival|1|small_talk": [
-      177
-    ],
-    "friendly|ex_soldier|survival|1|trust_high": [
-      141
-    ],
-    "friendly|ex_soldier|survival|5|backstory_reveal": [
-      78
-    ],
-    "friendly|ex_soldier|survival|5|trust_high": [
-      50
-    ],
-    "friendly|former_trader|community|1|trust_low": [
-      188
-    ],
-    "friendly|former_trader|community|5|small_talk": [
-      100
-    ],
-    "friendly|former_trader|community|9|small_talk": [
-      66
-    ],
-    "friendly|former_trader|community|9|trust_high": [
-      93
-    ],
-    "friendly|lost_family|community|5|small_talk": [
-      83
-    ],
-    "friendly|lost_family|curiosity|5|backstory_reveal": [
-      119
-    ],
-    "friendly|lost_family|redemption|1|backstory_reveal": [
-      155
-    ],
-    "friendly|lost_family|redemption|1|trust_low": [
-      76
-    ],
-    "friendly|lost_family|revenge|5|trust_low": [
-      174
-    ],
-    "friendly|runaway|community|5|small_talk": [
-      71
-    ],
-    "friendly|runaway|community|9|trust_low": [
-      131
-    ],
-    "friendly|runaway|curiosity|5|backstory_reveal": [
-      154
-    ],
-    "friendly|runaway|curiosity|5|small_talk": [
-      124
-    ],
-    "friendly|runaway|revenge|1|trust_low": [
-      169
-    ],
-    "friendly|runaway|revenge|5|trust_high": [
-      91
-    ],
-    "friendly|runaway|survival|1|small_talk": [
-      130
-    ],
-    "friendly|scientist|community|1|small_talk": [
-      160
-    ],
-    "friendly|scientist|community|5|backstory_reveal": [
-      39
-    ],
-    "friendly|scientist|community|5|trust_low": [
-      106
-    ],
-    "friendly|scientist|community|9|trust_high": [
-      51
-    ],
-    "friendly|scientist|curiosity|5|backstory_reveal": [
-      49
-    ],
-    "friendly|scientist|redemption|5|trust_high": [
-      89
-    ],
-    "friendly|scientist|redemption|9|backstory_reveal": [
-      112
-    ],
-    "friendly|scientist|redemption|9|small_talk": [
-      104
-    ],
-    "friendly|scientist|revenge|5|backstory_reveal": [
-      62
-    ],
-    "friendly|scientist|survival|9|small_talk": [
-      72
-    ],
-    "friendly|scientist|survival|9|trust_low": [
-      182
-    ],
-    "grumpy|ex_soldier|community|1|trust_low": [
-      123
-    ],
-    "grumpy|ex_soldier|curiosity|1|backstory_reveal": [
-      92
-    ],
-    "grumpy|ex_soldier|curiosity|1|small_talk": [
-      185
-    ],
-    "grumpy|former_trader|community|1|backstory_reveal": [
-      214
-    ],
-    "grumpy|former_trader|community|5|trust_high": [
-      74
-    ],
-    "grumpy|former_trader|curiosity|5|small_talk": [
-      209
-    ],
-    "grumpy|former_trader|curiosity|5|trust_low": [
-      159
-    ],
-    "grumpy|former_trader|curiosity|9|backstory_reveal": [
-      190
-    ],
-    "grumpy|former_trader|redemption|5|small_talk": [
-      219
-    ],
-    "grumpy|former_trader|revenge|1|trust_high": [
-      157
-    ],
-    "grumpy|lost_family|community|1|trust_low": [
-      103
-    ],
-    "grumpy|lost_family|community|9|backstory_reveal": [
-      34
-    ],
-    "grumpy|lost_family|community|9|trust_low": [
-      222
-    ],
-    "grumpy|lost_family|curiosity|1|backstory_reveal": [
-      181
-    ],
-    "grumpy|lost_family|curiosity|1|trust_high": [
-      81
-    ],
-    "grumpy|lost_family|redemption|5|small_talk": [
-      111
-    ],
-    "grumpy|lost_family|revenge|5|small_talk": [
-      143
-    ],
-    "grumpy|lost_family|survival|5|trust_high": [
-      36
-    ],
-    "grumpy|runaway|community|1|backstory_reveal": [
-      87
-    ],
-    "grumpy|runaway|community|1|trust_high": [
-      52
-    ],
-    "grumpy|runaway|community|5|trust_low": [
-      65
-    ],
-    "grumpy|runaway|redemption|1|small_talk": [
-      161
-    ],
-    "grumpy|runaway|redemption|9|small_talk": [
-      224
-    ],
-    "grumpy|runaway|survival|9|backstory_reveal": [
-      126
-    ],
-    "grumpy|scientist|community|5|trust_low": [
-      85
-    ],
-    "grumpy|scientist|curiosity|1|trust_low": [
-      118
-    ],
-    "grumpy|scientist|curiosity|5|small_talk": [
-      48
-    ],
-    "grumpy|scientist|redemption|1|small_talk": [
-      203
-    ],
-    "grumpy|scientist|redemption|5|small_talk": [
-      172
-    ],
-    "grumpy|scientist|redemption|9|trust_high": [
-      116
-    ],
-    "grumpy|scientist|revenge|1|trust_high": [
-      132
-    ],
-    "grumpy|scientist|revenge|1|trust_low": [
-      193
-    ],
-    "grumpy|scientist|revenge|9|trust_high": [
-      80
-    ],
-    "grumpy|scientist|survival|9|backstory_reveal": [
-      175
-    ],
-    "sarcastic|ex_soldier|curiosity|1|small_talk": [
-      134
-    ],
-    "sarcastic|ex_soldier|redemption|1|small_talk": [
-      97
-    ],
-    "sarcastic|ex_soldier|revenge|1|trust_high": [
-      158
-    ],
-    "sarcastic|ex_soldier|revenge|1|trust_low": [
-      77
-    ],
-    "sarcastic|ex_soldier|survival|1|backstory_reveal": [
-      137
-    ],
-    "sarcastic|ex_soldier|survival|5|trust_low": [
-      196
-    ],
-    "sarcastic|ex_soldier|survival|9|small_talk": [
-      138
-    ],
-    "sarcastic|former_trader|curiosity|1|trust_low": [
-      213
-    ],
-    "sarcastic|former_trader|redemption|1|trust_high": [
-      210
-    ],
-    "sarcastic|former_trader|revenge|1|backstory_reveal": [
-      170
-    ],
-    "sarcastic|former_trader|survival|1|small_talk": [
-      163
-    ],
-    "sarcastic|former_trader|survival|1|trust_high": [
-      146
-    ],
-    "sarcastic|former_trader|survival|5|backstory_reveal": [
-      67
-    ],
-    "sarcastic|former_trader|survival|9|trust_low": [
-      176
-    ],
-    "sarcastic|lost_family|curiosity|9|small_talk": [
-      186
-    ],
-    "sarcastic|lost_family|revenge|1|trust_low": [
-      84
-    ],
-    "sarcastic|lost_family|revenge|9|trust_high": [
-      223
-    ],
-    "sarcastic|runaway|curiosity|1|backstory_reveal": [
-      117
-    ],
-    "sarcastic|runaway|curiosity|9|trust_high": [
-      96
-    ],
-    "sarcastic|runaway|redemption|9|small_talk": [
-      212
-    ],
-    "sarcastic|runaway|revenge|1|backstory_reveal": [
-      149
-    ],
-    "sarcastic|runaway|revenge|9|small_talk": [
-      120
-    ],
-    "sarcastic|scientist|community|5|small_talk": [
-      37
-    ],
-    "sarcastic|scientist|curiosity|9|trust_high": [
-      75
-    ],
-    "sarcastic|scientist|redemption|1|small_talk": [
-      60
-    ],
-    "sarcastic|scientist|redemption|5|trust_high": [
-      135
-    ],
-    "sarcastic|scientist|revenge|5|trust_high": [
-      184
-    ],
-    "sarcastic|scientist|revenge|9|backstory_reveal": [
-      88
-    ],
-    "stoic|ex_soldier|community|5|trust_high": [
-      195
-    ],
-    "stoic|ex_soldier|community|9|trust_high": [
-      204
-    ],
-    "stoic|ex_soldier|curiosity|5|trust_low": [
-      73
-    ],
-    "stoic|ex_soldier|curiosity|9|trust_high": [
-      110
-    ],
-    "stoic|ex_soldier|redemption|5|small_talk": [
-      201
-    ],
-    "stoic|ex_soldier|revenge|9|backstory_reveal": [
-      98
-    ],
-    "stoic|ex_soldier|survival|9|backstory_reveal": [
-      178
-    ],
-    "stoic|former_trader|community|1|trust_low": [
-      207
-    ],
-    "stoic|former_trader|redemption|5|small_talk": [
-      109
-    ],
-    "stoic|former_trader|revenge|9|trust_low": [
-      215
-    ],
-    "stoic|lost_family|community|1|trust_high": [
-      133
-    ],
-    "stoic|lost_family|curiosity|1|trust_low": [
-      121
-    ],
-    "stoic|lost_family|revenge|5|backstory_reveal": [
-      144
-    ],
-    "stoic|lost_family|revenge|5|trust_low": [
-      187
-    ],
-    "stoic|lost_family|survival|1|trust_low": [
-      128
-    ],
-    "stoic|lost_family|survival|9|trust_high": [
-      58
-    ],
-    "stoic|runaway|community|1|trust_high": [
-      179
-    ],
-    "stoic|runaway|community|9|backstory_reveal": [
-      40
-    ],
-    "stoic|runaway|curiosity|5|backstory_reveal": [
-      199
-    ],
-    "stoic|runaway|curiosity|9|trust_low": [
-      64
-    ],
-    "stoic|runaway|redemption|9|small_talk": [
-      95
-    ],
-    "stoic|runaway|revenge|5|backstory_reveal": [
-      43
-    ],
-    "stoic|runaway|revenge|9|small_talk": [
-      171
-    ],
-    "stoic|runaway|survival|5|backstory_reveal": [
-      166
-    ],
-    "stoic|runaway|survival|9|backstory_reveal": [
-      156
-    ],
-    "stoic|runaway|survival|9|trust_high": [
-      136
-    ],
-    "stoic|scientist|community|5|trust_high": [
-      152
-    ],
-    "stoic|scientist|community|9|trust_low": [
-      183
-    ],
-    "stoic|scientist|curiosity|5|trust_high": [
-      218
-    ],
-    "stoic|scientist|redemption|5|small_talk": [
-      145
-    ],
-    "stoic|scientist|redemption|9|small_talk": [
-      38
-    ],
-    "stoic|scientist|revenge|5|trust_high": [
-      226
-    ],
-    "stoic|scientist|survival|5|trust_high": [
-      216
-    ]
+  "version": 3,
+  "roots": [
+    1,
+    2,
+    3
+  ],
+  "stats": {
+    "total_npc_reactions": 100,
+    "total_player_reactions": 300
   },
-  "player_options": {
-    "1": [
-      {
-        "once": false,
-        "option_id": 1,
-        "stance": "supportive",
-        "text_id": 9,
-        "trust_delta": 0
+  "npc_reactions": {
+    "1": {
+      "id": 1,
+      "text_key": "survivor.npc.1",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        1,
+        2,
+        3
+      ]
+    },
+    "2": {
+      "id": 2,
+      "text_key": "survivor.npc.2",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        4,
+        5,
+        6
+      ]
+    },
+    "3": {
+      "id": 3,
+      "text_key": "survivor.npc.3",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        7,
+        8,
+        9
+      ]
+    },
+    "4": {
+      "id": 4,
+      "text_key": "survivor.npc.4",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        10,
+        11,
+        12
+      ]
+    },
+    "5": {
+      "id": 5,
+      "text_key": "survivor.npc.5",
+      "conditions": {
+        "motivation": "revenge"
       },
-      {
-        "once": true,
-        "option_id": 2,
-        "stance": "curious",
-        "text_id": 10,
-        "trust_delta": 1
+      "trust_delta": 0,
+      "options": [
+        13,
+        14,
+        15
+      ]
+    },
+    "6": {
+      "id": 6,
+      "text_key": "survivor.npc.6",
+      "conditions": {
+        "tone": "cynical"
       },
-      {
-        "once": true,
-        "option_id": 3,
-        "stance": "dismissive",
-        "text_id": 11,
-        "trust_delta": 1
-      }
-    ],
-    "2": [
-      {
-        "once": false,
-        "option_id": 4,
-        "stance": "supportive",
-        "text_id": 12,
-        "trust_delta": 0
+      "trust_delta": 0,
+      "options": [
+        16,
+        17,
+        18
+      ]
+    },
+    "7": {
+      "id": 7,
+      "text_key": "survivor.npc.7",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        19,
+        20,
+        21
+      ]
+    },
+    "8": {
+      "id": 8,
+      "text_key": "survivor.npc.8",
+      "conditions": {
+        "trust": {
+          "max": 36
+        }
       },
-      {
-        "once": true,
-        "option_id": 5,
-        "stance": "curious",
-        "text_id": 13,
-        "trust_delta": 1
+      "trust_delta": 0,
+      "options": [
+        22,
+        23,
+        24
+      ]
+    },
+    "9": {
+      "id": 9,
+      "text_key": "survivor.npc.9",
+      "conditions": {
+        "trust": {
+          "min": 39
+        }
       },
-      {
-        "once": true,
-        "option_id": 6,
-        "stance": "dismissive",
-        "text_id": 14,
-        "trust_delta": 1
-      }
-    ],
-    "3": [
-      {
-        "once": false,
-        "option_id": 7,
-        "stance": "supportive",
-        "text_id": 15,
-        "trust_delta": 0
+      "trust_delta": 2,
+      "options": [
+        25,
+        26,
+        27
+      ]
+    },
+    "10": {
+      "id": 10,
+      "text_key": "survivor.npc.10",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        28,
+        29,
+        30
+      ]
+    },
+    "11": {
+      "id": 11,
+      "text_key": "survivor.npc.11",
+      "conditions": {
+        "trust": {
+          "min": 39
+        }
       },
-      {
-        "once": true,
-        "option_id": 8,
-        "stance": "curious",
-        "text_id": 16,
-        "trust_delta": 1
+      "trust_delta": 1,
+      "options": [
+        31,
+        32,
+        33
+      ]
+    },
+    "12": {
+      "id": 12,
+      "text_key": "survivor.npc.12",
+      "conditions": {
+        "skill": {
+          "Dexterity": {
+            "max": 11
+          }
+        }
       },
-      {
-        "once": true,
-        "option_id": 9,
-        "stance": "dismissive",
-        "text_id": 17,
-        "trust_delta": 1
-      }
-    ],
-    "4": [
-      {
-        "once": false,
-        "option_id": 10,
-        "stance": "supportive",
-        "text_id": 18,
-        "trust_delta": 0
+      "trust_delta": 0,
+      "options": [
+        34,
+        35,
+        36
+      ]
+    },
+    "13": {
+      "id": 13,
+      "text_key": "survivor.npc.13",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        37,
+        38,
+        39
+      ]
+    },
+    "14": {
+      "id": 14,
+      "text_key": "survivor.npc.14",
+      "conditions": {
+        "tone": "arrogant",
+        "skill": {
+          "Adaptability": {
+            "min": 7
+          }
+        }
       },
-      {
-        "once": true,
-        "option_id": 11,
-        "stance": "curious",
-        "text_id": 19,
-        "trust_delta": 1
+      "trust_delta": -2,
+      "options": [
+        40,
+        41,
+        42
+      ]
+    },
+    "15": {
+      "id": 15,
+      "text_key": "survivor.npc.15",
+      "conditions": {
+        "skill": {
+          "Knowledge": {
+            "max": 8
+          }
+        },
+        "trust": {
+          "min": 15
+        }
       },
-      {
-        "once": true,
-        "option_id": 12,
-        "stance": "dismissive",
-        "text_id": 20,
-        "trust_delta": 1
-      }
-    ],
-    "5": [
-      {
-        "once": true,
-        "option_id": 13,
-        "stance": "supportive",
-        "text_id": 21,
-        "trust_delta": 1
+      "trust_delta": -3,
+      "options": [
+        43,
+        44,
+        45
+      ]
+    },
+    "16": {
+      "id": 16,
+      "text_key": "survivor.npc.16",
+      "conditions": {},
+      "trust_delta": 2,
+      "options": [
+        46,
+        47,
+        48
+      ]
+    },
+    "17": {
+      "id": 17,
+      "text_key": "survivor.npc.17",
+      "conditions": {
+        "backstory": "monster_ambush",
+        "tone": "cheerful"
       },
-      {
-        "once": true,
-        "option_id": 14,
-        "stance": "curious",
-        "text_id": 22,
-        "trust_delta": 1
+      "trust_delta": 3,
+      "options": [
+        49,
+        50,
+        51
+      ]
+    },
+    "18": {
+      "id": 18,
+      "text_key": "survivor.npc.18",
+      "conditions": {
+        "motivation": "purpose",
+        "skill": {
+          "Creativity": {
+            "max": 8
+          }
+        }
       },
-      {
-        "once": true,
-        "option_id": 15,
-        "stance": "dismissive",
-        "text_id": 23,
-        "trust_delta": -1
-      }
-    ],
-    "6": [
-      {
-        "once": true,
-        "option_id": 16,
-        "stance": "supportive",
-        "text_id": 24,
-        "trust_delta": 1
+      "trust_delta": 0,
+      "options": [
+        52,
+        53,
+        54
+      ]
+    },
+    "19": {
+      "id": 19,
+      "text_key": "survivor.npc.19",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        55,
+        56,
+        57
+      ]
+    },
+    "20": {
+      "id": 20,
+      "text_key": "survivor.npc.20",
+      "conditions": {
+        "tone": "cheerful"
       },
-      {
-        "once": true,
-        "option_id": 17,
-        "stance": "curious",
-        "text_id": 25,
-        "trust_delta": 1
+      "trust_delta": 0,
+      "options": [
+        58,
+        59,
+        60
+      ]
+    },
+    "21": {
+      "id": 21,
+      "text_key": "survivor.npc.21",
+      "conditions": {
+        "tone": "cheerful",
+        "motivation": "money"
       },
-      {
-        "once": true,
-        "option_id": 18,
-        "stance": "dismissive",
-        "text_id": 26,
-        "trust_delta": -1
-      }
-    ],
-    "7": [
-      {
-        "once": true,
-        "option_id": 19,
-        "stance": "supportive",
-        "text_id": 27,
-        "trust_delta": 1
+      "trust_delta": 0,
+      "options": [
+        61,
+        62,
+        63
+      ]
+    },
+    "22": {
+      "id": 22,
+      "text_key": "survivor.npc.22",
+      "conditions": {},
+      "trust_delta": -2,
+      "options": [
+        64,
+        65,
+        66
+      ]
+    },
+    "23": {
+      "id": 23,
+      "text_key": "survivor.npc.23",
+      "conditions": {
+        "skill": {
+          "Creativity": {
+            "max": 14
+          }
+        },
+        "backstory": "lost_family"
       },
-      {
-        "once": true,
-        "option_id": 20,
-        "stance": "curious",
-        "text_id": 28,
-        "trust_delta": 1
+      "trust_delta": -2,
+      "options": [
+        67,
+        68,
+        69
+      ]
+    },
+    "24": {
+      "id": 24,
+      "text_key": "survivor.npc.24",
+      "conditions": {
+        "backstory": "mine_collapse",
+        "tone": "arrogant"
       },
-      {
-        "once": true,
-        "option_id": 21,
-        "stance": "dismissive",
-        "text_id": 29,
-        "trust_delta": -1
-      }
-    ],
-    "8": [
-      {
-        "once": true,
-        "option_id": 22,
-        "stance": "supportive",
-        "text_id": 30,
-        "trust_delta": 1
+      "trust_delta": -1,
+      "options": [
+        70,
+        71,
+        72
+      ]
+    },
+    "25": {
+      "id": 25,
+      "text_key": "survivor.npc.25",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        73,
+        74,
+        75
+      ]
+    },
+    "26": {
+      "id": 26,
+      "text_key": "survivor.npc.26",
+      "conditions": {
+        "tone": "cynical"
       },
-      {
-        "once": true,
-        "option_id": 23,
-        "stance": "curious",
-        "text_id": 31,
-        "trust_delta": 1
+      "trust_delta": 0,
+      "options": [
+        76,
+        77,
+        78
+      ]
+    },
+    "27": {
+      "id": 27,
+      "text_key": "survivor.npc.27",
+      "conditions": {
+        "backstory": "scientist",
+        "skill": {
+          "Stamina": {
+            "max": 9
+          }
+        }
       },
-      {
-        "once": true,
-        "option_id": 24,
-        "stance": "dismissive",
-        "text_id": 32,
-        "trust_delta": -1
-      }
-    ]
+      "trust_delta": -2,
+      "options": [
+        79,
+        80,
+        81
+      ]
+    },
+    "28": {
+      "id": 28,
+      "text_key": "survivor.npc.28",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        82,
+        83,
+        84
+      ]
+    },
+    "29": {
+      "id": 29,
+      "text_key": "survivor.npc.29",
+      "conditions": {
+        "skill": {
+          "Knowledge": {
+            "min": 12
+          }
+        },
+        "backstory": "former_trader"
+      },
+      "trust_delta": 0,
+      "options": [
+        85,
+        86,
+        87
+      ]
+    },
+    "30": {
+      "id": 30,
+      "text_key": "survivor.npc.30",
+      "conditions": {
+        "skill": {
+          "Dexterity": {
+            "min": 7
+          }
+        },
+        "tone": "cheerful"
+      },
+      "trust_delta": 0,
+      "options": [
+        88,
+        89,
+        90
+      ]
+    },
+    "31": {
+      "id": 31,
+      "text_key": "survivor.npc.31",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        91,
+        92,
+        93
+      ]
+    },
+    "32": {
+      "id": 32,
+      "text_key": "survivor.npc.32",
+      "conditions": {
+        "tone": "mysterious"
+      },
+      "trust_delta": 0,
+      "options": [
+        94,
+        95,
+        96
+      ]
+    },
+    "33": {
+      "id": 33,
+      "text_key": "survivor.npc.33",
+      "conditions": {
+        "trust": {
+          "max": 8
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        97,
+        98,
+        99
+      ]
+    },
+    "34": {
+      "id": 34,
+      "text_key": "survivor.npc.34",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        100,
+        101,
+        102
+      ]
+    },
+    "35": {
+      "id": 35,
+      "text_key": "survivor.npc.35",
+      "conditions": {
+        "trust": {
+          "min": 21
+        },
+        "skill": {
+          "Focus": {
+            "min": 11
+          }
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        103,
+        104,
+        105
+      ]
+    },
+    "36": {
+      "id": 36,
+      "text_key": "survivor.npc.36",
+      "conditions": {
+        "trust": {
+          "min": 47
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        106,
+        107,
+        108
+      ]
+    },
+    "37": {
+      "id": 37,
+      "text_key": "survivor.npc.37",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        109,
+        110,
+        111
+      ]
+    },
+    "38": {
+      "id": 38,
+      "text_key": "survivor.npc.38",
+      "conditions": {
+        "skill": {
+          "Mana": {
+            "max": 9
+          }
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        112,
+        113,
+        114
+      ]
+    },
+    "39": {
+      "id": 39,
+      "text_key": "survivor.npc.39",
+      "conditions": {
+        "tone": "cynical"
+      },
+      "trust_delta": -2,
+      "options": [
+        115,
+        116,
+        117
+      ]
+    },
+    "40": {
+      "id": 40,
+      "text_key": "survivor.npc.40",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        118,
+        119,
+        120
+      ]
+    },
+    "41": {
+      "id": 41,
+      "text_key": "survivor.npc.41",
+      "conditions": {
+        "trust": {
+          "min": 11
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        121,
+        122,
+        123
+      ]
+    },
+    "42": {
+      "id": 42,
+      "text_key": "survivor.npc.42",
+      "conditions": {
+        "skill": {
+          "Agility": {
+            "min": 11
+          }
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        124,
+        125,
+        126
+      ]
+    },
+    "43": {
+      "id": 43,
+      "text_key": "survivor.npc.43",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        127,
+        128,
+        129
+      ]
+    },
+    "44": {
+      "id": 44,
+      "text_key": "survivor.npc.44",
+      "conditions": {
+        "backstory": "lost_family",
+        "trust": {
+          "max": 48
+        }
+      },
+      "trust_delta": 2,
+      "options": [
+        130,
+        131,
+        132
+      ]
+    },
+    "45": {
+      "id": 45,
+      "text_key": "survivor.npc.45",
+      "conditions": {
+        "tone": "cheerful"
+      },
+      "trust_delta": -1,
+      "options": [
+        133,
+        134,
+        135
+      ]
+    },
+    "46": {
+      "id": 46,
+      "text_key": "survivor.npc.46",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        136,
+        137,
+        138
+      ]
+    },
+    "47": {
+      "id": 47,
+      "text_key": "survivor.npc.47",
+      "conditions": {
+        "backstory": "runaway"
+      },
+      "trust_delta": 0,
+      "options": [
+        139,
+        140,
+        141
+      ]
+    },
+    "48": {
+      "id": 48,
+      "text_key": "survivor.npc.48",
+      "conditions": {
+        "tone": "grumpy",
+        "motivation": "revenge"
+      },
+      "trust_delta": 0,
+      "options": [
+        142,
+        143,
+        144
+      ]
+    },
+    "49": {
+      "id": 49,
+      "text_key": "survivor.npc.49",
+      "conditions": {},
+      "trust_delta": 2,
+      "options": [
+        145,
+        146,
+        147
+      ]
+    },
+    "50": {
+      "id": 50,
+      "text_key": "survivor.npc.50",
+      "conditions": {
+        "motivation": "safety",
+        "trust": {
+          "min": 56
+        }
+      },
+      "trust_delta": 2,
+      "options": [
+        148,
+        149,
+        150
+      ]
+    },
+    "51": {
+      "id": 51,
+      "text_key": "survivor.npc.51",
+      "conditions": {
+        "trust": {
+          "max": -1
+        },
+        "tone": "arrogant"
+      },
+      "trust_delta": 0,
+      "options": [
+        151,
+        152,
+        153
+      ]
+    },
+    "52": {
+      "id": 52,
+      "text_key": "survivor.npc.52",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        154,
+        155,
+        156
+      ]
+    },
+    "53": {
+      "id": 53,
+      "text_key": "survivor.npc.53",
+      "conditions": {
+        "trust": {
+          "min": 19
+        },
+        "tone": "grumpy"
+      },
+      "trust_delta": 0,
+      "options": [
+        157,
+        158,
+        159
+      ]
+    },
+    "54": {
+      "id": 54,
+      "text_key": "survivor.npc.54",
+      "conditions": {
+        "backstory": "mine_collapse",
+        "motivation": "money"
+      },
+      "trust_delta": 2,
+      "options": [
+        160,
+        161,
+        162
+      ]
+    },
+    "55": {
+      "id": 55,
+      "text_key": "survivor.npc.55",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        163,
+        164,
+        165
+      ]
+    },
+    "56": {
+      "id": 56,
+      "text_key": "survivor.npc.56",
+      "conditions": {
+        "skill": {
+          "Dexterity": {
+            "max": 10
+          }
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        166,
+        167,
+        168
+      ]
+    },
+    "57": {
+      "id": 57,
+      "text_key": "survivor.npc.57",
+      "conditions": {
+        "backstory": "former_trader"
+      },
+      "trust_delta": -1,
+      "options": [
+        169,
+        170,
+        171
+      ]
+    },
+    "58": {
+      "id": 58,
+      "text_key": "survivor.npc.58",
+      "conditions": {},
+      "trust_delta": 1,
+      "options": [
+        172,
+        173,
+        174
+      ]
+    },
+    "59": {
+      "id": 59,
+      "text_key": "survivor.npc.59",
+      "conditions": {
+        "tone": "panicked",
+        "motivation": "revenge"
+      },
+      "trust_delta": 1,
+      "options": [
+        175,
+        176,
+        177
+      ]
+    },
+    "60": {
+      "id": 60,
+      "text_key": "survivor.npc.60",
+      "conditions": {
+        "skill": {
+          "Knowledge": {
+            "max": 7
+          }
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        178,
+        179,
+        180
+      ]
+    },
+    "61": {
+      "id": 61,
+      "text_key": "survivor.npc.61",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        181,
+        182,
+        183
+      ]
+    },
+    "62": {
+      "id": 62,
+      "text_key": "survivor.npc.62",
+      "conditions": {
+        "motivation": "safety"
+      },
+      "trust_delta": 0,
+      "options": [
+        184,
+        185,
+        186
+      ]
+    },
+    "63": {
+      "id": 63,
+      "text_key": "survivor.npc.63",
+      "conditions": {
+        "trust": {
+          "min": 52
+        }
+      },
+      "trust_delta": 1,
+      "options": [
+        187,
+        188,
+        189
+      ]
+    },
+    "64": {
+      "id": 64,
+      "text_key": "survivor.npc.64",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        190,
+        191,
+        192
+      ]
+    },
+    "65": {
+      "id": 65,
+      "text_key": "survivor.npc.65",
+      "conditions": {
+        "motivation": "safety"
+      },
+      "trust_delta": 0,
+      "options": [
+        193,
+        194,
+        195
+      ]
+    },
+    "66": {
+      "id": 66,
+      "text_key": "survivor.npc.66",
+      "conditions": {
+        "motivation": "food"
+      },
+      "trust_delta": 1,
+      "options": [
+        196,
+        197,
+        198
+      ]
+    },
+    "67": {
+      "id": 67,
+      "text_key": "survivor.npc.67",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        199,
+        200,
+        201
+      ]
+    },
+    "68": {
+      "id": 68,
+      "text_key": "survivor.npc.68",
+      "conditions": {
+        "backstory": "mine_collapse"
+      },
+      "trust_delta": 2,
+      "options": [
+        202,
+        203,
+        204
+      ]
+    },
+    "69": {
+      "id": 69,
+      "text_key": "survivor.npc.69",
+      "conditions": {
+        "motivation": "revenge"
+      },
+      "trust_delta": -1,
+      "options": [
+        205,
+        206,
+        207
+      ]
+    },
+    "70": {
+      "id": 70,
+      "text_key": "survivor.npc.70",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        208,
+        209,
+        210
+      ]
+    },
+    "71": {
+      "id": 71,
+      "text_key": "survivor.npc.71",
+      "conditions": {
+        "backstory": "former_trader",
+        "skill": {
+          "Intelligence": {
+            "min": 9
+          }
+        }
+      },
+      "trust_delta": 2,
+      "options": [
+        211,
+        212,
+        213
+      ]
+    },
+    "72": {
+      "id": 72,
+      "text_key": "survivor.npc.72",
+      "conditions": {
+        "skill": {
+          "Adaptability": {
+            "max": 8
+          }
+        },
+        "tone": "cheerful"
+      },
+      "trust_delta": 0,
+      "options": [
+        214,
+        215,
+        216
+      ]
+    },
+    "73": {
+      "id": 73,
+      "text_key": "survivor.npc.73",
+      "conditions": {},
+      "trust_delta": -2,
+      "options": [
+        217,
+        218,
+        219
+      ]
+    },
+    "74": {
+      "id": 74,
+      "text_key": "survivor.npc.74",
+      "conditions": {
+        "trust": {
+          "min": 16
+        }
+      },
+      "trust_delta": -3,
+      "options": [
+        220,
+        221,
+        222
+      ]
+    },
+    "75": {
+      "id": 75,
+      "text_key": "survivor.npc.75",
+      "conditions": {
+        "trust": {
+          "min": 45
+        },
+        "tone": "arrogant"
+      },
+      "trust_delta": 0,
+      "options": [
+        223,
+        224,
+        225
+      ]
+    },
+    "76": {
+      "id": 76,
+      "text_key": "survivor.npc.76",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        226,
+        227,
+        228
+      ]
+    },
+    "77": {
+      "id": 77,
+      "text_key": "survivor.npc.77",
+      "conditions": {
+        "trust": {
+          "max": 57
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        229,
+        230,
+        231
+      ]
+    },
+    "78": {
+      "id": 78,
+      "text_key": "survivor.npc.78",
+      "conditions": {
+        "backstory": "scientist"
+      },
+      "trust_delta": 2,
+      "options": [
+        232,
+        233,
+        234
+      ]
+    },
+    "79": {
+      "id": 79,
+      "text_key": "survivor.npc.79",
+      "conditions": {},
+      "trust_delta": 1,
+      "options": [
+        235,
+        236,
+        237
+      ]
+    },
+    "80": {
+      "id": 80,
+      "text_key": "survivor.npc.80",
+      "conditions": {
+        "motivation": "food",
+        "skill": {
+          "Dexterity": {
+            "min": 16
+          }
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        238,
+        239,
+        240
+      ]
+    },
+    "81": {
+      "id": 81,
+      "text_key": "survivor.npc.81",
+      "conditions": {
+        "backstory": "lost_family"
+      },
+      "trust_delta": 0,
+      "options": [
+        241,
+        242,
+        243
+      ]
+    },
+    "82": {
+      "id": 82,
+      "text_key": "survivor.npc.82",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        244,
+        245,
+        246
+      ]
+    },
+    "83": {
+      "id": 83,
+      "text_key": "survivor.npc.83",
+      "conditions": {
+        "skill": {
+          "Knowledge": {
+            "max": 15
+          }
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        247,
+        248,
+        249
+      ]
+    },
+    "84": {
+      "id": 84,
+      "text_key": "survivor.npc.84",
+      "conditions": {
+        "trust": {
+          "min": 12
+        },
+        "skill": {
+          "Intelligence": {
+            "min": 13
+          }
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        250,
+        251,
+        252
+      ]
+    },
+    "85": {
+      "id": 85,
+      "text_key": "survivor.npc.85",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        253,
+        254,
+        255
+      ]
+    },
+    "86": {
+      "id": 86,
+      "text_key": "survivor.npc.86",
+      "conditions": {
+        "backstory": "exile",
+        "skill": {
+          "Knowledge": {
+            "min": 11
+          }
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        256,
+        257,
+        258
+      ]
+    },
+    "87": {
+      "id": 87,
+      "text_key": "survivor.npc.87",
+      "conditions": {
+        "skill": {
+          "Agility": {
+            "min": 11
+          }
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        259,
+        260,
+        261
+      ]
+    },
+    "88": {
+      "id": 88,
+      "text_key": "survivor.npc.88",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        262,
+        263,
+        264
+      ]
+    },
+    "89": {
+      "id": 89,
+      "text_key": "survivor.npc.89",
+      "conditions": {
+        "trust": {
+          "min": 48
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        265,
+        266,
+        267
+      ]
+    },
+    "90": {
+      "id": 90,
+      "text_key": "survivor.npc.90",
+      "conditions": {
+        "backstory": "bandit_raider"
+      },
+      "trust_delta": -2,
+      "options": [
+        268,
+        269,
+        270
+      ]
+    },
+    "91": {
+      "id": 91,
+      "text_key": "survivor.npc.91",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        271,
+        272,
+        273
+      ]
+    },
+    "92": {
+      "id": 92,
+      "text_key": "survivor.npc.92",
+      "conditions": {
+        "backstory": "lost_family",
+        "trust": {
+          "max": 18
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        274,
+        275,
+        276
+      ]
+    },
+    "93": {
+      "id": 93,
+      "text_key": "survivor.npc.93",
+      "conditions": {
+        "skill": {
+          "Dexterity": {
+            "min": 7
+          }
+        },
+        "tone": "arrogant"
+      },
+      "trust_delta": 2,
+      "options": [
+        277,
+        278,
+        279
+      ]
+    },
+    "94": {
+      "id": 94,
+      "text_key": "survivor.npc.94",
+      "conditions": {},
+      "trust_delta": -2,
+      "options": [
+        280,
+        281,
+        282
+      ]
+    },
+    "95": {
+      "id": 95,
+      "text_key": "survivor.npc.95",
+      "conditions": {
+        "skill": {
+          "Athletics": {
+            "min": 13
+          }
+        }
+      },
+      "trust_delta": 2,
+      "options": [
+        283,
+        284,
+        285
+      ]
+    },
+    "96": {
+      "id": 96,
+      "text_key": "survivor.npc.96",
+      "conditions": {
+        "trust": {
+          "max": -2
+        },
+        "skill": {
+          "Dexterity": {
+            "min": 9
+          }
+        }
+      },
+      "trust_delta": 0,
+      "options": [
+        286,
+        287,
+        288
+      ]
+    },
+    "97": {
+      "id": 97,
+      "text_key": "survivor.npc.97",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        289,
+        290,
+        291
+      ]
+    },
+    "98": {
+      "id": 98,
+      "text_key": "survivor.npc.98",
+      "conditions": {
+        "trust": {
+          "min": 62
+        },
+        "motivation": "purpose"
+      },
+      "trust_delta": 0,
+      "options": [
+        292,
+        293,
+        294
+      ]
+    },
+    "99": {
+      "id": 99,
+      "text_key": "survivor.npc.99",
+      "conditions": {
+        "motivation": "revenge",
+        "backstory": "lost_family"
+      },
+      "trust_delta": -1,
+      "options": [
+        295,
+        296,
+        297
+      ]
+    },
+    "100": {
+      "id": 100,
+      "text_key": "survivor.npc.100",
+      "conditions": {},
+      "trust_delta": 0,
+      "options": [
+        298,
+        299,
+        300
+      ]
+    }
+  },
+  "player_reactions": {
+    "1": {
+      "id": 1,
+      "text_key": "survivor.player.1",
+      "style": "aggressive",
+      "options": [
+        4,
+        5,
+        6
+      ]
+    },
+    "2": {
+      "id": 2,
+      "text_key": "survivor.player.2",
+      "style": "exciting",
+      "options": [
+        7,
+        8,
+        9
+      ]
+    },
+    "3": {
+      "id": 3,
+      "text_key": "survivor.player.3",
+      "style": "creative",
+      "options": [
+        10,
+        11,
+        12
+      ]
+    },
+    "4": {
+      "id": 4,
+      "text_key": "survivor.player.4",
+      "style": "provocative",
+      "options": [
+        13,
+        14,
+        15
+      ]
+    },
+    "5": {
+      "id": 5,
+      "text_key": "survivor.player.5",
+      "style": "loving",
+      "options": [
+        16,
+        17,
+        18
+      ]
+    },
+    "6": {
+      "id": 6,
+      "text_key": "survivor.player.6",
+      "style": "aggressive",
+      "options": [
+        19,
+        20,
+        21
+      ]
+    },
+    "7": {
+      "id": 7,
+      "text_key": "survivor.player.7",
+      "style": "provocative",
+      "options": [
+        22,
+        23,
+        24
+      ]
+    },
+    "8": {
+      "id": 8,
+      "text_key": "survivor.player.8",
+      "style": "relaxed",
+      "options": [
+        25,
+        26,
+        27
+      ]
+    },
+    "9": {
+      "id": 9,
+      "text_key": "survivor.player.9",
+      "style": "chinese",
+      "options": [
+        28,
+        29,
+        30
+      ]
+    },
+    "10": {
+      "id": 10,
+      "text_key": "survivor.player.10",
+      "style": "philosophical",
+      "options": [
+        31,
+        32,
+        33
+      ]
+    },
+    "11": {
+      "id": 11,
+      "text_key": "survivor.player.11",
+      "style": "chinese",
+      "options": [
+        34,
+        35,
+        36
+      ]
+    },
+    "12": {
+      "id": 12,
+      "text_key": "survivor.player.12",
+      "style": "funny",
+      "options": [
+        37,
+        38,
+        39
+      ]
+    },
+    "13": {
+      "id": 13,
+      "text_key": "survivor.player.13",
+      "style": "exciting",
+      "options": [
+        40,
+        41,
+        42
+      ]
+    },
+    "14": {
+      "id": 14,
+      "text_key": "survivor.player.14",
+      "style": "extreme",
+      "options": [
+        43,
+        44,
+        45
+      ]
+    },
+    "15": {
+      "id": 15,
+      "text_key": "survivor.player.15",
+      "style": "creative",
+      "options": [
+        46,
+        47,
+        48
+      ]
+    },
+    "16": {
+      "id": 16,
+      "text_key": "survivor.player.16",
+      "style": "philosophical",
+      "options": [
+        49,
+        50,
+        51
+      ]
+    },
+    "17": {
+      "id": 17,
+      "text_key": "survivor.player.17",
+      "style": "cheerful",
+      "options": [
+        52,
+        53,
+        54
+      ]
+    },
+    "18": {
+      "id": 18,
+      "text_key": "survivor.player.18",
+      "style": "creative",
+      "options": [
+        55,
+        56,
+        57
+      ]
+    },
+    "19": {
+      "id": 19,
+      "text_key": "survivor.player.19",
+      "style": "chinese",
+      "options": [
+        58,
+        59,
+        60
+      ]
+    },
+    "20": {
+      "id": 20,
+      "text_key": "survivor.player.20",
+      "style": "creative",
+      "options": [
+        61,
+        62,
+        63
+      ]
+    },
+    "21": {
+      "id": 21,
+      "text_key": "survivor.player.21",
+      "style": "philosophical",
+      "options": [
+        64,
+        65,
+        66
+      ]
+    },
+    "22": {
+      "id": 22,
+      "text_key": "survivor.player.22",
+      "style": "cheerful",
+      "options": [
+        67,
+        68,
+        69
+      ]
+    },
+    "23": {
+      "id": 23,
+      "text_key": "survivor.player.23",
+      "style": "philosophical",
+      "options": [
+        70,
+        71,
+        72
+      ]
+    },
+    "24": {
+      "id": 24,
+      "text_key": "survivor.player.24",
+      "style": "aggressive",
+      "options": [
+        73,
+        74,
+        75
+      ]
+    },
+    "25": {
+      "id": 25,
+      "text_key": "survivor.player.25",
+      "style": "exciting",
+      "options": [
+        76,
+        77,
+        78
+      ]
+    },
+    "26": {
+      "id": 26,
+      "text_key": "survivor.player.26",
+      "style": "creative",
+      "options": [
+        79,
+        80,
+        81
+      ]
+    },
+    "27": {
+      "id": 27,
+      "text_key": "survivor.player.27",
+      "style": "chinese",
+      "options": [
+        82,
+        83,
+        84
+      ]
+    },
+    "28": {
+      "id": 28,
+      "text_key": "survivor.player.28",
+      "style": "philosophical",
+      "options": [
+        85,
+        86,
+        87
+      ]
+    },
+    "29": {
+      "id": 29,
+      "text_key": "survivor.player.29",
+      "style": "sensitive",
+      "options": [
+        88,
+        89,
+        90
+      ]
+    },
+    "30": {
+      "id": 30,
+      "text_key": "survivor.player.30",
+      "style": "extreme",
+      "options": [
+        91,
+        92,
+        93
+      ]
+    },
+    "31": {
+      "id": 31,
+      "text_key": "survivor.player.31",
+      "style": "creative",
+      "options": [
+        94,
+        95,
+        96
+      ]
+    },
+    "32": {
+      "id": 32,
+      "text_key": "survivor.player.32",
+      "style": "chinese",
+      "options": [
+        97,
+        98,
+        99
+      ]
+    },
+    "33": {
+      "id": 33,
+      "text_key": "survivor.player.33",
+      "style": "relaxed",
+      "options": [
+        100,
+        10,
+        93
+      ]
+    },
+    "34": {
+      "id": 34,
+      "text_key": "survivor.player.34",
+      "style": "exciting",
+      "options": [
+        92,
+        93,
+        97
+      ]
+    },
+    "35": {
+      "id": 35,
+      "text_key": "survivor.player.35",
+      "style": "provocative",
+      "options": [
+        19,
+        40,
+        91
+      ]
+    },
+    "36": {
+      "id": 36,
+      "text_key": "survivor.player.36",
+      "style": "loving",
+      "options": [
+        18,
+        16,
+        17
+      ]
+    },
+    "37": {
+      "id": 37,
+      "text_key": "survivor.player.37",
+      "style": "provocative",
+      "options": [
+        14,
+        23,
+        20
+      ]
+    },
+    "38": {
+      "id": 38,
+      "text_key": "survivor.player.38",
+      "style": "cheerful",
+      "options": [
+        58,
+        76,
+        77
+      ]
+    },
+    "39": {
+      "id": 39,
+      "text_key": "survivor.player.39",
+      "style": "creative",
+      "options": [
+        69,
+        21,
+        73
+      ]
+    },
+    "40": {
+      "id": 40,
+      "text_key": "survivor.player.40",
+      "style": "relaxed",
+      "options": [
+        60,
+        66,
+        19
+      ]
+    },
+    "41": {
+      "id": 41,
+      "text_key": "survivor.player.41",
+      "style": "loving",
+      "options": [
+        24,
+        22,
+        66
+      ]
+    },
+    "42": {
+      "id": 42,
+      "text_key": "survivor.player.42",
+      "style": "thoughtful",
+      "options": [
+        23,
+        20,
+        19
+      ]
+    },
+    "43": {
+      "id": 43,
+      "text_key": "survivor.player.43",
+      "style": "relaxed",
+      "options": [
+        14,
+        21,
+        24
+      ]
+    },
+    "44": {
+      "id": 44,
+      "text_key": "survivor.player.44",
+      "style": "conspiratorial",
+      "options": [
+        85,
+        5,
+        24
+      ]
+    },
+    "45": {
+      "id": 45,
+      "text_key": "survivor.player.45",
+      "style": "philosophical",
+      "options": [
+        69,
+        35,
+        85
+      ]
+    },
+    "46": {
+      "id": 46,
+      "text_key": "survivor.player.46",
+      "style": "funny",
+      "options": [
+        53,
+        20,
+        76
+      ]
+    },
+    "47": {
+      "id": 47,
+      "text_key": "survivor.player.47",
+      "style": "relaxed",
+      "options": [
+        63,
+        20,
+        97
+      ]
+    },
+    "48": {
+      "id": 48,
+      "text_key": "survivor.player.48",
+      "style": "philosophical",
+      "options": [
+        6,
+        22,
+        40
+      ]
+    },
+    "49": {
+      "id": 49,
+      "text_key": "survivor.player.49",
+      "style": "aggressive",
+      "options": [
+        43,
+        6,
+        59
+      ]
+    },
+    "50": {
+      "id": 50,
+      "text_key": "survivor.player.50",
+      "style": "creative",
+      "options": [
+        23,
+        73,
+        8
+      ]
+    },
+    "51": {
+      "id": 51,
+      "text_key": "survivor.player.51",
+      "style": "sensitive",
+      "options": [
+        18,
+        20,
+        77
+      ]
+    },
+    "52": {
+      "id": 52,
+      "text_key": "survivor.player.52",
+      "style": "provocative",
+      "options": [
+        58,
+        44,
+        72
+      ]
+    },
+    "53": {
+      "id": 53,
+      "text_key": "survivor.player.53",
+      "style": "conspiratorial",
+      "options": [
+        83,
+        15,
+        82
+      ]
+    },
+    "54": {
+      "id": 54,
+      "text_key": "survivor.player.54",
+      "style": "chinese",
+      "options": [
+        16,
+        35,
+        17
+      ]
+    },
+    "55": {
+      "id": 55,
+      "text_key": "survivor.player.55",
+      "style": "philosophical",
+      "options": [
+        31,
+        34,
+        75
+      ]
+    },
+    "56": {
+      "id": 56,
+      "text_key": "survivor.player.56",
+      "style": "exciting",
+      "options": [
+        4,
+        77,
+        83
+      ]
+    },
+    "57": {
+      "id": 57,
+      "text_key": "survivor.player.57",
+      "style": "creative",
+      "options": [
+        79,
+        97,
+        58
+      ]
+    },
+    "58": {
+      "id": 58,
+      "text_key": "survivor.player.58",
+      "style": "extreme",
+      "options": [
+        19,
+        54,
+        69
+      ]
+    },
+    "59": {
+      "id": 59,
+      "text_key": "survivor.player.59",
+      "style": "sensitive",
+      "options": [
+        16,
+        18,
+        54
+      ]
+    },
+    "60": {
+      "id": 60,
+      "text_key": "survivor.player.60",
+      "style": "chinese",
+      "options": [
+        77,
+        76,
+        6
+      ]
+    },
+    "61": {
+      "id": 61,
+      "text_key": "survivor.player.61",
+      "style": "loving",
+      "options": [
+        69,
+        54,
+        53
+      ]
+    },
+    "62": {
+      "id": 62,
+      "text_key": "survivor.player.62",
+      "style": "philosophical",
+      "options": [
+        74,
+        5,
+        66
+      ]
+    },
+    "63": {
+      "id": 63,
+      "text_key": "survivor.player.63",
+      "style": "thoughtful",
+      "options": [
+        79,
+        76,
+        17
+      ]
+    },
+    "64": {
+      "id": 64,
+      "text_key": "survivor.player.64",
+      "style": "conspiratorial",
+      "options": [
+        11,
+        85,
+        24
+      ]
+    },
+    "65": {
+      "id": 65,
+      "text_key": "survivor.player.65",
+      "style": "creative",
+      "options": [
+        24,
+        25,
+        15
+      ]
+    },
+    "66": {
+      "id": 66,
+      "text_key": "survivor.player.66",
+      "style": "relaxed",
+      "options": [
+        25,
+        74,
+        17
+      ]
+    },
+    "67": {
+      "id": 67,
+      "text_key": "survivor.player.67",
+      "style": "relaxed",
+      "options": [
+        22,
+        73,
+        17
+      ]
+    },
+    "68": {
+      "id": 68,
+      "text_key": "survivor.player.68",
+      "style": "funny",
+      "options": [
+        22,
+        17,
+        24
+      ]
+    },
+    "69": {
+      "id": 69,
+      "text_key": "survivor.player.69",
+      "style": "exciting",
+      "options": [
+        25,
+        87,
+        22
+      ]
+    },
+    "70": {
+      "id": 70,
+      "text_key": "survivor.player.70",
+      "style": "thoughtful",
+      "options": [
+        94,
+        23,
+        22
+      ]
+    },
+    "71": {
+      "id": 71,
+      "text_key": "survivor.player.71",
+      "style": "chinese",
+      "options": [
+        22,
+        99,
+        5
+      ]
+    },
+    "72": {
+      "id": 72,
+      "text_key": "survivor.player.72",
+      "style": "sensitive",
+      "options": [
+        25,
+        68,
+        26
+      ]
+    },
+    "73": {
+      "id": 73,
+      "text_key": "survivor.player.73",
+      "style": "chinese",
+      "options": [
+        87,
+        85,
+        22
+      ]
+    },
+    "74": {
+      "id": 74,
+      "text_key": "survivor.player.74",
+      "style": "cheerful",
+      "options": [
+        18,
+        54,
+        53
+      ]
+    },
+    "75": {
+      "id": 75,
+      "text_key": "survivor.player.75",
+      "style": "exciting",
+      "options": [
+        63,
+        61,
+        62
+      ]
+    },
+    "76": {
+      "id": 76,
+      "text_key": "survivor.player.76",
+      "style": "provocative",
+      "options": [
+        74,
+        44,
+        66
+      ]
+    },
+    "77": {
+      "id": 77,
+      "text_key": "survivor.player.77",
+      "style": "aggressive",
+      "options": [
+        6,
+        45,
+        40
+      ]
+    },
+    "78": {
+      "id": 78,
+      "text_key": "survivor.player.78",
+      "style": "funny",
+      "options": [
+        20,
+        77,
+        23
+      ]
+    },
+    "79": {
+      "id": 79,
+      "text_key": "survivor.player.79",
+      "style": "conspiratorial",
+      "options": [
+        6,
+        78,
+        22
+      ]
+    },
+    "80": {
+      "id": 80,
+      "text_key": "survivor.player.80",
+      "style": "philosophical",
+      "options": [
+        79,
+        65,
+        46
+      ]
+    },
+    "81": {
+      "id": 81,
+      "text_key": "survivor.player.81",
+      "style": "cheerful",
+      "options": [
+        76,
+        77,
+        14
+      ]
+    },
+    "82": {
+      "id": 82,
+      "text_key": "survivor.player.82",
+      "style": "extreme",
+      "options": [
+        10,
+        29,
+        30
+      ]
+    },
+    "83": {
+      "id": 83,
+      "text_key": "survivor.player.83",
+      "style": "funny",
+      "options": [
+        60,
+        30,
+        45
+      ]
+    },
+    "84": {
+      "id": 84,
+      "text_key": "survivor.player.84",
+      "style": "provocative",
+      "options": [
+        91,
+        43,
+        86
+      ]
+    },
+    "85": {
+      "id": 85,
+      "text_key": "survivor.player.85",
+      "style": "funny",
+      "options": [
+        30,
+        22,
+        23
+      ]
+    },
+    "86": {
+      "id": 86,
+      "text_key": "survivor.player.86",
+      "style": "conspiratorial",
+      "options": [
+        30,
+        66,
+        28
+      ]
+    },
+    "87": {
+      "id": 87,
+      "text_key": "survivor.player.87",
+      "style": "philosophical",
+      "options": [
+        6,
+        65,
+        66
+      ]
+    },
+    "88": {
+      "id": 88,
+      "text_key": "survivor.player.88",
+      "style": "creative",
+      "options": [
+        99,
+        22,
+        44
+      ]
+    },
+    "89": {
+      "id": 89,
+      "text_key": "survivor.player.89",
+      "style": "sensitive",
+      "options": [
+        24,
+        22,
+        16
+      ]
+    },
+    "90": {
+      "id": 90,
+      "text_key": "survivor.player.90",
+      "style": "chinese",
+      "options": [
+        83,
+        4,
+        6
+      ]
+    },
+    "91": {
+      "id": 91,
+      "text_key": "survivor.player.91",
+      "style": "cheerful",
+      "options": [
+        20,
+        77,
+        53
+      ]
+    },
+    "92": {
+      "id": 92,
+      "text_key": "survivor.player.92",
+      "style": "conspiratorial",
+      "options": [
+        83,
+        5,
+        21
+      ]
+    },
+    "93": {
+      "id": 93,
+      "text_key": "survivor.player.93",
+      "style": "chinese",
+      "options": [
+        35,
+        83,
+        44
+      ]
+    },
+    "94": {
+      "id": 94,
+      "text_key": "survivor.player.94",
+      "style": "philosophical",
+      "options": [
+        6,
+        31,
+        40
+      ]
+    },
+    "95": {
+      "id": 95,
+      "text_key": "survivor.player.95",
+      "style": "creative",
+      "options": [
+        68,
+        6,
+        25
+      ]
+    },
+    "96": {
+      "id": 96,
+      "text_key": "survivor.player.96",
+      "style": "thoughtful",
+      "options": [
+        40,
+        69,
+        64
+      ]
+    },
+    "97": {
+      "id": 97,
+      "text_key": "survivor.player.97",
+      "style": "sensitive",
+      "options": [
+        83,
+        35,
+        68
+      ]
+    },
+    "98": {
+      "id": 98,
+      "text_key": "survivor.player.98",
+      "style": "creative",
+      "options": [
+        41,
+        40,
+        6
+      ]
+    },
+    "99": {
+      "id": 99,
+      "text_key": "survivor.player.99",
+      "style": "exciting",
+      "options": [
+        43,
+        35,
+        40
+      ]
+    },
+    "100": {
+      "id": 100,
+      "text_key": "survivor.player.100",
+      "style": "chinese",
+      "options": [
+        60,
+        31,
+        42
+      ]
+    },
+    "101": {
+      "id": 101,
+      "text_key": "survivor.player.101",
+      "style": "sensitive",
+      "options": [
+        35,
+        60,
+        40
+      ]
+    },
+    "102": {
+      "id": 102,
+      "text_key": "survivor.player.102",
+      "style": "extreme",
+      "options": [
+        45,
+        25,
+        50
+      ]
+    },
+    "103": {
+      "id": 103,
+      "text_key": "survivor.player.103",
+      "style": "aggressive",
+      "options": [
+        45,
+        34,
+        20
+      ]
+    },
+    "104": {
+      "id": 104,
+      "text_key": "survivor.player.104",
+      "style": "sensitive",
+      "options": [
+        83,
+        22,
+        73
+      ]
+    },
+    "105": {
+      "id": 105,
+      "text_key": "survivor.player.105",
+      "style": "thoughtful",
+      "options": [
+        40,
+        65,
+        83
+      ]
+    },
+    "106": {
+      "id": 106,
+      "text_key": "survivor.player.106",
+      "style": "loving",
+      "options": [
+        35,
+        18,
+        34
+      ]
+    },
+    "107": {
+      "id": 107,
+      "text_key": "survivor.player.107",
+      "style": "sensitive",
+      "options": [
+        35,
+        34,
+        18
+      ]
+    },
+    "108": {
+      "id": 108,
+      "text_key": "survivor.player.108",
+      "style": "chinese",
+      "options": [
+        97,
+        79,
+        98
+      ]
+    },
+    "109": {
+      "id": 109,
+      "text_key": "survivor.player.109",
+      "style": "cheerful",
+      "options": [
+        22,
+        20,
+        73
+      ]
+    },
+    "110": {
+      "id": 110,
+      "text_key": "survivor.player.110",
+      "style": "provocative",
+      "options": [
+        60,
+        59,
+        14
+      ]
+    },
+    "111": {
+      "id": 111,
+      "text_key": "survivor.player.111",
+      "style": "funny",
+      "options": [
+        22,
+        77,
+        20
+      ]
+    },
+    "112": {
+      "id": 112,
+      "text_key": "survivor.player.112",
+      "style": "thoughtful",
+      "options": [
+        83,
+        22,
+        75
+      ]
+    },
+    "113": {
+      "id": 113,
+      "text_key": "survivor.player.113",
+      "style": "extreme",
+      "options": [
+        40,
+        60,
+        6
+      ]
+    },
+    "114": {
+      "id": 114,
+      "text_key": "survivor.player.114",
+      "style": "chinese",
+      "options": [
+        22,
+        25,
+        24
+      ]
+    },
+    "115": {
+      "id": 115,
+      "text_key": "survivor.player.115",
+      "style": "thoughtful",
+      "options": [
+        18,
+        40,
+        41
+      ]
+    },
+    "116": {
+      "id": 116,
+      "text_key": "survivor.player.116",
+      "style": "funny",
+      "options": [
+        37,
+        38,
+        45
+      ]
+    },
+    "117": {
+      "id": 117,
+      "text_key": "survivor.player.117",
+      "style": "chinese",
+      "options": [
+        53,
+        6,
+        25
+      ]
+    },
+    "118": {
+      "id": 118,
+      "text_key": "survivor.player.118",
+      "style": "chinese",
+      "options": [
+        4,
+        42,
+        6
+      ]
+    },
+    "119": {
+      "id": 119,
+      "text_key": "survivor.player.119",
+      "style": "conspiratorial",
+      "options": [
+        15,
+        68,
+        22
+      ]
+    },
+    "120": {
+      "id": 120,
+      "text_key": "survivor.player.120",
+      "style": "loving",
+      "options": [
+        83,
+        18,
+        16
+      ]
+    },
+    "121": {
+      "id": 121,
+      "text_key": "survivor.player.121",
+      "style": "extreme",
+      "options": [
+        4,
+        34,
+        73
+      ]
+    },
+    "122": {
+      "id": 122,
+      "text_key": "survivor.player.122",
+      "style": "cheerful",
+      "options": [
+        58,
+        14,
+        97
+      ]
+    },
+    "123": {
+      "id": 123,
+      "text_key": "survivor.player.123",
+      "style": "thoughtful",
+      "options": [
+        11,
+        91,
+        22
+      ]
+    },
+    "124": {
+      "id": 124,
+      "text_key": "survivor.player.124",
+      "style": "thoughtful",
+      "options": [
+        40,
+        83,
+        31
+      ]
+    },
+    "125": {
+      "id": 125,
+      "text_key": "survivor.player.125",
+      "style": "chinese",
+      "options": [
+        31,
+        65,
+        64
+      ]
+    },
+    "126": {
+      "id": 126,
+      "text_key": "survivor.player.126",
+      "style": "relaxed",
+      "options": [
+        4,
+        35,
+        22
+      ]
+    },
+    "127": {
+      "id": 127,
+      "text_key": "survivor.player.127",
+      "style": "aggressive",
+      "options": [
+        91,
+        59,
+        41
+      ]
+    },
+    "128": {
+      "id": 128,
+      "text_key": "survivor.player.128",
+      "style": "extreme",
+      "options": [
+        65,
+        25,
+        45
+      ]
+    },
+    "129": {
+      "id": 129,
+      "text_key": "survivor.player.129",
+      "style": "provocative",
+      "options": [
+        25,
+        24,
+        22
+      ]
+    },
+    "130": {
+      "id": 130,
+      "text_key": "survivor.player.130",
+      "style": "aggressive",
+      "options": [
+        74,
+        46,
+        47
+      ]
+    },
+    "131": {
+      "id": 131,
+      "text_key": "survivor.player.131",
+      "style": "relaxed",
+      "options": [
+        22,
+        74,
+        69
+      ]
+    },
+    "132": {
+      "id": 132,
+      "text_key": "survivor.player.132",
+      "style": "cheerful",
+      "options": [
+        41,
+        68,
+        18
+      ]
+    },
+    "133": {
+      "id": 133,
+      "text_key": "survivor.player.133",
+      "style": "sensitive",
+      "options": [
+        22,
+        17,
+        69
+      ]
+    },
+    "134": {
+      "id": 134,
+      "text_key": "survivor.player.134",
+      "style": "thoughtful",
+      "options": [
+        23,
+        22,
+        30
+      ]
+    },
+    "135": {
+      "id": 135,
+      "text_key": "survivor.player.135",
+      "style": "creative",
+      "options": [
+        43,
+        44,
+        40
+      ]
+    },
+    "136": {
+      "id": 136,
+      "text_key": "survivor.player.136",
+      "style": "exciting",
+      "options": [
+        4,
+        40,
+        18
+      ]
+    },
+    "137": {
+      "id": 137,
+      "text_key": "survivor.player.137",
+      "style": "chinese",
+      "options": [
+        40,
+        73,
+        41
+      ]
+    },
+    "138": {
+      "id": 138,
+      "text_key": "survivor.player.138",
+      "style": "loving",
+      "options": [
+        18,
+        69,
+        16
+      ]
+    },
+    "139": {
+      "id": 139,
+      "text_key": "survivor.player.139",
+      "style": "chinese",
+      "options": [
+        83,
+        22,
+        65
+      ]
+    },
+    "140": {
+      "id": 140,
+      "text_key": "survivor.player.140",
+      "style": "aggressive",
+      "options": [
+        83,
+        6,
+        22
+      ]
+    },
+    "141": {
+      "id": 141,
+      "text_key": "survivor.player.141",
+      "style": "thoughtful",
+      "options": [
+        83,
+        22,
+        65
+      ]
+    },
+    "142": {
+      "id": 142,
+      "text_key": "survivor.player.142",
+      "style": "loving",
+      "options": [
+        24,
+        22,
+        18
+      ]
+    },
+    "143": {
+      "id": 143,
+      "text_key": "survivor.player.143",
+      "style": "provocative",
+      "options": [
+        46,
+        21,
+        6
+      ]
+    },
+    "144": {
+      "id": 144,
+      "text_key": "survivor.player.144",
+      "style": "exciting",
+      "options": [
+        40,
+        45,
+        41
+      ]
+    },
+    "145": {
+      "id": 145,
+      "text_key": "survivor.player.145",
+      "style": "cheerful",
+      "options": [
+        54,
+        69,
+        20
+      ]
+    },
+    "146": {
+      "id": 146,
+      "text_key": "survivor.player.146",
+      "style": "aggressive",
+      "options": [
+        93,
+        55,
+        73
+      ]
+    },
+    "147": {
+      "id": 147,
+      "text_key": "survivor.player.147",
+      "style": "creative",
+      "options": [
+        58,
+        51,
+        50
+      ]
+    },
+    "148": {
+      "id": 148,
+      "text_key": "survivor.player.148",
+      "style": "provocative",
+      "options": [
+        24,
+        54,
+        76
+      ]
+    },
+    "149": {
+      "id": 149,
+      "text_key": "survivor.player.149",
+      "style": "relaxed",
+      "options": [
+        16,
+        18,
+        89
+      ]
+    },
+    "150": {
+      "id": 150,
+      "text_key": "survivor.player.150",
+      "style": "philosophical",
+      "options": [
+        51,
+        49,
+        74
+      ]
+    },
+    "151": {
+      "id": 151,
+      "text_key": "survivor.player.151",
+      "style": "funny",
+      "options": [
+        20,
+        23,
+        79
+      ]
+    },
+    "152": {
+      "id": 152,
+      "text_key": "survivor.player.152",
+      "style": "exciting",
+      "options": [
+        10,
+        35,
+        11
+      ]
+    },
+    "153": {
+      "id": 153,
+      "text_key": "survivor.player.153",
+      "style": "cheerful",
+      "options": [
+        18,
+        22,
+        76
+      ]
+    },
+    "154": {
+      "id": 154,
+      "text_key": "survivor.player.154",
+      "style": "extreme",
+      "options": [
+        91,
+        92,
+        93
+      ]
+    },
+    "155": {
+      "id": 155,
+      "text_key": "survivor.player.155",
+      "style": "conspiratorial",
+      "options": [
+        50,
+        15,
+        66
+      ]
+    },
+    "156": {
+      "id": 156,
+      "text_key": "survivor.player.156",
+      "style": "funny",
+      "options": [
+        19,
+        20,
+        21
+      ]
+    },
+    "157": {
+      "id": 157,
+      "text_key": "survivor.player.157",
+      "style": "aggressive",
+      "options": [
+        22,
+        40,
+        66
+      ]
+    },
+    "158": {
+      "id": 158,
+      "text_key": "survivor.player.158",
+      "style": "extreme",
+      "options": [
+        65,
+        5,
+        77
+      ]
+    },
+    "159": {
+      "id": 159,
+      "text_key": "survivor.player.159",
+      "style": "thoughtful",
+      "options": [
+        65,
+        22,
+        18
+      ]
+    },
+    "160": {
+      "id": 160,
+      "text_key": "survivor.player.160",
+      "style": "chinese",
+      "options": [
+        50,
+        76,
+        68
+      ]
+    },
+    "161": {
+      "id": 161,
+      "text_key": "survivor.player.161",
+      "style": "funny",
+      "options": [
+        20,
+        19,
+        66
+      ]
+    },
+    "162": {
+      "id": 162,
+      "text_key": "survivor.player.162",
+      "style": "relaxed",
+      "options": [
+        22,
+        44,
+        69
+      ]
+    },
+    "163": {
+      "id": 163,
+      "text_key": "survivor.player.163",
+      "style": "funny",
+      "options": [
+        22,
+        73,
+        45
+      ]
+    },
+    "164": {
+      "id": 164,
+      "text_key": "survivor.player.164",
+      "style": "extreme",
+      "options": [
+        74,
+        43,
+        36
+      ]
+    },
+    "165": {
+      "id": 165,
+      "text_key": "survivor.player.165",
+      "style": "philosophical",
+      "options": [
+        57,
+        22,
+        56
+      ]
+    },
+    "166": {
+      "id": 166,
+      "text_key": "survivor.player.166",
+      "style": "philosophical",
+      "options": [
+        69,
+        55,
+        67
+      ]
+    },
+    "167": {
+      "id": 167,
+      "text_key": "survivor.player.167",
+      "style": "sensitive",
+      "options": [
+        17,
+        69,
+        68
+      ]
+    },
+    "168": {
+      "id": 168,
+      "text_key": "survivor.player.168",
+      "style": "provocative",
+      "options": [
+        69,
+        55,
+        44
+      ]
+    },
+    "169": {
+      "id": 169,
+      "text_key": "survivor.player.169",
+      "style": "creative",
+      "options": [
+        19,
+        63,
+        73
+      ]
+    },
+    "170": {
+      "id": 170,
+      "text_key": "survivor.player.170",
+      "style": "aggressive",
+      "options": [
+        22,
+        19,
+        66
+      ]
+    },
+    "171": {
+      "id": 171,
+      "text_key": "survivor.player.171",
+      "style": "conspiratorial",
+      "options": [
+        15,
+        44,
+        14
+      ]
+    },
+    "172": {
+      "id": 172,
+      "text_key": "survivor.player.172",
+      "style": "extreme",
+      "options": [
+        4,
+        88,
+        40
+      ]
+    },
+    "173": {
+      "id": 173,
+      "text_key": "survivor.player.173",
+      "style": "conspiratorial",
+      "options": [
+        59,
+        66,
+        5
+      ]
+    },
+    "174": {
+      "id": 174,
+      "text_key": "survivor.player.174",
+      "style": "exciting",
+      "options": [
+        76,
+        41,
+        77
+      ]
+    },
+    "175": {
+      "id": 175,
+      "text_key": "survivor.player.175",
+      "style": "cheerful",
+      "options": [
+        20,
+        18,
+        16
+      ]
+    },
+    "176": {
+      "id": 176,
+      "text_key": "survivor.player.176",
+      "style": "chinese",
+      "options": [
+        22,
+        54,
+        79
+      ]
+    },
+    "177": {
+      "id": 177,
+      "text_key": "survivor.player.177",
+      "style": "aggressive",
+      "options": [
+        21,
+        25,
+        28
+      ]
+    },
+    "178": {
+      "id": 178,
+      "text_key": "survivor.player.178",
+      "style": "cheerful",
+      "options": [
+        76,
+        77,
+        18
+      ]
+    },
+    "179": {
+      "id": 179,
+      "text_key": "survivor.player.179",
+      "style": "funny",
+      "options": [
+        66,
+        6,
+        5
+      ]
+    },
+    "180": {
+      "id": 180,
+      "text_key": "survivor.player.180",
+      "style": "provocative",
+      "options": [
+        22,
+        44,
+        59
+      ]
+    },
+    "181": {
+      "id": 181,
+      "text_key": "survivor.player.181",
+      "style": "philosophical",
+      "options": [
+        83,
+        17,
+        8
+      ]
+    },
+    "182": {
+      "id": 182,
+      "text_key": "survivor.player.182",
+      "style": "thoughtful",
+      "options": [
+        63,
+        94,
+        96
+      ]
+    },
+    "183": {
+      "id": 183,
+      "text_key": "survivor.player.183",
+      "style": "funny",
+      "options": [
+        83,
+        45,
+        63
+      ]
+    },
+    "184": {
+      "id": 184,
+      "text_key": "survivor.player.184",
+      "style": "funny",
+      "options": [
+        63,
+        96,
+        68
+      ]
+    },
+    "185": {
+      "id": 185,
+      "text_key": "survivor.player.185",
+      "style": "relaxed",
+      "options": [
+        63,
+        61,
+        96
+      ]
+    },
+    "186": {
+      "id": 186,
+      "text_key": "survivor.player.186",
+      "style": "aggressive",
+      "options": [
+        4,
+        34,
+        35
+      ]
+    },
+    "187": {
+      "id": 187,
+      "text_key": "survivor.player.187",
+      "style": "extreme",
+      "options": [
+        10,
+        35,
+        96
+      ]
+    },
+    "188": {
+      "id": 188,
+      "text_key": "survivor.player.188",
+      "style": "relaxed",
+      "options": [
+        58,
+        60,
+        43
+      ]
+    },
+    "189": {
+      "id": 189,
+      "text_key": "survivor.player.189",
+      "style": "provocative",
+      "options": [
+        99,
+        22,
+        6
+      ]
+    },
+    "190": {
+      "id": 190,
+      "text_key": "survivor.player.190",
+      "style": "thoughtful",
+      "options": [
+        66,
+        65,
+        22
+      ]
+    },
+    "191": {
+      "id": 191,
+      "text_key": "survivor.player.191",
+      "style": "creative",
+      "options": [
+        82,
+        8,
+        61
+      ]
+    },
+    "192": {
+      "id": 192,
+      "text_key": "survivor.player.192",
+      "style": "loving",
+      "options": [
+        35,
+        18,
+        40
+      ]
+    },
+    "193": {
+      "id": 193,
+      "text_key": "survivor.player.193",
+      "style": "chinese",
+      "options": [
+        77,
+        31,
+        35
+      ]
+    },
+    "194": {
+      "id": 194,
+      "text_key": "survivor.player.194",
+      "style": "exciting",
+      "options": [
+        6,
+        66,
+        83
+      ]
+    },
+    "195": {
+      "id": 195,
+      "text_key": "survivor.player.195",
+      "style": "funny",
+      "options": [
+        60,
+        39,
+        83
+      ]
+    },
+    "196": {
+      "id": 196,
+      "text_key": "survivor.player.196",
+      "style": "loving",
+      "options": [
+        17,
+        73,
+        77
+      ]
+    },
+    "197": {
+      "id": 197,
+      "text_key": "survivor.player.197",
+      "style": "extreme",
+      "options": [
+        29,
+        60,
+        65
+      ]
+    },
+    "198": {
+      "id": 198,
+      "text_key": "survivor.player.198",
+      "style": "aggressive",
+      "options": [
+        59,
+        60,
+        19
+      ]
+    },
+    "199": {
+      "id": 199,
+      "text_key": "survivor.player.199",
+      "style": "sensitive",
+      "options": [
+        6,
+        22,
+        75
+      ]
+    },
+    "200": {
+      "id": 200,
+      "text_key": "survivor.player.200",
+      "style": "relaxed",
+      "options": [
+        20,
+        22,
+        99
+      ]
+    },
+    "201": {
+      "id": 201,
+      "text_key": "survivor.player.201",
+      "style": "chinese",
+      "options": [
+        4,
+        22,
+        45
+      ]
+    },
+    "202": {
+      "id": 202,
+      "text_key": "survivor.player.202",
+      "style": "aggressive",
+      "options": [
+        4,
+        32,
+        5
+      ]
+    },
+    "203": {
+      "id": 203,
+      "text_key": "survivor.player.203",
+      "style": "funny",
+      "options": [
+        22,
+        25,
+        44
+      ]
+    },
+    "204": {
+      "id": 204,
+      "text_key": "survivor.player.204",
+      "style": "creative",
+      "options": [
+        76,
+        50,
+        67
+      ]
+    },
+    "205": {
+      "id": 205,
+      "text_key": "survivor.player.205",
+      "style": "cheerful",
+      "options": [
+        54,
+        76,
+        72
+      ]
+    },
+    "206": {
+      "id": 206,
+      "text_key": "survivor.player.206",
+      "style": "extreme",
+      "options": [
+        5,
+        45,
+        31
+      ]
+    },
+    "207": {
+      "id": 207,
+      "text_key": "survivor.player.207",
+      "style": "thoughtful",
+      "options": [
+        10,
+        22,
+        31
+      ]
+    },
+    "208": {
+      "id": 208,
+      "text_key": "survivor.player.208",
+      "style": "relaxed",
+      "options": [
+        4,
+        67,
+        6
+      ]
+    },
+    "209": {
+      "id": 209,
+      "text_key": "survivor.player.209",
+      "style": "chinese",
+      "options": [
+        66,
+        4,
+        40
+      ]
+    },
+    "210": {
+      "id": 210,
+      "text_key": "survivor.player.210",
+      "style": "philosophical",
+      "options": [
+        83,
+        22,
+        6
+      ]
+    },
+    "211": {
+      "id": 211,
+      "text_key": "survivor.player.211",
+      "style": "chinese",
+      "options": [
+        64,
+        65,
+        66
+      ]
+    },
+    "212": {
+      "id": 212,
+      "text_key": "survivor.player.212",
+      "style": "extreme",
+      "options": [
+        73,
+        65,
+        66
+      ]
+    },
+    "213": {
+      "id": 213,
+      "text_key": "survivor.player.213",
+      "style": "philosophical",
+      "options": [
+        79,
+        66,
+        48
+      ]
+    },
+    "214": {
+      "id": 214,
+      "text_key": "survivor.player.214",
+      "style": "philosophical",
+      "options": [
+        65,
+        22,
+        83
+      ]
+    },
+    "215": {
+      "id": 215,
+      "text_key": "survivor.player.215",
+      "style": "exciting",
+      "options": [
+        76,
+        77,
+        80
+      ]
+    },
+    "216": {
+      "id": 216,
+      "text_key": "survivor.player.216",
+      "style": "conspiratorial",
+      "options": [
+        23,
+        15,
+        68
+      ]
+    },
+    "217": {
+      "id": 217,
+      "text_key": "survivor.player.217",
+      "style": "cheerful",
+      "options": [
+        76,
+        81,
+        19
+      ]
+    },
+    "218": {
+      "id": 218,
+      "text_key": "survivor.player.218",
+      "style": "thoughtful",
+      "options": [
+        79,
+        78,
+        7
+      ]
+    },
+    "219": {
+      "id": 219,
+      "text_key": "survivor.player.219",
+      "style": "loving",
+      "options": [
+        58,
+        79,
+        22
+      ]
+    },
+    "220": {
+      "id": 220,
+      "text_key": "survivor.player.220",
+      "style": "cheerful",
+      "options": [
+        24,
+        22,
+        20
+      ]
+    },
+    "221": {
+      "id": 221,
+      "text_key": "survivor.player.221",
+      "style": "funny",
+      "options": [
+        20,
+        21,
+        14
+      ]
+    },
+    "222": {
+      "id": 222,
+      "text_key": "survivor.player.222",
+      "style": "loving",
+      "options": [
+        16,
+        18,
+        17
+      ]
+    },
+    "223": {
+      "id": 223,
+      "text_key": "survivor.player.223",
+      "style": "aggressive",
+      "options": [
+        22,
+        83,
+        23
+      ]
+    },
+    "224": {
+      "id": 224,
+      "text_key": "survivor.player.224",
+      "style": "relaxed",
+      "options": [
+        25,
+        68,
+        67
+      ]
+    },
+    "225": {
+      "id": 225,
+      "text_key": "survivor.player.225",
+      "style": "funny",
+      "options": [
+        21,
+        20,
+        23
+      ]
+    },
+    "226": {
+      "id": 226,
+      "text_key": "survivor.player.226",
+      "style": "exciting",
+      "options": [
+        97,
+        8,
+        7
+      ]
+    },
+    "227": {
+      "id": 227,
+      "text_key": "survivor.player.227",
+      "style": "conspiratorial",
+      "options": [
+        74,
+        47,
+        44
+      ]
+    },
+    "228": {
+      "id": 228,
+      "text_key": "survivor.player.228",
+      "style": "creative",
+      "options": [
+        7,
+        8,
+        80
+      ]
+    },
+    "229": {
+      "id": 229,
+      "text_key": "survivor.player.229",
+      "style": "philosophical",
+      "options": [
+        50,
+        75,
+        51
+      ]
+    },
+    "230": {
+      "id": 230,
+      "text_key": "survivor.player.230",
+      "style": "creative",
+      "options": [
+        76,
+        54,
+        75
+      ]
+    },
+    "231": {
+      "id": 231,
+      "text_key": "survivor.player.231",
+      "style": "loving",
+      "options": [
+        24,
+        22,
+        18
+      ]
+    },
+    "232": {
+      "id": 232,
+      "text_key": "survivor.player.232",
+      "style": "funny",
+      "options": [
+        68,
+        27,
+        77
+      ]
+    },
+    "233": {
+      "id": 233,
+      "text_key": "survivor.player.233",
+      "style": "chinese",
+      "options": [
+        22,
+        27,
+        71
+      ]
+    },
+    "234": {
+      "id": 234,
+      "text_key": "survivor.player.234",
+      "style": "creative",
+      "options": [
+        79,
+        76,
+        8
+      ]
+    },
+    "235": {
+      "id": 235,
+      "text_key": "survivor.player.235",
+      "style": "cheerful",
+      "options": [
+        76,
+        77,
+        54
+      ]
+    },
+    "236": {
+      "id": 236,
+      "text_key": "survivor.player.236",
+      "style": "funny",
+      "options": [
+        77,
+        6,
+        70
+      ]
+    },
+    "237": {
+      "id": 237,
+      "text_key": "survivor.player.237",
+      "style": "loving",
+      "options": [
+        76,
+        50,
+        77
+      ]
+    },
+    "238": {
+      "id": 238,
+      "text_key": "survivor.player.238",
+      "style": "conspiratorial",
+      "options": [
+        76,
+        72,
+        69
+      ]
+    },
+    "239": {
+      "id": 239,
+      "text_key": "survivor.player.239",
+      "style": "relaxed",
+      "options": [
+        6,
+        52,
+        53
+      ]
+    },
+    "240": {
+      "id": 240,
+      "text_key": "survivor.player.240",
+      "style": "extreme",
+      "options": [
+        60,
+        59,
+        20
+      ]
+    },
+    "241": {
+      "id": 241,
+      "text_key": "survivor.player.241",
+      "style": "funny",
+      "options": [
+        76,
+        72,
+        77
+      ]
+    },
+    "242": {
+      "id": 242,
+      "text_key": "survivor.player.242",
+      "style": "provocative",
+      "options": [
+        46,
+        73,
+        80
+      ]
+    },
+    "243": {
+      "id": 243,
+      "text_key": "survivor.player.243",
+      "style": "sensitive",
+      "options": [
+        74,
+        66,
+        72
+      ]
+    },
+    "244": {
+      "id": 244,
+      "text_key": "survivor.player.244",
+      "style": "relaxed",
+      "options": [
+        83,
+        22,
+        34
+      ]
+    },
+    "245": {
+      "id": 245,
+      "text_key": "survivor.player.245",
+      "style": "provocative",
+      "options": [
+        22,
+        24,
+        70
+      ]
+    },
+    "246": {
+      "id": 246,
+      "text_key": "survivor.player.246",
+      "style": "sensitive",
+      "options": [
+        22,
+        17,
+        83
+      ]
+    },
+    "247": {
+      "id": 247,
+      "text_key": "survivor.player.247",
+      "style": "philosophical",
+      "options": [
+        31,
+        35,
+        22
+      ]
+    },
+    "248": {
+      "id": 248,
+      "text_key": "survivor.player.248",
+      "style": "chinese",
+      "options": [
+        16,
+        18,
+        22
+      ]
+    },
+    "249": {
+      "id": 249,
+      "text_key": "survivor.player.249",
+      "style": "loving",
+      "options": [
+        18,
+        35,
+        25
+      ]
+    },
+    "250": {
+      "id": 250,
+      "text_key": "survivor.player.250",
+      "style": "thoughtful",
+      "options": [
+        83,
+        22,
+        82
+      ]
+    },
+    "251": {
+      "id": 251,
+      "text_key": "survivor.player.251",
+      "style": "relaxed",
+      "options": [
+        35,
+        83,
+        20
+      ]
+    },
+    "252": {
+      "id": 252,
+      "text_key": "survivor.player.252",
+      "style": "aggressive",
+      "options": [
+        83,
+        5,
+        74
+      ]
+    },
+    "253": {
+      "id": 253,
+      "text_key": "survivor.player.253",
+      "style": "creative",
+      "options": [
+        87,
+        11,
+        23
+      ]
+    },
+    "254": {
+      "id": 254,
+      "text_key": "survivor.player.254",
+      "style": "aggressive",
+      "options": [
+        40,
+        34,
+        87
+      ]
+    },
+    "255": {
+      "id": 255,
+      "text_key": "survivor.player.255",
+      "style": "chinese",
+      "options": [
+        83,
+        22,
+        24
+      ]
+    },
+    "256": {
+      "id": 256,
+      "text_key": "survivor.player.256",
+      "style": "aggressive",
+      "options": [
+        74,
+        73,
+        75
+      ]
+    },
+    "257": {
+      "id": 257,
+      "text_key": "survivor.player.257",
+      "style": "sensitive",
+      "options": [
+        23,
+        66,
+        74
+      ]
+    },
+    "258": {
+      "id": 258,
+      "text_key": "survivor.player.258",
+      "style": "extreme",
+      "options": [
+        73,
+        17,
+        50
+      ]
+    },
+    "259": {
+      "id": 259,
+      "text_key": "survivor.player.259",
+      "style": "cheerful",
+      "options": [
+        41,
+        76,
+        5
+      ]
+    },
+    "260": {
+      "id": 260,
+      "text_key": "survivor.player.260",
+      "style": "loving",
+      "options": [
+        18,
+        69,
+        6
+      ]
+    },
+    "261": {
+      "id": 261,
+      "text_key": "survivor.player.261",
+      "style": "chinese",
+      "options": [
+        85,
+        84,
+        86
+      ]
+    },
+    "262": {
+      "id": 262,
+      "text_key": "survivor.player.262",
+      "style": "extreme",
+      "options": [
+        4,
+        31,
+        40
+      ]
+    },
+    "263": {
+      "id": 263,
+      "text_key": "survivor.player.263",
+      "style": "philosophical",
+      "options": [
+        31,
+        42,
+        40
+      ]
+    },
+    "264": {
+      "id": 264,
+      "text_key": "survivor.player.264",
+      "style": "funny",
+      "options": [
+        5,
+        34,
+        52
+      ]
+    },
+    "265": {
+      "id": 265,
+      "text_key": "survivor.player.265",
+      "style": "creative",
+      "options": [
+        94,
+        63,
+        91
+      ]
+    },
+    "266": {
+      "id": 266,
+      "text_key": "survivor.player.266",
+      "style": "funny",
+      "options": [
+        34,
+        19,
+        20
+      ]
+    },
+    "267": {
+      "id": 267,
+      "text_key": "survivor.player.267",
+      "style": "exciting",
+      "options": [
+        25,
+        20,
+        82
+      ]
+    },
+    "268": {
+      "id": 268,
+      "text_key": "survivor.player.268",
+      "style": "provocative",
+      "options": [
+        22,
+        24,
+        83
+      ]
+    },
+    "269": {
+      "id": 269,
+      "text_key": "survivor.player.269",
+      "style": "loving",
+      "options": [
+        17,
+        18,
+        16
+      ]
+    },
+    "270": {
+      "id": 270,
+      "text_key": "survivor.player.270",
+      "style": "conspiratorial",
+      "options": [
+        17,
+        44,
+        54
+      ]
+    },
+    "271": {
+      "id": 271,
+      "text_key": "survivor.player.271",
+      "style": "funny",
+      "options": [
+        82,
+        62,
+        61
+      ]
+    },
+    "272": {
+      "id": 272,
+      "text_key": "survivor.player.272",
+      "style": "extreme",
+      "options": [
+        87,
+        40,
+        63
+      ]
+    },
+    "273": {
+      "id": 273,
+      "text_key": "survivor.player.273",
+      "style": "provocative",
+      "options": [
+        47,
+        86,
+        44
+      ]
+    },
+    "274": {
+      "id": 274,
+      "text_key": "survivor.player.274",
+      "style": "cheerful",
+      "options": [
+        18,
+        44,
+        22
+      ]
+    },
+    "275": {
+      "id": 275,
+      "text_key": "survivor.player.275",
+      "style": "thoughtful",
+      "options": [
+        11,
+        91,
+        23
+      ]
+    },
+    "276": {
+      "id": 276,
+      "text_key": "survivor.player.276",
+      "style": "provocative",
+      "options": [
+        74,
+        46,
+        44
+      ]
+    },
+    "277": {
+      "id": 277,
+      "text_key": "survivor.player.277",
+      "style": "relaxed",
+      "options": [
+        84,
+        22,
+        83
+      ]
+    },
+    "278": {
+      "id": 278,
+      "text_key": "survivor.player.278",
+      "style": "funny",
+      "options": [
+        22,
+        5,
+        24
+      ]
+    },
+    "279": {
+      "id": 279,
+      "text_key": "survivor.player.279",
+      "style": "sensitive",
+      "options": [
+        11,
+        40,
+        23
+      ]
+    },
+    "280": {
+      "id": 280,
+      "text_key": "survivor.player.280",
+      "style": "conspiratorial",
+      "options": [
+        97,
+        58,
+        29
+      ]
+    },
+    "281": {
+      "id": 281,
+      "text_key": "survivor.player.281",
+      "style": "loving",
+      "options": [
+        10,
+        18,
+        95
+      ]
+    },
+    "282": {
+      "id": 282,
+      "text_key": "survivor.player.282",
+      "style": "chinese",
+      "options": [
+        10,
+        95,
+        97
+      ]
+    },
+    "283": {
+      "id": 283,
+      "text_key": "survivor.player.283",
+      "style": "exciting",
+      "options": [
+        91,
+        43,
+        93
+      ]
+    },
+    "284": {
+      "id": 284,
+      "text_key": "survivor.player.284",
+      "style": "aggressive",
+      "options": [
+        23,
+        40,
+        29
+      ]
+    },
+    "285": {
+      "id": 285,
+      "text_key": "survivor.player.285",
+      "style": "funny",
+      "options": [
+        45,
+        43,
+        44
+      ]
+    },
+    "286": {
+      "id": 286,
+      "text_key": "survivor.player.286",
+      "style": "sensitive",
+      "options": [
+        22,
+        23,
+        86
+      ]
+    },
+    "287": {
+      "id": 287,
+      "text_key": "survivor.player.287",
+      "style": "loving",
+      "options": [
+        18,
+        77,
+        54
+      ]
+    },
+    "288": {
+      "id": 288,
+      "text_key": "survivor.player.288",
+      "style": "exciting",
+      "options": [
+        91,
+        60,
+        44
+      ]
+    },
+    "289": {
+      "id": 289,
+      "text_key": "survivor.player.289",
+      "style": "chinese",
+      "options": [
+        58,
+        19,
+        20
+      ]
+    },
+    "290": {
+      "id": 290,
+      "text_key": "survivor.player.290",
+      "style": "aggressive",
+      "options": [
+        23,
+        91,
+        19
+      ]
+    },
+    "291": {
+      "id": 291,
+      "text_key": "survivor.player.291",
+      "style": "extreme",
+      "options": [
+        4,
+        52,
+        29
+      ]
+    },
+    "292": {
+      "id": 292,
+      "text_key": "survivor.player.292",
+      "style": "relaxed",
+      "options": [
+        18,
+        6,
+        72
+      ]
+    },
+    "293": {
+      "id": 293,
+      "text_key": "survivor.player.293",
+      "style": "cheerful",
+      "options": [
+        79,
+        77,
+        76
+      ]
+    },
+    "294": {
+      "id": 294,
+      "text_key": "survivor.player.294",
+      "style": "philosophical",
+      "options": [
+        6,
+        73,
+        50
+      ]
+    },
+    "295": {
+      "id": 295,
+      "text_key": "survivor.player.295",
+      "style": "loving",
+      "options": [
+        18,
+        16,
+        81
+      ]
+    },
+    "296": {
+      "id": 296,
+      "text_key": "survivor.player.296",
+      "style": "extreme",
+      "options": [
+        5,
+        52,
+        45
+      ]
+    },
+    "297": {
+      "id": 297,
+      "text_key": "survivor.player.297",
+      "style": "conspiratorial",
+      "options": [
+        23,
+        24,
+        5
+      ]
+    },
+    "298": {
+      "id": 298,
+      "text_key": "survivor.player.298",
+      "style": "loving",
+      "options": [
+        4,
+        77,
+        50
+      ]
+    },
+    "299": {
+      "id": 299,
+      "text_key": "survivor.player.299",
+      "style": "thoughtful",
+      "options": [
+        79,
+        80,
+        14
+      ]
+    },
+    "300": {
+      "id": 300,
+      "text_key": "survivor.player.300",
+      "style": "cheerful",
+      "options": [
+        76,
+        20,
+        80
+      ]
+    }
   }
 }
