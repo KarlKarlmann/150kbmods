@@ -25,7 +25,8 @@ public final class MeteorImpact {
             ServerLevel level,
             Vec3 startPos,
             BlockPos centerPos,
-            int meteorIndex
+            int meteorIndex,
+            double meteorRadius
     ) {
         var random = level.random;
 
@@ -43,45 +44,19 @@ public final class MeteorImpact {
 
         /*
          * ---------------------------------------------------------
-         * METEORGRÖSSE & GEOMETRIE
+         * METEORGRÖSSE & GEOMETRIE (Radius kommt jetzt vom ServerManager)
          * ---------------------------------------------------------
          */
-        double meteorRadius;
-        double roll = random.nextDouble();
-
-        if (roll < 0.65) {
-            meteorRadius = 1.4 + random.nextDouble() * 1.5;
-        } else if (roll < 0.93) {
-            meteorRadius = 2.4 + random.nextDouble() * 2.0;
-        } else {
-            meteorRadius = 4.0 + random.nextDouble() * 2.5;
-        }
-
         double craterRadius = meteorRadius * 2.7 + 2.0;
         double craterDepth = meteorRadius * 1.15 + 1.5;
         double ejectaRadius = craterRadius * (2.5 + random.nextDouble() * 1.5);
         double thermalRadius = craterRadius * 3.5;
-
         double treeImpactRadius = Math.max(48.0, thermalRadius * 2.0);
-        double simulationRadius = Math.max(ejectaRadius + 8.0, treeImpactRadius);
-        int chunkRange = (int) Math.ceil(simulationRadius / 16.0);
-        ChunkPos centerChunk = new ChunkPos(centerPos);
 
-        /*
-         * ---------------------------------------------------------
-         * CHUNKS LADEN
-         * ---------------------------------------------------------
-         */
-        for (int cx = centerChunk.x - chunkRange; cx <= centerChunk.x + chunkRange; cx++) {
-            for (int cz = centerChunk.z - chunkRange; cz <= centerChunk.z + chunkRange; cz++) {
-                level.setChunkForced(cx, cz, true);
-                level.getChunk(cx, cz);
-            }
-        }
-
-        try {
-            // 0. Baum-/Vegetations-Impact. Das passiert vor dem Terrain-Einschlag,
-            // damit Baumstämme und Kronen nicht erst im Kraterverfahren verschwinden.
+        // Try-Catch als zusätzliche Fehlersicherung, damit ein fehlerhafter Block
+        // den Server-Tick nicht crasht und zumindest teilweise abgeschlossen wird.
+		try {
+            // 0. Baum-/Vegetations-Impact
             List<BlockPos> placedBlocks = new ArrayList<>();
             TreeImpactHandler.applyImpact(
                     level,
@@ -93,79 +68,77 @@ public final class MeteorImpact {
                     placedBlocks
             );
 
-            // 1. Wasser-Prüfung: Verhindert Trockenlegungs- und Strömungsglitches
-            if (isWaterHit(level, centerPos)) {
-                handleWaterImpact(level, centerPos, meteorRadius);
-                settlePlacedBlocks(level, placedBlocks);
-                return;
-            }
+        // 1. Wasser-Prüfung
+        if (isWaterHit(level, centerPos)) {
+            handleWaterImpact(level, centerPos, meteorRadius);
+            settlePlacedBlocks(level, placedBlocks);
+            return;
+        }
 
-            // 2. Krater ausgraben
-            List<ExcavatedBlock> excavated = excavateCrater(
-                    level,
-                    centerPos,
-                    horizontalDirection,
-                    sideDirection,
-                    craterRadius,
-                    craterDepth
-            );
+        // 2. Krater ausgraben
+        List<ExcavatedBlock> excavated = excavateCrater(
+                level,
+                centerPos,
+                horizontalDirection,
+                sideDirection,
+                craterRadius,
+                craterDepth
+        );
 
-            // 2. Schmelzkern (inkl. seltener Belohnung in der Mitte)
-            createMoltenCore(
-                    level,
-                    centerPos,
-                    meteorRadius
-            );
+        // 3. Schmelzkern (inkl. seltener Belohnung in der Mitte)
+        createMoltenCore(
+                level,
+                centerPos,
+                meteorRadius
+        );
 
-            // 4. Ejecta-Simulation
-            simulateEjecta(
-                    level,
-                    centerPos,
-                    direction,
-                    horizontalDirection,
-                    sideDirection,
-                    craterRadius,
-                    ejectaRadius,
-                    excavated,
-                    placedBlocks
-            );
+        // 4. Ejecta-Simulation
+        simulateEjecta(
+                level,
+                centerPos,
+                direction,
+                horizontalDirection,
+                sideDirection,
+                craterRadius,
+                ejectaRadius,
+                excavated,
+                placedBlocks
+        );
 
-            // 5. Kraterrand aufschütten
-            createCraterRim(
-                    level,
-                    centerPos,
-                    craterRadius,
-                    meteorRadius,
-                    placedBlocks
-            );
+        // 5. Kraterrand aufschütten
+        createCraterRim(
+                level,
+                centerPos,
+                craterRadius,
+                meteorRadius,
+                placedBlocks
+        );
 
-            // 6. Thermische Zone (Brand, Verbrennung)
-            createThermalZone(
-                    level,
-                    centerPos,
-                    craterRadius,
-                    thermalRadius
-            );
+        // 6. Thermische Zone (Brand, Verbrennung)
+        createThermalZone(
+                level,
+                centerPos,
+                craterRadius,
+                thermalRadius
+        );
 
-            // 7. Meteoritenfragmente
-            createMeteorFragments(
-                    level,
-                    centerPos,
-                    craterRadius,
-                    meteorRadius,
-                    placedBlocks
-            );
+		// 7. Meteoritenfragmente
+        createMeteorFragments(
+                level,
+                centerPos,
+                craterRadius,
+                meteorRadius,
+                placedBlocks
+        );
+		// 8. Separater Höhlenkollaps
+		collapseSubsurfaceCaves(
+				level,
+				centerPos,
+				craterRadius,
+				craterDepth
+		);
 
-            // 8. Separater Höhlenkollaps: Radialer Schockwellen-Kollaps instabiler Höhlendecken
-            collapseSubsurfaceCaves(
-                    level,
-                    centerPos,
-                    craterRadius,
-                    craterDepth
-            );
-
-            // 9. FINAL: Meteor-Block-Settlement. Erst jetzt, weil der Höhlenkollaps
-            // oder die Baumphysik zuvor noch neue schwebende Blöcke erzeugen kann.
+            // 9. FINAL: Meteor-Block-Settlement
             settlePlacedBlocks(level, placedBlocks);
 
             // Soundeffekt
@@ -177,13 +150,9 @@ public final class MeteorImpact {
                     Math.min(12.0F, 4.0F + (float) meteorRadius * 1.5F),
                     0.65F + random.nextFloat() * 0.2F
             );
-
-        } finally {
-            for (int cx = centerChunk.x - chunkRange; cx <= centerChunk.x + chunkRange; cx++) {
-                for (int cz = centerChunk.z - chunkRange; cz <= centerChunk.z + chunkRange; cz++) {
-                    level.setChunkForced(cx, cz, false);
-                }
-            }
+        } catch (Exception e) {
+            System.err.println("[MeteorShower] Fehler beim Ausführen der Krater-Logik!");
+            e.printStackTrace();
         }
     }
 
@@ -555,7 +524,7 @@ public final class MeteorImpact {
      * oder den Kraterrand erzeugt wurden. Hängen sie in der Luft (z. B. auf verbranntem Laub),
      * sacken sie auf festen Boden nach.
      */
-    private static void settlePlacedBlocks(ServerLevel level, List<BlockPos> placedBlocks) {
+	private static void settlePlacedBlocks(ServerLevel level, List<BlockPos> placedBlocks) {
         // Von unten nach oben sortieren, damit übereinanderliegende Blöcke in der
         // richtigen Reihenfolge stabilisiert werden.
         placedBlocks.sort((a, b) -> Integer.compare(a.getY(), b.getY()));
@@ -566,7 +535,8 @@ public final class MeteorImpact {
                 continue;
             }
 
-            BlockPos target = findDropTarget(level, pos, 64);
+            // Maximalen Drop auf 384 (ganze Welthöhe) setzen, damit nichts auf Bergen hängenbleibt
+            BlockPos target = findDropTarget(level, pos, 384);
             if (target.equals(pos)) {
                 continue;
             }
@@ -707,37 +677,43 @@ public final class MeteorImpact {
      * MaterialPhysics. Dadurch gibt es hier keine Sonderfälle für Schnee,
      * Blätter, Pflanzen, Wasser oder einzelne Mod-Blöcke.
      */
-    private static BlockPos findDropTarget(ServerLevel level, BlockPos startPos, int maxDrop) {
+private static BlockPos findDropTarget(ServerLevel level, BlockPos startPos, int maxDrop) {
         BlockPos current = startPos;
 
         for (int dropped = 0; dropped <= maxDrop; dropped++) {
             if (current.getY() <= level.getMinBuildHeight() + 1) {
-                return startPos;
+                return current;
             }
 
             BlockPos below = current.below();
             BlockState belowState = level.getBlockState(below);
-            MaterialPhysics support = MaterialPhysics.analyze(level, below, belowState);
-
-            // Nur eine vollständige Kollisionsform gilt als tragfähige
-            // Oberfläche. Damit fallen Ejecta nicht dauerhaft auf
-            // Schnee-Layern, Blättern oder anderen Teilformen liegen.
-            if (support.supportStrength >= 0.99) {
-                return below.above();
-            }
-
-            // Alles, was keine vollwertige tragende Kollisionsfläche besitzt,
-            // wird für das Settlement übersprungen. Das umfasst automatisch
-            // z. B. Snow-Layer, Leaves, dünne Vegetation und Flüssigkeiten.
-            if (belowState.isAir() || support.supportStrength < 0.99) {
+            
+            if (belowState.isAir()) {
                 current = below;
                 continue;
             }
 
-            return startPos;
+            MaterialPhysics support = MaterialPhysics.analyze(level, below, belowState);
+
+            // Nur eine vollständige Kollisionsform aus HARTEM Material gilt als
+            // tragfähige Oberfläche für Meteoritengestein.
+            // (supportStrength wird in MaterialPhysics aus Härte & Form berechnet)
+            if (support.supportStrength >= 0.99) {
+                return current;
+            }
+
+            // NEU: Wenn der Block NICHT voll tragfähig ist (wie Blätter, Pflanzen, dünnes Glas),
+            // zerschmettert ihn der tonnenschwere Fels, sofern er überhaupt zerstörbar ist.
+            if (canMeteorDestroy(level, below)) {
+                level.setBlock(below, Blocks.AIR.defaultBlockState(), 3);
+            }
+            
+            // Egal ob zerschmettert oder nicht (z.B. Barriere ohne volle CollisionBox),
+            // wir fallen weiter nach unten.
+            current = below;
         }
 
-        return startPos;
+        return current;
     }
 
     private static boolean canMeteorDestroy(ServerLevel level, BlockPos pos) {

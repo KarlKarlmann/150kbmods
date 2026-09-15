@@ -3,6 +3,7 @@ package net.kb150.meteorshower;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -46,9 +47,8 @@ public final class MaterialPhysics {
      * 1.0 = vollwertige, tragfähige Blockfläche, 0.0 = keine
      * belastbare Oberfläche für das Meteor-Settlement.
      *
-     * Die Information wird aus der tatsächlichen Minecraft-Kollisionsform
-     * des BlockStates abgeleitet und kennt deshalb keine einzelnen
-     * Blocktypen wie Schnee, Blätter oder Mod-Blöcke.
+     * Berücksichtigt Kollisionsformen, Härte und Vegetation (Laub, Gras etc.),
+     * sodass fallendes Gestein Pflanzen zerschmettert statt darauf liegen zu bleiben.
      */
     public final double supportStrength;
 
@@ -109,23 +109,38 @@ public final class MaterialPhysics {
         boolean fullCollision =
                 hasSolidCollision && state.isCollisionShapeFullBlock(level, pos);
 
+        // --- BERECHNUNG DER TRAGFÄHIGKEIT (Support Strength) ---
+        // Grundannahme: Ein voller Block trägt.
         double supportStrength = fullCollision ? 1.0 : 0.0;
 
+        // KORREKTUR: Laub hat oft fullCollision = true, ist aber strukturell schwach!
+        // Wir setzen die Tragfähigkeit für Blätter und weiche Vegetation hart auf 0.
+        // Die Material-Klasse existiert in 1.20+ nicht mehr, wir nutzen stattdessen BlockTags.
+        if (state.is(BlockTags.LEAVES) 
+            || state.is(BlockTags.FLOWERS)
+            || state.is(BlockTags.SAPLINGS)
+            || state.is(BlockTags.REPLACEABLE) // Ersetzt die alten Plant-Materials
+            || state.is(Blocks.VINE)
+            || state.is(Blocks.TALL_GRASS)
+            || state.is(Blocks.LARGE_FERN)
+            || state.is(Blocks.FERN)
+            || state.is(Blocks.GRASS)
+            || state.is(Blocks.SNOW)) { // Snow Layer
+            
+            supportStrength = 0.0;
+        } 
+        // Sehr weiche / zerbrechliche Blöcke (Glas, Eis) degradieren wir ebenfalls
+        else if (rawHardness >= 0.0 && rawHardness < 0.4) {
+            supportStrength = 0.0; 
+        }
+
+        // Bedrock & Co (unzerstörbar)
         if (rawHardness < 0.0) {
             return new MaterialPhysics(
-                    1.0,
-                    1.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    1.0,
-                    supportStrength,
-                    hasSolidCollision,
-                    fullCollision,
-                    false,
-                    false,
-                    false,
-                    false
+                    1.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+                    Math.max(supportStrength, 1.0), // Bedrock trägt immer
+                    hasSolidCollision, fullCollision,
+                    false, false, false, false
             );
         }
 

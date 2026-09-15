@@ -22,7 +22,7 @@ public class MeteorConfig {
 
     // Wie oft spawnt der exklusive Mittelblock (z.B. in jedem 5. Meteor)
     public static int RARE_BLOCK_INTERVAL = 5; 
-
+public static int EVENT_START_DELAY = -1;
     public enum RewardType { BLOCK, ENTITY }
 
     public record RareReward(RewardType type, String id, String nbt, int weight) {}

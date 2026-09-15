@@ -28,10 +28,10 @@ public class SurvivorCampfireGoal extends Goal {
         this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
     }
 
-    @Override
+@Override
     public boolean canUse() {
-        if (!this.survivor.level().isNight() 
-                || this.survivor.getTarget() != null 
+        // isNight() Abfrage entfernt -> Darf nun auch bei Tag ausgeführt werden
+        if (this.survivor.getTarget() != null 
                 || this.survivor.hurtTime > 0) {
             return false;
         }
@@ -81,6 +81,7 @@ public class SurvivorCampfireGoal extends Goal {
 
         return false;
     }
+
 
     @Override
     public void start() {
@@ -150,10 +151,11 @@ public class SurvivorCampfireGoal extends Goal {
         }
     }
 
+
     @Override
     public boolean canContinueToUse() {
-        boolean isSafeCondition = this.survivor.level().isNight() 
-            && this.survivor.getTarget() == null 
+        // isNight() Abfrage entfernt
+        boolean isSafeCondition = this.survivor.getTarget() == null 
             && this.survivor.hurtTime == 0 
             && this.campfirePos != null;
 

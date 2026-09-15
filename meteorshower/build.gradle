@@ -1,4 +1,5 @@
 archivesBaseName = 'meteorshower'
 
 dependencies {
+    compileOnly fg.deobf(fileTree(dir: rootProject.file('libs'), include: '*DistantHorizons*.jar'))
 }

@@ -123,10 +123,11 @@ public class SurvivorEntity extends PathfinderMob {
         this.entityData.define(SYNCED_DIALOG_STATES, new CompoundTag());
     }
 
-    @Override
+	@Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
 
+        // 1. Priorität: Flucht vor übermächtigen Gegnern
         this.goalSelector.addGoal(1, new AvoidEntityGoal<>(
             this, 
             Monster.class, 
@@ -140,22 +141,38 @@ public class SurvivorEntity extends PathfinderMob {
             }
         ));
 
-        this.goalSelector.addGoal(2, new MeleeAttackGoal(this, 1.2D, true));
-        this.goalSelector.addGoal(3, new SurvivorInteractGoal(this));
-        this.goalSelector.addGoal(4, new SurvivorScavengeGoal(this));
+        // 2. Priorität: Das Zelt! Wenn er wenig Leben hat (oder Nacht ist), 
+        // überschreibt dies den Angriff und er flüchtet ins Zelt.
+        this.goalSelector.addGoal(2, new SurvivorTentGoal(this));
 
+        // 3. Priorität: Kampf
+        this.goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.2D, true));
+        
+        // 4. Priorität: Mit dem Spieler sprechen/handeln
+        this.goalSelector.addGoal(4, new SurvivorInteractGoal(this));
+        
+        // 5. Priorität: Heilen durch Essen
+        this.goalSelector.addGoal(5, new SurvivorEatGoal(this));
+        
+        // 6. Priorität: Items aufsammeln
+        this.goalSelector.addGoal(6, new SurvivorScavengeGoal(this));
+
+        // 7. Priorität: Leichen abbauen (falls Mod geladen)
         if (ModList.get().isLoaded("zombiesleeping")) {
-            this.goalSelector.addGoal(5, new SurvivorHarvestRemainsGoal(this));
+            this.goalSelector.addGoal(7, new SurvivorHarvestRemainsGoal(this));
         }
 
-        this.goalSelector.addGoal(6, new SurvivorEatGoal(this));
-
-        this.campfireGoal = new SurvivorCampfireGoal(this);
-        this.goalSelector.addGoal(7, this.campfireGoal);
-
+        // 8. Priorität: Schutz vor Regen suchen
         this.goalSelector.addGoal(8, new SurvivorSeekShelterGoal(this));
-        this.goalSelector.addGoal(9, new SurvivorSentryGoal(this));
 
+        // 9. Priorität: Lagerfeuer-Alltag (Da er jetzt auch tagsüber ans Feuer geht)
+        this.campfireGoal = new SurvivorCampfireGoal(this);
+        this.goalSelector.addGoal(9, this.campfireGoal);
+
+        // 10. Priorität: Sentry (Wache). Greift nur, wenn absolut nichts anderes zutrifft.
+        this.goalSelector.addGoal(10, new SurvivorSentryGoal(this));
+
+        // --- Target Selectors bleiben unverändert ---
         this.targetSelector.addGoal(1, new HurtByTargetGoal(this) {
             @Override
             public boolean canUse() {
