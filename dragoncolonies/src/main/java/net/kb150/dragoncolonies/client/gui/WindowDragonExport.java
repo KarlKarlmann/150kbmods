@@ -44,7 +44,20 @@ public class WindowDragonExport extends BOWindow {
     public void onOpened() {
         super.onOpened();
         this.offersList = offersTag.getList("Offers", Tag.TAG_COMPOUND);
-        
+		Text titleText = this.findPaneOfTypeByID("txt_title", Text.class);
+			if (titleText != null && offersTag.contains("DragonDisplayName")) {
+				String rawName = offersTag.getString("DragonDisplayName");
+				
+				Component nameComp;
+				try {
+					nameComp = Component.Serializer.fromJson(rawName);
+					if (nameComp == null) nameComp = Component.literal(rawName);
+				} catch (Exception e) {
+					nameComp = Component.literal(rawName);
+				}
+
+				titleText.setText(Component.translatable("dragoncolonies.gui.dragon_export.title_with_dragon", nameComp));
+			}       
         Button btnClose = this.findPaneOfTypeByID("btn_close", Button.class);
         if (btnClose != null) btnClose.setHandler(b -> this.close());
         

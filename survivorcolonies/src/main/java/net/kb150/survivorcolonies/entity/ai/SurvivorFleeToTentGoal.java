@@ -2,7 +2,6 @@ package net.kb150.survivorcolonies.entity.ai;
 
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.goal.Goal;
 
 import java.util.EnumSet;
@@ -63,8 +62,8 @@ public class SurvivorFleeToTentGoal extends Goal {
 
             if (this.survivor.distanceToSqr(anchor.getX() + 0.5D, anchor.getY(), anchor.getZ() + 0.5D) < 0.6D) {
                 this.survivor.getNavigation().stop();
-                this.survivor.setPose(Pose.SWIMMING); // passt unter die niedrige Zelt-Decke
-                this.survivor.setInvisible(true);
+                this.survivor.setPos(anchor.getX() + 0.5D, anchor.getY(), anchor.getZ() + 0.5D);
+                this.survivor.setHiddenInTent(true);
                 this.isHiding = true;
                 this.safeTicks = 0;
             }
@@ -85,8 +84,9 @@ public class SurvivorFleeToTentGoal extends Goal {
 
     @Override
     public void stop() {
-        this.survivor.setInvisible(false);
-        this.survivor.setPose(Pose.STANDING);
+        if (this.isHiding) {
+            this.survivor.setHiddenInTent(false);
+        }
         this.survivor.getNavigation().stop();
         this.isHiding = false;
         this.safeTicks = 0;

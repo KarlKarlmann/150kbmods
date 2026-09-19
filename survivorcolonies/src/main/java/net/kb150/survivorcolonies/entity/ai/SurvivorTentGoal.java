@@ -217,21 +217,22 @@ public class SurvivorTentGoal extends Goal {
                 // stehen und dient SurvivorFleeToTentGoal als Fluchtpunkt.
             }
             case ENTERING -> {
-                // Kriech-Pose (Swimming) erzwingen
-                survivor.setPose(Pose.SWIMMING);
                 survivor.getNavigation().moveTo(tentInside.getX() + 0.5D, tentInside.getY(), tentInside.getZ() + 0.5D, 0.6D);
 
                 if (survivor.distanceToSqr(tentInside.getX() + 0.5D, tentInside.getY(), tentInside.getZ() + 0.5D) < 0.8D) {
                     survivor.getNavigation().stop();
+                    // Exakt mittig reinsetzen und erst JETZT ausblenden (keine Kollision mehr,
+                    // dadurch kein Risiko mehr, an der niedrigen Decke zu ersticken).
+                    survivor.setPos(tentInside.getX() + 0.5D, tentInside.getY(), tentInside.getZ() + 0.5D);
+                    survivor.setHiddenInTent(true);
                     state = State.SLEEPING;
                 }
             }
             case SLEEPING -> {
-                survivor.setPose(Pose.SWIMMING);
-                survivor.getNavigation().stop();
-                // Kein automatischer Abbau mehr: er steht morgens einfach auf und lässt das
-                // Zelt stehen (Übergang zurück nach STANDBY passiert automatisch über
-                // canContinueToUse() -> stop(), sobald die Activity nicht mehr SLEEPING ist).
+                // Er "ist" gerade unsichtbar & kollisionsfrei im Zelt (siehe setHiddenInTent).
+                // Der Übergang zurück nach STANDBY (inkl. wieder sichtbar machen) passiert
+                // automatisch über canContinueToUse() -> stop(), sobald die Activity nicht
+                // mehr SLEEPING ist.
             }
             case IDLE -> { /* nichts zu tun */ }
         }
@@ -252,6 +253,11 @@ public class SurvivorTentGoal extends Goal {
     public void stop() {
         survivor.setPose(Pose.STANDING);
         survivor.getNavigation().stop();
+
+        if (state == State.SLEEPING) {
+            // War unsichtbar/kollisionsfrei im Zelt -> jetzt wieder "normal" werden lassen
+            survivor.setHiddenInTent(false);
+        }
 
         if (state == State.ENTERING || state == State.SLEEPING) {
             // Aufgewacht, oder unterbrochen (z.B. Kampf-/Flucht-Goal hat MOVE übernommen) ->

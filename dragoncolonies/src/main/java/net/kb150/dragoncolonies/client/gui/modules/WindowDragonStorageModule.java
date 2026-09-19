@@ -93,7 +93,19 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         this.registerButton("btn_release", this::onReleaseClicked);
         this.registerButton("btn_breed_toggle", this::onBreedToggleClicked);
     }
+	
+	private Component getFormattedCooldownComponent(int ticks) {
+		int totalSeconds = ticks / 20;
+		int hours = totalSeconds / 3600;
+		int minutes = (totalSeconds % 3600) / 60;
 
+		if (hours > 0) {
+			return Component.translatable("dragoncolonies.gui.dragon_storage.cooldown.hours_minutes", hours, minutes);
+		} else {
+			return Component.translatable("dragoncolonies.gui.dragon_storage.cooldown.minutes", Math.max(1, minutes));
+		}
+	}
+	
     @Override
     public void onOpened() {
         super.onOpened();
@@ -196,7 +208,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                             displayName += " §c" + breedTag + "§r"; 
                             rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_blocked"));
                             
-                            if (cd > 0) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_cd_detail", cd / 20));
+                            if (cd > 0) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_cd_detail", getFormattedCooldownComponent(cd)));
                             if (hunger < 80) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_hungry_detail", hunger));
                             if (hp < (maxHp - 5.0f)) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_injured_detail", String.format(Locale.ROOT, "%.0f", hp), String.format(Locale.ROOT, "%.0f", maxHp)));
                         } else {

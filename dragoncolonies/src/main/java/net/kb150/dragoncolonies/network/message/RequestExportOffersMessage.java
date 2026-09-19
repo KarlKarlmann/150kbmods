@@ -54,14 +54,14 @@ public class RequestExportOffersMessage {
             Optional<CompoundTag> dragonOpt = storage.getDragonByRoostId(message.dragonId);
             if (dragonOpt.isEmpty()) dragonOpt = storage.getDragonByUUID(message.dragonId);
 
-            if (dragonOpt.isPresent()) {
-                CompoundTag dragonNbt = dragonOpt.get();
-                // Serverseitige Berechnung der Angebote
-                CompoundTag offers = DragonExportManager.generateOffers(player.serverLevel(), message.dragonId, dragonNbt);
+			if (dragonOpt.isPresent()) {
+				CompoundTag dragonNbt = dragonOpt.get();
+				CompoundTag offers = DragonExportManager.generateOffers(player.serverLevel(), message.dragonId, dragonNbt);
+				String dragonDisplayName = dragonNbt.contains("CustomName") ? dragonNbt.getString("CustomName") : "Drache";
+				offers.putString("DragonDisplayName", dragonDisplayName);
 
-                // Zurück an den anfragenden Client schicken
-                DragonColoniesNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new OpenExportWindowMessage(message.roostPos, message.dragonId, offers));
-            }
+				DragonColoniesNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new OpenExportWindowMessage(message.roostPos, message.dragonId, offers));
+			}
         });
         context.setPacketHandled(true);
     }

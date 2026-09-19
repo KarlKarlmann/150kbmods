@@ -22,6 +22,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.PathfinderMob;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -587,6 +588,20 @@ public class SurvivorEntity extends PathfinderMob {
         if (target == null) return false;
         float healthFraction = this.getHealth() / this.getMaxHealth();
         return healthFraction < getFleeHealthThreshold();
+    }
+
+    /**
+     * Macht den Survivor "unsichtbar im Zelt verschwinden": keine Kollisionsbox mehr
+     * (noPhysics=true verhindert u.a. Ersticken, da Entity#isInWall() dann immer false liefert),
+     * unsichtbar, unverwundbar. Wird von SurvivorTentGoal (normales Schlafen) und
+     * SurvivorFleeToTentGoal (Verstecken vor Gefahr) genutzt - kein riskantes
+     * "Pose-Trick"-Reinquetschen unter die niedrige Zelt-Decke mehr.
+     */
+    public void setHiddenInTent(boolean hidden) {
+        this.setInvisible(hidden);
+        this.noPhysics = hidden;
+        this.setInvulnerable(hidden);
+        this.setPose(hidden ? Pose.SWIMMING : Pose.STANDING); // rein kosmetisch, falls doch mal kurz sichtbar
     }
 
     public int getTrust() { return this.entityData.get(TRUST); }
