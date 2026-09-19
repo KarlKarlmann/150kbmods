@@ -51,7 +51,7 @@ public final class DragonNavigationHandler {
      * false = DragonColonies/BoD bearbeitet den Transport.
      * true  = Minecolonies-Target gilt als erreicht.
      */
-    public static Boolean handleDragonFlight(
+public static Boolean handleDragonFlight(
             AbstractEntityCitizen citizen,
             BlockPos target,
             int distToDesired
@@ -71,6 +71,13 @@ public final class DragonNavigationHandler {
         UUID id = citizen.getUUID();
         boolean riding = citizen.getVehicle() == dragon;
         boolean airTarget = isAirTarget(level, target);
+
+        // 1. ZIELWECHSEL-PRÜFUNG: Wenn Minecolonies ein neues Ziel vorgibt, altes Ground-Target löschen
+        BlockPos groundTarget = GROUND_TASK_TARGET.get(id);
+        if (groundTarget != null && !groundTarget.equals(target)) {
+            GROUND_TASK_TARGET.remove(id);
+            groundTarget = null;
+        }
 
         // Combat bleibt beim vorhandenen Combat-System.
         if (riding && citizen.getTarget() != null && citizen.getTarget().isAlive()) {
@@ -93,8 +100,14 @@ public final class DragonNavigationHandler {
         }
 
         // Rider ist noch zu Fuss: erst etwas Zeit zum Herauslaufen geben.
-        // Das gilt fuer Ground- und Air-Targets gleichermassen.
         if (!riding) {
+            // 2. HANDOFF-CHECK: Wenn wir für dieses Ziel schon abgesessen sind -> NIEMALS neu aufsteigen!
+            if (target.equals(groundTarget)) {
+                MOUNT_DELAY.remove(id);
+                MOUNT_DELAY_TARGET.remove(id);
+                return null;
+            }
+
             double distanceToTarget = citizen.distanceToSqr(
                     target.getX() + 0.5D,
                     target.getY(),
@@ -121,7 +134,6 @@ public final class DragonNavigationHandler {
         MOUNT_DELAY_TARGET.remove(id);
 
         citizen.getNavigation().stop();
-
         if (active == null) {
             Vec3 dragonTarget = toDragonTarget(target);
             AIMovementComponent movement = dragon.getAIMovement();
