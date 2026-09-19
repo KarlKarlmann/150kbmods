@@ -102,7 +102,7 @@ public class DragonExportManager {
                         DEFAULT_REWARD_POOL.addAll(loaded.defaultRewardPool);
                     }
                 }
-                DragonColonies.LOGGER.info("[DragonColonies] Successfully loaded {} export factions from JSON.", FACTIONS.size());
+                //DragonColonies.LOGGER.info("[DragonColonies] Successfully loaded {} export factions from JSON.", FACTIONS.size());
             }
         } catch (Exception e) {
             DragonColonies.LOGGER.error("[DragonColonies] Error loading export_factions.json", e);

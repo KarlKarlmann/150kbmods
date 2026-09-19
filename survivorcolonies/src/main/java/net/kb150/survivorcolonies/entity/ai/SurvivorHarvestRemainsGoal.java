@@ -1,3 +1,4 @@
+
 package net.kb150.survivorcolonies.entity.ai;
 
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
@@ -32,6 +33,11 @@ public class SurvivorHarvestRemainsGoal extends Goal {
         if (this.survivor.isPassenger() 
                 || this.survivor.getTarget() != null 
                 || this.survivor.getTradingPlayer() != null) {
+            return false;
+        }
+
+        SurvivorActivity activity = this.survivor.getActivity();
+        if (activity == SurvivorActivity.COMBAT || activity == SurvivorActivity.SLEEPING) {
             return false;
         }
 
@@ -130,3 +136,4 @@ public class SurvivorHarvestRemainsGoal extends Goal {
         return id != null && id.equals(ZOMBIE_REMAINS_ID);
     }
 }
+

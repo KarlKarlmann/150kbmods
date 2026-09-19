@@ -1,3 +1,4 @@
+
 package net.kb150.survivorcolonies.entity.ai;
 
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
@@ -21,7 +22,9 @@ public class SurvivorSeekShelterGoal extends Goal {
             return false;
         }
 
-        boolean badWeather = this.survivor.level().isRaining() || this.survivor.level().isNight();
+        // Nachts übernimmt ausschließlich das Zelt (SurvivorTentGoal) die Unterschlupf-Funktion.
+        // Dieses Goal ist nur noch für Regen am Tag zuständig (z.B. unter einem Vordach warten).
+        boolean badWeather = this.survivor.level().isRaining() && this.survivor.level().isDay();
         if (!badWeather) return false;
 
         BlockPos current = this.survivor.blockPosition();
@@ -65,3 +68,4 @@ public class SurvivorSeekShelterGoal extends Goal {
         this.shelterPos = null;
     }
 }
+

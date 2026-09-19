@@ -94,6 +94,6 @@ public class DragonColoniesNetwork {
                 ToggleBreedingStatusMessage::handle
         );
 
-        DragonColonies.LOGGER.info("DragonColonies: Netzwerk-Kanal registriert. Pakete für Drachenhort sind bereit.");
+        //DragonColonies.LOGGER.info("DragonColonies: Netzwerk-Kanal registriert. Pakete für Drachenhort sind bereit.");
     }
 }

@@ -1,3 +1,4 @@
+
 package net.kb150.survivorcolonies.entity.ai;
 
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
@@ -27,6 +28,11 @@ public class SurvivorEatGoal extends Goal {
         if (this.survivor.getHealth() >= this.survivor.getMaxHealth() 
                 || this.survivor.getTarget() != null 
                 || this.survivor.isPassenger()) {
+            return false;
+        }
+
+        SurvivorActivity activity = this.survivor.getActivity();
+        if (activity == SurvivorActivity.COMBAT || activity == SurvivorActivity.SLEEPING) {
             return false;
         }
 
@@ -109,3 +115,4 @@ public class SurvivorEatGoal extends Goal {
         return -1;
     }
 }
+

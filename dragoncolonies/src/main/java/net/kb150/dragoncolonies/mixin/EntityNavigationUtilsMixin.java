@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = EntityNavigationUtils.class, remap = false)
 public class EntityNavigationUtilsMixin {
 
-    private static final boolean DEBUG_NAVIGATION = true;
+    private static final boolean DEBUG_NAVIGATION = false;
 
     @Inject(
             method = "walkToPos(Lnet/minecraft/world/entity/Mob;Lnet/minecraft/core/BlockPos;IZD)Z",
@@ -127,16 +127,16 @@ public class EntityNavigationUtilsMixin {
                 ? citizen.getVehicle().getType().getDescriptionId()
                 : "NONE";
 
-        DragonColonies.LOGGER.info(
-                "[DRAGON-NAV-REQUEST] source={} | citizen={} | target={} | dist={} | safe={} | speed={} | vehicle={}",
-                source,
-                citizen.getName().getString(),
-                desiredPosition.toShortString(),
-                distToDesired,
-                safeDestination,
-                speedFactor,
-                vehicle
-        );
+        //DragonColonies.LOGGER.info(
+        //        "[DRAGON-NAV-REQUEST] source={} | citizen={} | target={} | dist={} | safe={} | speed={} | vehicle={}",
+        //        source,
+        //        citizen.getName().getString(),
+        //        desiredPosition.toShortString(),
+        //        distToDesired,
+        //        safeDestination,
+        //        speedFactor,
+        //        vehicle
+        //);
 
         StackTraceElement[] trace = Thread.currentThread().getStackTrace();
 

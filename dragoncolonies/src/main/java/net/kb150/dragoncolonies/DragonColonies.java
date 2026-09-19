@@ -48,7 +48,7 @@ public class DragonColonies {
             if (unemployedSounds != null) {
                 ModSoundEvents.CITIZEN_SOUND_EVENTS.put("beastmaster", unemployedSounds);
                 ModSoundEvents.CITIZEN_SOUND_EVENTS.put("dragonrider", unemployedSounds);
-                LOGGER.info("[DragonColonies] Custom-Job-Sounds erfolgreich registriert!");
+                //LOGGER.info("[DragonColonies] Custom-Job-Sounds erfolgreich registriert!");
             } else {
                 LOGGER.warn("[DragonColonies] Sound-Vorlage 'unemployed' konnte nicht in Minecolonies gefunden werden!");
             }

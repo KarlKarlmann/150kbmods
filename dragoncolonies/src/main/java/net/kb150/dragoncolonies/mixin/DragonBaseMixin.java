@@ -63,8 +63,8 @@ public abstract class DragonBaseMixin {
                 if (storage != null) {
                     boolean isValid = storage.isEntityValidForRoostId(roostDragonId, dragon.getUUID());
                     if (!isValid) {
-                        System.out.println("[DragonColonies] Veraltetes Duplikat/Geist erkannt und entfernt: "
-                                + dragon.getName().getString() + " (RoostID: " + roostDragonId + ", EntityUUID: " + dragon.getUUID() + ")");
+                        //System.out.println("[DragonColonies] Veraltetes Duplikat/Geist erkannt und entfernt: "
+                        //        + dragon.getName().getString() + " (RoostID: " + roostDragonId + ", EntityUUID: " + dragon.getUUID() + ")");
 
                         data.remove("DragonColonies_RoostPos");
                         data.remove("DragonColonies_RoostDragonID");
@@ -175,7 +175,7 @@ public abstract class DragonBaseMixin {
                         data.remove("DragonColonies_GuardUUID");
                     }
 
-                    System.out.println("[DragonColonies] Drache '" + dragon.getName().getString() + "' hat wegen Verhungerns die Bindung verloren und ist wieder wild!");
+                    //System.out.println("[DragonColonies] Drache '" + dragon.getName().getString() + "' hat wegen Verhungerns die Bindung verloren und ist wieder wild!");
                 }
             }
         }
@@ -217,7 +217,7 @@ public abstract class DragonBaseMixin {
             BlockPos roostPos = BlockPos.of(data.getLong("DragonColonies_RoostPos"));
             double distanceToRoost = dragon.distanceToSqr(roostPos.getX() + 0.5, roostPos.getY() + 1.0, roostPos.getZ() + 0.5);
 
-            if (distanceToRoost < 256.0D || orphanTicks > 600) {
+            if ((orphanTicks > 60 && distanceToRoost < 256.0D) || orphanTicks > 1200) {
                 ServerLevel level = (ServerLevel) dragon.level();
                 IColony colony = IMinecoloniesAPI.getInstance().getColonyManager().getColonyByPosFromWorld(level, roostPos);
 
@@ -314,7 +314,7 @@ public abstract class DragonBaseMixin {
 
                     if (reason == Entity.RemovalReason.KILLED) {
                         dragonNbt.putBoolean(DragonStorageModule.TAG_IS_DEAD, true);
-                        System.out.println("[DragonColonies] Drache '" + dragon.getName().getString() + "' ist gefallen. Status im Hort auf M.I.A. gesetzt!");
+                        //System.out.println("[DragonColonies] Drache '" + dragon.getName().getString() + "' ist gefallen. Status im Hort auf M.I.A. gesetzt!");
                     }
 
                     storage.updateDragonData(roostDragonId, dragonNbt);

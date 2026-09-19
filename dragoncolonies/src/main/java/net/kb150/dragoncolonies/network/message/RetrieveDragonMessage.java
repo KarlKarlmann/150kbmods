@@ -92,13 +92,17 @@ public class RetrieveDragonMessage {
                 storage.markDirty();
 
                 // 4. Entität instanziieren und Spawntags stempeln
-                Entity entity = EntityType.loadEntityRecursive(dragonTag, level, (e) -> {
-                    e.moveTo(roost.getPosition().getX() + 0.5, roost.getPosition().getY() + 1.0, roost.getPosition().getZ() + 0.5, 0, 0);
+				Entity entity = EntityType.loadEntityRecursive(dragonTag, level, (e) -> {
+					e.moveTo(roost.getPosition().getX() + 0.5, roost.getPosition().getY() + 1.0, roost.getPosition().getZ() + 0.5, 0, 0);
 
-                    e.getPersistentData().putLong("DragonColonies_RoostPos", roost.getPosition().asLong());
-                    e.getPersistentData().putUUID("DragonColonies_RoostDragonID", roostDragonId);
-                    return e;
-                });
+					e.getPersistentData().putLong("DragonColonies_RoostPos", roost.getPosition().asLong());
+					e.getPersistentData().putUUID("DragonColonies_RoostDragonID", roostDragonId);
+					
+					// NEU: Wachen-Kopplung beim manuellen Rausholen entfernen
+					e.getPersistentData().remove("DragonColonies_GuardDeployed");
+					e.getPersistentData().remove("DragonColonies_GuardUUID");
+					return e;
+				});
 
                 if (entity != null) {
                     level.addFreshEntity(entity);

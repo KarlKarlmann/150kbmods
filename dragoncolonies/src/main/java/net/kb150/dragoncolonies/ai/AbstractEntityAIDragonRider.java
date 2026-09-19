@@ -30,7 +30,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.NotNull;
-
+import net.minecraft.network.chat.Component;
 import java.util.List;
 import java.util.UUID;
 
@@ -486,7 +486,7 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
                     dragonNbt.remove("Passengers");
 
                     String dragonDisplayName = currentDragon.hasCustomName() ? currentDragon.getCustomName().getString() : currentDragon.getName().getString();
-                    dragonNbt.putString("CustomName", dragonDisplayName);
+                    dragonNbt.putString("CustomName", Component.Serializer.toJson(Component.literal(dragonDisplayName)));
 
                     UUID roostId = currentDragon.getPersistentData().hasUUID("DragonColonies_RoostDragonID")
                             ? currentDragon.getPersistentData().getUUID("DragonColonies_RoostDragonID")

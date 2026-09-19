@@ -1,6 +1,9 @@
+
 package net.kb150.survivorcolonies.entity.ai;
 
+import net.kb150.survivorcolonies.data.SurvivorPersonality;
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
+import net.minecraft.core.BlockPos;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -20,6 +23,9 @@ public class SurvivorScavengeGoal extends Goal {
     // Blacklist für Items, die nicht erreicht werden konnten (ItemEntity -> Ablauf-Tick)
     private final Map<ItemEntity, Long> unreachableItems = new WeakHashMap<>();
 
+    // Wie weit ein "money"-motivierter Survivor im Schlaf noch nach Items greift (ums Zelt herum)
+    private static final double SLEEPING_MONEY_RANGE = 3.0D;
+
     public SurvivorScavengeGoal(SurvivorEntity survivor) {
         this.survivor = survivor;
         this.setFlags(EnumSet.of(Goal.Flag.MOVE));
@@ -33,6 +39,21 @@ public class SurvivorScavengeGoal extends Goal {
             return false;
         }
 
+        // Scavengen soll "immer" laufen (außer im Kampf) - COMBAT ist also die einzige harte Sperre.
+        SurvivorActivity activity = this.survivor.getActivity();
+        if (activity == SurvivorActivity.COMBAT) return false;
+
+        // Während er schläft, ruht auch das Scavengen - außer er ist geldgierig ("money"):
+        // dann greift er auch im Schlaf noch nach Items in unmittelbarer Zeltnähe.
+        boolean sleepingMoneyException = false;
+        BlockPos tentAnchor = null;
+        if (activity == SurvivorActivity.SLEEPING) {
+            if (!isMoneyMotivated()) return false;
+            tentAnchor = getTentAnchorPos();
+            if (tentAnchor == null) return false; // kein Zelt bekannt -> nichts zu bewachen
+            sleepingMoneyException = true;
+        }
+
         // 10% Chance pro Tick zum Suchen (spart Performance)
         if (this.survivor.getRandom().nextInt(10) != 0) return false;
 
@@ -40,12 +61,16 @@ public class SurvivorScavengeGoal extends Goal {
         long gameTime = this.survivor.level().getGameTime();
         this.unreachableItems.entrySet().removeIf(entry -> gameTime > entry.getValue());
 
+        final BlockPos finalTentAnchor = tentAnchor;
+        final boolean restrictToTentRange = sleepingMoneyException;
+
         List<ItemEntity> items = this.survivor.level().getEntitiesOfClass(
             ItemEntity.class,
             this.survivor.getBoundingBox().inflate(10.0D),
             item -> item.isAlive() 
                 && !item.getItem().isEmpty() 
                 && !this.unreachableItems.containsKey(item)
+                && (!restrictToTentRange || isNearTent(item, finalTentAnchor))
         );
 
         if (items.isEmpty()) return false;
@@ -135,4 +160,19 @@ public class SurvivorScavengeGoal extends Goal {
         this.targetItem = null;
         this.pathTimeout = 0;
     }
+
+    private boolean isMoneyMotivated() {
+        return "money".equalsIgnoreCase(SurvivorPersonality.getMotivation(this.survivor.getUUID()));
+    }
+
+    /** Liefert die bekannte Zeltposition, falls gerade eins steht (auch im STANDBY-Zustand). */
+    private BlockPos getTentAnchorPos() {
+        SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
+        return tentGoal != null ? tentGoal.getTentAnchorPos() : null;
+    }
+
+    private boolean isNearTent(ItemEntity item, BlockPos tentAnchor) {
+        return item.blockPosition().distSqr(tentAnchor) <= (SLEEPING_MONEY_RANGE * SLEEPING_MONEY_RANGE);
+    }
 }
+

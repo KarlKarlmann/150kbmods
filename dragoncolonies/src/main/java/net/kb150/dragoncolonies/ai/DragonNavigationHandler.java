@@ -142,26 +142,26 @@ public final class DragonNavigationHandler {
             ACTIVE.put(id, newActive);
 
 			movement.setWaypoint(dragonTarget, 1.0D, arrivedDragon -> {
-                DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] Callback von BoD gefeuert! Drache ist am Ziel.");
+                //DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] Callback von BoD gefeuert! Drache ist am Ziel.");
 
                 ActiveTransport current = ACTIVE.get(id);
                 if (current == null || !current.target().equals(target)) {
-                    DragonColonies.LOGGER.warn(
-                            "[DRAGON-NAV-DEBUG] Callback ignoriert: kein passender aktiver Transport mehr fuer {}.",
-                            target.toShortString()
-                    );
+                    //DragonColonies.LOGGER.warn(
+                    //        "[DRAGON-NAV-DEBUG] Callback ignoriert: kein passender aktiver Transport mehr fuer {}.",
+                    //        target.toShortString()
+                    //);
                     return;
                 }
 
 			if (current.airTarget()) {
-				DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] Luftziel erreicht. Melde an Minecolonies.");
+				//DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] Luftziel erreicht. Melde an Minecolonies.");
 				ACTIVE.remove(id);
 				AIR_TARGET_ARRIVED.put(id, current.target());
 				BoDPathInfo.clear(arrivedDragon);
 				return;
 			}
 
-			DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] Bodenziel erreicht. Rufe dismount() auf.");
+			//DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] Bodenziel erreicht. Rufe dismount() auf.");
 			ACTIVE.remove(id);
 			MOUNT_DELAY.remove(id);
 			MOUNT_DELAY_TARGET.remove(id);
@@ -213,16 +213,16 @@ public final class DragonNavigationHandler {
 			AbstractEntityCitizen citizen = findCitizen(server, id);
 
 			if (citizen == null) {
-				DragonColonies.LOGGER.warn(
-						"[DRAGON-NAV-DEBUG] SERVER TICK | " +
-						"citizen=NULL | citizenUUID={} | " +
-						"activeTarget={} | activeAirTarget={} | ACTIVE_SIZE={} | MOUNT_DELAY={}",
-						id,
-						active.target().toShortString(),
-						active.airTarget(),
-						ACTIVE.size(),
-						MOUNT_DELAY.get(id)
-				);
+				//DragonColonies.LOGGER.warn(
+				//		"[DRAGON-NAV-DEBUG] SERVER TICK | " +
+				//		"citizen=NULL | citizenUUID={} | " +
+				//		"activeTarget={} | activeAirTarget={} | ACTIVE_SIZE={} | MOUNT_DELAY={}",
+				//		id,
+				//		active.target().toShortString(),
+				//		active.airTarget(),
+				//		ACTIVE.size(),
+				//		MOUNT_DELAY.get(id)
+				//);
 
 				ACTIVE.remove(id);
 				continue;
@@ -235,26 +235,26 @@ public final class DragonNavigationHandler {
 					rider == null ? null : rider.getAssignedDragon();
 
 			if (dragon == null) {
-				DragonColonies.LOGGER.warn(
-						"[DRAGON-NAV-DEBUG] SERVER TICK | " +
-						"citizen={} | citizenUUID={} | citizenPos={} | " +
-						"dragon=NULL | rider={} | " +
-						"vehicle={} | vehicleType={} | " +
-						"activeTarget={} | activeAirTarget={} | " +
-						"ACTIVE_SIZE={} | MOUNT_DELAY={}",
-						citizen.getName().getString(),
-						id,
-						citizen.position(),
-						rider != null ? "OK" : "NULL",
-						citizen.getVehicle() != null ? citizen.getVehicle().toString() : "NULL",
-						citizen.getVehicle() != null
-								? citizen.getVehicle().getType().toString()
-								: "NULL",
-						active.target().toShortString(),
-						active.airTarget(),
-						ACTIVE.size(),
-						MOUNT_DELAY.get(id)
-				);
+				//DragonColonies.LOGGER.warn(
+				//		"[DRAGON-NAV-DEBUG] SERVER TICK | " +
+				//		"citizen={} | citizenUUID={} | citizenPos={} | " +
+				//		"dragon=NULL | rider={} | " +
+				//		"vehicle={} | vehicleType={} | " +
+				//		"activeTarget={} | activeAirTarget={} | " +
+				//		"ACTIVE_SIZE={} | MOUNT_DELAY={}",
+				//		citizen.getName().getString(),
+				//		id,
+				//		citizen.position(),
+				//		rider != null ? "OK" : "NULL",
+				//		citizen.getVehicle() != null ? citizen.getVehicle().toString() : "NULL",
+				//		citizen.getVehicle() != null
+				//				? citizen.getVehicle().getType().toString()
+				//				: "NULL",
+				//		active.target().toShortString(),
+				//		active.airTarget(),
+				//		ACTIVE.size(),
+				//		MOUNT_DELAY.get(id)
+				//);
 
 				continue;
 			}
@@ -262,75 +262,75 @@ public final class DragonNavigationHandler {
 			AIMovementComponent movement = dragon.getAIMovement();
 
 			if (!dragon.isAlive()) {
-				DragonColonies.LOGGER.warn(
-						"[DRAGON-NAV-DEBUG] SERVER TICK | " +
-						"citizen={} | citizenUUID={} | citizenPos={} | " +
-						"dragon={} | dragonUUID={} | dragonPos={} | " +
-						"alive=false | vehicle={} | " +
-						"activeTarget={} | activeAirTarget={} | " +
-						"ACTIVE_SIZE={} | MOUNT_DELAY={}",
-						citizen.getName().getString(),
-						id,
-						citizen.position(),
-						dragon.getName().getString(),
-						dragon.getUUID(),
-						dragon.position(),
-						citizen.getVehicle() == dragon,
-						active.target().toShortString(),
-						active.airTarget(),
-						ACTIVE.size(),
-						MOUNT_DELAY.get(id)
-				);
+				//DragonColonies.LOGGER.warn(
+				//		"[DRAGON-NAV-DEBUG] SERVER TICK | " +
+				//		"citizen={} | citizenUUID={} | citizenPos={} | " +
+				//		"dragon={} | dragonUUID={} | dragonPos={} | " +
+				//		"alive=false | vehicle={} | " +
+				//		"activeTarget={} | activeAirTarget={} | " +
+				//		"ACTIVE_SIZE={} | MOUNT_DELAY={}",
+				//		citizen.getName().getString(),
+				//		id,
+				//		citizen.position(),
+				//		dragon.getName().getString(),
+				//		dragon.getUUID(),
+				//		dragon.position(),
+				//		citizen.getVehicle() == dragon,
+				//		active.target().toShortString(),
+				//		active.airTarget(),
+				//		ACTIVE.size(),
+				//		MOUNT_DELAY.get(id)
+				//);
 
 				continue;
 			}
 
 			if (citizen.getVehicle() != dragon) {
-				DragonColonies.LOGGER.warn(
-						"[DRAGON-NAV-DEBUG] SERVER TICK | " +
-						"citizen={} | citizenUUID={} | citizenPos={} | " +
-						"dragon={} | dragonUUID={} | dragonPos={} | " +
-						"alive=true | riding=false | " +
-						"actualVehicle={} | " +
-						"activeTarget={} | activeAirTarget={} | " +
-						"ACTIVE_SIZE={} | MOUNT_DELAY={}",
-						citizen.getName().getString(),
-						id,
-						citizen.position(),
-						dragon.getName().getString(),
-						dragon.getUUID(),
-						dragon.position(),
-						citizen.getVehicle() != null
-								? citizen.getVehicle().toString()
-								: "NULL",
-						active.target().toShortString(),
-						active.airTarget(),
-						ACTIVE.size(),
-						MOUNT_DELAY.get(id)
-				);
+				//DragonColonies.LOGGER.warn(
+				//		"[DRAGON-NAV-DEBUG] SERVER TICK | " +
+				//		"citizen={} | citizenUUID={} | citizenPos={} | " +
+				//		"dragon={} | dragonUUID={} | dragonPos={} | " +
+				//		"alive=true | riding=false | " +
+				//		"actualVehicle={} | " +
+				//		"activeTarget={} | activeAirTarget={} | " +
+				//		"ACTIVE_SIZE={} | MOUNT_DELAY={}",
+				//		citizen.getName().getString(),
+				//		id,
+				//		citizen.position(),
+				//		dragon.getName().getString(),
+				//		dragon.getUUID(),
+				//		dragon.position(),
+				//		citizen.getVehicle() != null
+				//				? citizen.getVehicle().toString()
+				//				: "NULL",
+				//		active.target().toShortString(),
+				//		active.airTarget(),
+				//		ACTIVE.size(),
+				//		MOUNT_DELAY.get(id)
+				//);
 
 				continue;
 			}
 
 			if (movement == null) {
-				DragonColonies.LOGGER.warn(
-						"[DRAGON-NAV-DEBUG] SERVER TICK | " +
-						"citizen={} | citizenUUID={} | citizenPos={} | " +
-						"dragon={} | dragonUUID={} | dragonPos={} | " +
-						"riding=true | AIMovementComponent=NULL | " +
-						"activeTarget={} | activeAirTarget={} | " +
-						"ACTIVE_SIZE={} | MOUNT_DELAY={}",
-						citizen.getName().getString(),
-						id,
-						citizen.position(),
-						dragon.getName().getString(),
-						dragon.getUUID(),
-						dragon.position(),
-						active.target().toShortString(),
-						active.airTarget(),
-						ACTIVE.size(),
-						MOUNT_DELAY.get(id)
-				);
+				//DragonColonies.LOGGER.warn(
+				//		"[DRAGON-NAV-DEBUG] SERVER TICK | " +
+				//		"citizen={} | citizenUUID={} | citizenPos={} | " +
+				//		"dragon={} | dragonUUID={} | dragonPos={} | " +
+				//		"riding=true | AIMovementComponent=NULL | " +
+				//		"activeTarget={} | activeAirTarget={} | " +
+				//		"ACTIVE_SIZE={} | MOUNT_DELAY={}",
+				//		citizen.getName().getString(),
+				//		id,
+				//		citizen.position(),
+				//		dragon.getName().getString(),
+				//		dragon.getUUID(),
+				//		dragon.position(),
+				//		active.target().toShortString(),
+				//		active.airTarget(),
+				//		ACTIVE.size(),
+				//		MOUNT_DELAY.get(id)
+				//);
 
 				continue;
 			}
@@ -339,51 +339,51 @@ public final class DragonNavigationHandler {
 			 * HIER sind wir sicher innerhalb eines gültigen ACTIVE-Transports.
 			 * Dieser Log erscheint bei JEDEM serverTick.
 			 */
-			DragonColonies.LOGGER.info(
-					"[DRAGON-NAV-DEBUG] SERVER TICK | " +
-					"citizen={} | citizenUUID={} | " +
-					"citizenPos={} | " +
-					"dragon={} | dragonUUID={} | " +
-					"dragonTick={} | " +
-					"dragonPos={} | " +
-					"target={} | " +
-					"dragonTarget={} | " +
-					"airTarget={} | " +
-					"riding={} | " +
-					"lastPosition={} | " +
-					"noProgressTicks={} | " +
-					"BoDState={} | " +
-					"waypoint={} | " +
-					"distToDragonTarget={} | " +
-					"ACTIVE_SIZE={} | " +
-					"MOUNT_DELAY={} | " +
-					"GROUND_TASK_TARGET={} | " +
-					"AIR_TARGET_ARRIVED={}",
-					citizen.getName().getString(),
-					id,
-					citizen.position(),
-					dragon.getName().getString(),
-					dragon.getUUID(),
-					dragon.tickCount,
-					dragon.position(),
-					active.target().toShortString(),
-					active.dragonTarget(),
-					active.airTarget(),
-					citizen.getVehicle() == dragon,
-					active.lastPosition(),
-					active.noProgressTicks(),
-					movement.getState(),
-					movement.getCurrentWaypoint(),
-					dragon.distanceToSqr(active.dragonTarget()),
-					ACTIVE.size(),
-					MOUNT_DELAY.get(id),
-					GROUND_TASK_TARGET.get(id) != null
-							? GROUND_TASK_TARGET.get(id).toShortString()
-							: "NULL",
-					AIR_TARGET_ARRIVED.get(id) != null
-							? AIR_TARGET_ARRIVED.get(id).toShortString()
-							: "NULL"
-			);
+			//DragonColonies.LOGGER.info(
+			//		"[DRAGON-NAV-DEBUG] SERVER TICK | " +
+			//		"citizen={} | citizenUUID={} | " +
+			//		"citizenPos={} | " +
+			//		"dragon={} | dragonUUID={} | " +
+			//		"dragonTick={} | " +
+			//		"dragonPos={} | " +
+			//		"target={} | " +
+			//		"dragonTarget={} | " +
+			//		"airTarget={} | " +
+			//		"riding={} | " +
+			//		"lastPosition={} | " +
+			//		"noProgressTicks={} | " +
+			//		"BoDState={} | " +
+			//		"waypoint={} | " +
+			//		"distToDragonTarget={} | " +
+			//		"ACTIVE_SIZE={} | " +
+			//		"MOUNT_DELAY={} | " +
+			//		"GROUND_TASK_TARGET={} | " +
+			//		"AIR_TARGET_ARRIVED={}",
+			//		citizen.getName().getString(),
+			//		id,
+			//		citizen.position(),
+			//		dragon.getName().getString(),
+			//		dragon.getUUID(),
+			//		dragon.tickCount,
+			//		dragon.position(),
+			//		active.target().toShortString(),
+			//		active.dragonTarget(),
+			//		active.airTarget(),
+			//		citizen.getVehicle() == dragon,
+			//		active.lastPosition(),
+			//		active.noProgressTicks(),
+			//		movement.getState(),
+			//		movement.getCurrentWaypoint(),
+			//		dragon.distanceToSqr(active.dragonTarget()),
+			//		ACTIVE.size(),
+			//		MOUNT_DELAY.get(id),
+			//		GROUND_TASK_TARGET.get(id) != null
+			//				? GROUND_TASK_TARGET.get(id).toShortString()
+			//				: "NULL",
+			//		AIR_TARGET_ARRIVED.get(id) != null
+			//				? AIR_TARGET_ARRIVED.get(id).toShortString()
+			//				: "NULL"
+			//);
 
 			Vec3 currentPosition = dragon.position();
 
@@ -410,10 +410,10 @@ public final class DragonNavigationHandler {
 			active = updatedActive;
 
 			if (active.noProgressTicks() >= MAX_NO_PROGRESS_TICKS) {
-				DragonColonies.LOGGER.warn(
-						"[DRAGON-UNSTUCK] Dragon + Rider stecken fest. Teleport zu {}.",
-						active.target().toShortString()
-				);
+				//DragonColonies.LOGGER.warn(
+				//		"[DRAGON-UNSTUCK] Dragon + Rider stecken fest. Teleport zu {}.",
+				//		active.target().toShortString()
+				//);
 
 				teleportDragonAndRiderToTarget(
 						citizen,
@@ -427,10 +427,10 @@ public final class DragonNavigationHandler {
 			}
 
 			if (movement.hasFailed()) {
-				DragonColonies.LOGGER.warn(
-						"[DRAGON-NAV] BoD meldet FAILED fuer {}. Transport-State wird verworfen.",
-						active.target().toShortString()
-				);
+				//DragonColonies.LOGGER.warn(
+				//		"[DRAGON-NAV] BoD meldet FAILED fuer {}. Transport-State wird verworfen.",
+				//		active.target().toShortString()
+				//);
 
 				ACTIVE.remove(id);
 				BoDPathInfo.clear(dragon);
@@ -450,17 +450,17 @@ public final class DragonNavigationHandler {
 
 					groundHandoffTicks = MOUNT_DELAY_TICKS;
 
-					DragonColonies.LOGGER.info(
-							"[DRAGON-NAV-DEBUG] GROUND HANDOFF TIMER START | " +
-							"citizen={} | dragon={} | target={} | dragonPos={} | " +
-							"distance={} | timer={}",
-							citizen.getName().getString(),
-							dragon.getName().getString(),
-							active.target().toShortString(),
-							dragon.position(),
-							Math.sqrt(distanceToGroundTarget),
-							groundHandoffTicks
-					);
+					//DragonColonies.LOGGER.info(
+					//		"[DRAGON-NAV-DEBUG] GROUND HANDOFF TIMER START | " +
+					//		"citizen={} | dragon={} | target={} | dragonPos={} | " +
+					//		"distance={} | timer={}",
+					//		citizen.getName().getString(),
+					//		dragon.getName().getString(),
+					//		active.target().toShortString(),
+					//		dragon.position(),
+					//		Math.sqrt(distanceToGroundTarget),
+					//		groundHandoffTicks
+					//);
 				}
 
 				// Timer läuft einmal gestartet immer weiter Richtung 0.
@@ -468,15 +468,15 @@ public final class DragonNavigationHandler {
 					groundHandoffTicks--;
 
 					if (groundHandoffTicks <= 0) {
-						DragonColonies.LOGGER.info(
-								"[DRAGON-NAV-DEBUG] GROUND HANDOFF | " +
-								"citizen={} | dragon={} | target={} | dragonPos={} | distance={}",
-								citizen.getName().getString(),
-								dragon.getName().getString(),
-								active.target().toShortString(),
-								dragon.position(),
-								Math.sqrt(distanceToGroundTarget)
-						);
+						//DragonColonies.LOGGER.info(
+						//		"[DRAGON-NAV-DEBUG] GROUND HANDOFF | " +
+						//		"citizen={} | dragon={} | target={} | dragonPos={} | distance={}",
+						//		citizen.getName().getString(),
+						//		dragon.getName().getString(),
+						//		active.target().toShortString(),
+						//		dragon.position(),
+						//		Math.sqrt(distanceToGroundTarget)
+						//);
 
 						finishGroundAtCurrentPosition(
 								id,
@@ -623,16 +623,16 @@ public final class DragonNavigationHandler {
     }
 
 	private static void dismount(DragonBase dragon, AbstractEntityCitizen citizen) {
-		DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] DISMOUNT gestartet für: {}", citizen.getName().getString());
-		DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] Vorher - isPassenger: {}, Vehicle: {}", 
-				citizen.isPassenger(), 
-				citizen.getVehicle() != null ? citizen.getVehicle().getType().toString() : "NULL");
+		//DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] DISMOUNT gestartet für: {}", citizen.getName().getString());
+		//DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] Vorher - isPassenger: {}, Vehicle: {}", 
+		//		citizen.isPassenger(), 
+		//		citizen.getVehicle() != null ? citizen.getVehicle().getType().toString() : "NULL");
 
 		if (citizen.getVehicle() == dragon) {
 			citizen.stopRiding();
 		}
 
-		DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] Nachher - isPassenger: {}", citizen.isPassenger());
+		//DragonColonies.LOGGER.info("[DRAGON-NAV-DEBUG] Nachher - isPassenger: {}", citizen.isPassenger());
 
 		AIMovementComponent movement = dragon.getAIMovement();
 		if (movement != null) {

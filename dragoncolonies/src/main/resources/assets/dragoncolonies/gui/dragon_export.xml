@@ -7,11 +7,12 @@
 
 <!-- LINKE SEITE: Liste der Fraktionen, die ein Angebot machen -->
 <list id="list_offers" pos="15 42" size="130 205">
-    <box size="100% 40" linewidth="0">
-        <button id="btn_faction" pos="0 1" size="125 38" source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png" label=""/>
-        <image id="img_faction_icon" pos="4 4" size="32 32" source=""/>
-        <text id="lbl_faction_name" pos="40 15" size="80 10" color="#1A0F00" label="" textscale="0.85"/>
-    </box>
+	<box size="100% 40" linewidth="0">
+		<button id="btn_faction" pos="0 1" size="124 38" source="dragoncolonies:textures/gui/faction_button.png" label=""/>
+		<image id="img_faction_frame" pos="4 4" size="32 32" source="dragoncolonies:textures/gui/slot.png"/>
+		<image id="img_faction_icon" pos="12 12" size="16 16" source=""/>
+		<text id="lbl_faction_name" pos="40 15" size="80 10" color="#1A0F00" label="" textscale="0.85"/>
+	</box>
 </list>
 
 <!-- RECHTE SEITE: Details zum ausgewählten Angebot -->
@@ -19,7 +20,7 @@
     <!-- Ein Pergament-Overlay für die Atmosphäre -->
     <image pos="0 0" size="250 170" source="bookofdragons:textures/gui/book/overlaydiettext.png"/>
     
-    <image id="detail_faction_img" pos="10 10" size="48 48" source=""/>
+    <image id="detail_faction_img" pos="10 10" size="48 48" source="minecolonies:textures/gui/modules/help.png"/>
     <text id="detail_faction_name" pos="65 15" size="160 14" color="#FFFFFF" label="$(dragoncolonies.gui.dragon_export.select_faction)" textscale="1.1"/>
     
     <text id="detail_flavor_text" pos="65 35" size="170 40" color="#AAAAAA" label="" textscale="0.8" wrap="true"/>

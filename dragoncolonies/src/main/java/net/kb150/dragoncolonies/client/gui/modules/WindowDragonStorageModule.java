@@ -436,22 +436,33 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         return tag.contains("Health") ? tag.getFloat("Health") : 20.0f;
     }
 
-    private LivingEntity createPreviewEntity(CompoundTag dragonNbt) {
-        ClientLevel clientLevel = Minecraft.getInstance().level;
-        if (clientLevel == null || dragonNbt == null) return null;
-        try {
-            CompoundTag copy = dragonNbt.copy();
-            Entity loaded = EntityType.loadEntityRecursive(copy, clientLevel, e -> e);
-            if (loaded instanceof LivingEntity living) {
-                if (living instanceof DragonBase dragon) {
-                    dragon.setTransportMode(TransportMode.GROUNDED);
-                    dragon.setGroundStance(GroundStance.IDLE);
-                }
-                return living;
-            }
-        } catch (Exception ignored) {}
-        return null;
-    }
+	private LivingEntity createPreviewEntity(CompoundTag dragonNbt) {
+		ClientLevel clientLevel = Minecraft.getInstance().level;
+		if (clientLevel == null || dragonNbt == null) return null;
+		try {
+			CompoundTag copy = dragonNbt.copy();
+
+			// FIX: Reinen Text in valides JSON umwandeln, damit Minecrafts Serializer nicht abstürzt
+			if (copy.contains("CustomName")) {
+				String rawName = copy.getString("CustomName");
+				if (!rawName.startsWith("{")) {
+					copy.putString("CustomName", Component.Serializer.toJson(Component.literal(rawName)));
+				}
+			}
+
+			Entity loaded = EntityType.loadEntityRecursive(copy, clientLevel, e -> e);
+			if (loaded instanceof LivingEntity living) {
+				if (living instanceof DragonBase dragon) {
+					dragon.setTransportMode(TransportMode.GROUNDED);
+					dragon.setGroundStance(GroundStance.IDLE);
+				}
+				return living;
+			}
+		} catch (Exception e) {
+			DragonColonies.LOGGER.error("Fehler beim Erstellen der Drachen-Vorschau", e);
+		}
+		return null;
+	}
 
     private ItemStack getPrimaryDiet(DragonType type) {
         if (type == null) return ItemStack.EMPTY;

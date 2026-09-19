@@ -96,7 +96,7 @@ public class ItemRoostPointer extends Item {
                 dragonNbt.remove("Passengers");
 
                 String dragonDisplayName = dragon.hasCustomName() ? dragon.getCustomName().getString() : dragon.getName().getString();
-                dragonNbt.putString("CustomName", dragonDisplayName);
+                dragonNbt.putString("CustomName", Component.Serializer.toJson(Component.literal(dragonDisplayName)));
 
                 // RoostDragonID ermitteln: Beibehalten, falls vorhanden, sonst neu anlegen
                 UUID roostDragonId;

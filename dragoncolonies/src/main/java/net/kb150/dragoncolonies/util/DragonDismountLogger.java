@@ -18,15 +18,15 @@ public class DragonDismountLogger {
                 && event.getEntityBeingMounted() instanceof DragonBase dragon
                 && event.getEntityMounting() instanceof AbstractEntityCitizen citizen) {
             
-            System.err.println("==================================================");
-            System.err.println("[DRAGON-DEBUG-SERVER] SERVER-ABWURF ERKANNT!");
-            System.err.println("Bürger: " + citizen.getName().getString());
-            System.err.println("Drache: " + dragon.getName().getString());
-            System.err.println("Auslösender Server-Stacktrace:");
+            //System.err.println("==================================================");
+            //System.err.println("[DRAGON-DEBUG-SERVER] SERVER-ABWURF ERKANNT!");
+            //System.err.println("Bürger: " + citizen.getName().getString());
+            //System.err.println("Drache: " + dragon.getName().getString());
+            //System.err.println("Auslösender Server-Stacktrace:");
             
-            new Exception("[DRAGON-DEBUG-SERVER] Dismount Stacktrace").printStackTrace();
+            //new Exception("[DRAGON-DEBUG-SERVER] Dismount Stacktrace").printStackTrace();
             
-            System.err.println("==================================================");
+            //System.err.println("==================================================");
         }
     }
 }

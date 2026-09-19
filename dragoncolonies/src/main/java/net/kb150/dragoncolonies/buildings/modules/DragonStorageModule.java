@@ -40,7 +40,6 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
     @Override
     public void onColonyTick(IColony colony) {
         boolean changed = false;
-
         Iterator<CompoundTag> iterator = storedDragons.iterator();
         while (iterator.hasNext()) {
             CompoundTag dragonTag = iterator.next();
@@ -49,6 +48,11 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
             if (dragonTag.getBoolean(TAG_DEPLOYED) || dragonTag.getBoolean(TAG_IS_DEAD)) {
                 continue;
             }
+			int breedingCd = dragonTag.getInt("DragonColonies_BreedingCooldown");
+			if (breedingCd > 0) {
+				dragonTag.putInt("DragonColonies_BreedingCooldown", Math.max(0, breedingCd - 20));
+				changed = true;
+			}
 
             // Hunger auslesen
             CompoundTag needsTag = dragonTag.contains("dragonNeeds") ? dragonTag.getCompound("dragonNeeds") : new CompoundTag();
@@ -87,7 +91,7 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
                 } else {
                     // 4. AUSBRUCH: Bindung bricht, Drache wird wild in der Welt gespawnt
                     String name = dragonTag.contains("CustomName") ? dragonTag.getString("CustomName") : "Ein Drache";
-                    System.out.println("[DragonColonies] " + name + " im Hort ist verhungert, bricht die Zähmung und bricht aus!");
+                    //System.out.println("[DragonColonies] " + name + " im Hort ist verhungert, bricht die Zähmung und bricht aus!");
 
                     if (this.getBuilding() != null && this.getBuilding().getColony() != null) {
                         ServerLevel level = (ServerLevel) this.getBuilding().getColony().getWorld();

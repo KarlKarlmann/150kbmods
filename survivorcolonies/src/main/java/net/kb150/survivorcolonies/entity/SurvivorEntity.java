@@ -1,7 +1,9 @@
+
 package net.kb150.survivorcolonies.entity;
 
 import com.minecolonies.api.entity.citizen.Skill;
 import net.kb150.survivorcolonies.data.SurvivorDataLoader;
+import net.kb150.survivorcolonies.data.SurvivorPersonality;
 import net.kb150.survivorcolonies.entity.ai.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -16,6 +18,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.PathfinderMob;
@@ -84,8 +87,24 @@ public class SurvivorEntity extends PathfinderMob {
     private final Set<String> readDialogues = new HashSet<>();
 
     private SurvivorCampfireGoal campfireGoal;
+    private SurvivorTentGoal tentGoal;
     private Player tradingPlayer;
     private BlockPos knownCampfirePos = null;
+
+    // Zentraler Tagesablauf-Zustand (siehe SurvivorActivity)
+    private SurvivorActivity currentActivity = SurvivorActivity.DAY_ROAM;
+    private static final int ACTIVITY_UPDATE_INTERVAL = 20; // 1x pro Sekunde
+
+    // Die Schlafen-oder-Jagen-Entscheidung wird EINMAL beim Einbruch der Nacht getroffen
+    // und dann für die ganze Nacht festgehalten - NICHT jede Sekunde neu ausgewürfelt
+    // (sonst flackert die Activity zwischen SLEEPING/NIGHT_PATROL, sobald sich z.B.
+    // durch Essen oder Aufsammeln zwischendurch Hunger/Inventar ändern).
+    private boolean wasNightLastActivityCheck = false;
+    private boolean nightDecisionSleep = true;
+
+    // Ticks, in denen der frühe Abend beginnt/endet (analog zu Vanilla-Nachtübergang)
+    private static final long EVENING_SETUP_START = 12000L;
+    private static final long EVENING_SETUP_END = 13000L; // ab hier ist es i.d.R. schon isNight()
 
     public SurvivorEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
@@ -123,56 +142,52 @@ public class SurvivorEntity extends PathfinderMob {
         this.entityData.define(SYNCED_DIALOG_STATES, new CompoundTag());
     }
 
-	@Override
+    @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
 
-        // 1. Priorität: Flucht vor übermächtigen Gegnern
-        this.goalSelector.addGoal(1, new AvoidEntityGoal<>(
+        // Höchste Bewegungs-Priorität überhaupt: bei wenig Leben rennt er lieber
+        // ins (bereits vorhandene) Zelt, statt zu kämpfen oder wild wegzulaufen.
+        // Deswegen VOR Avoid/Melee registriert - siehe SurvivorFleeToTentGoal.
+        this.goalSelector.addGoal(1, new SurvivorFleeToTentGoal(this));
+
+        this.goalSelector.addGoal(2, new AvoidEntityGoal<>(
             this, 
             Monster.class, 
             16.0F, 
             1.3D,  
             1.5D,  
             (entity) -> {
-                boolean isLowHealth = this.getHealth() < (this.getMaxHealth() * 0.5F);
-                boolean isEnemyStronger = entity.getHealth() > this.getHealth();
-                return isLowHealth || isEnemyStronger;
+                // Existiert schon ein Zelt, übernimmt SurvivorFleeToTentGoal (Prio 1) das gezielte
+                // Flüchten dorthin. Planloses Weglaufen ist nur noch der Fallback ohne Zelt.
+                boolean hasTentToFleeTo = this.tentGoal != null && this.tentGoal.getTentAnchorPos() != null;
+                return this.wantsToFleeFromTarget() && !hasTentToFleeTo;
             }
         ));
 
-        // 2. Priorität: Das Zelt! Wenn er wenig Leben hat (oder Nacht ist), 
-        // überschreibt dies den Angriff und er flüchtet ins Zelt.
-        this.goalSelector.addGoal(2, new SurvivorTentGoal(this));
-
-        // 3. Priorität: Kampf
         this.goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.2D, true));
-        
-        // 4. Priorität: Mit dem Spieler sprechen/handeln
         this.goalSelector.addGoal(4, new SurvivorInteractGoal(this));
-        
-        // 5. Priorität: Heilen durch Essen
-        this.goalSelector.addGoal(5, new SurvivorEatGoal(this));
-        
-        // 6. Priorität: Items aufsammeln
+
+        // Zelt bekommt bewusst eine hohe Priorität (5): Auf-/Abbau und das
+        // Reingehen zum Schlafen sollen nicht durch ein zufällig herumliegendes
+        // Item (Scavenge) oder Hunger (Eat) unterbrochen werden.
+        this.tentGoal = new SurvivorTentGoal(this);
+        this.goalSelector.addGoal(5, this.tentGoal);
+
         this.goalSelector.addGoal(6, new SurvivorScavengeGoal(this));
 
-        // 7. Priorität: Leichen abbauen (falls Mod geladen)
         if (ModList.get().isLoaded("zombiesleeping")) {
             this.goalSelector.addGoal(7, new SurvivorHarvestRemainsGoal(this));
         }
 
-        // 8. Priorität: Schutz vor Regen suchen
-        this.goalSelector.addGoal(8, new SurvivorSeekShelterGoal(this));
+        this.goalSelector.addGoal(8, new SurvivorEatGoal(this));
 
-        // 9. Priorität: Lagerfeuer-Alltag (Da er jetzt auch tagsüber ans Feuer geht)
         this.campfireGoal = new SurvivorCampfireGoal(this);
         this.goalSelector.addGoal(9, this.campfireGoal);
 
-        // 10. Priorität: Sentry (Wache). Greift nur, wenn absolut nichts anderes zutrifft.
-        this.goalSelector.addGoal(10, new SurvivorSentryGoal(this));
+        this.goalSelector.addGoal(10, new SurvivorSeekShelterGoal(this));
+        this.goalSelector.addGoal(11, new SurvivorSentryGoal(this));
 
-        // --- Target Selectors bleiben unverändert ---
         this.targetSelector.addGoal(1, new HurtByTargetGoal(this) {
             @Override
             public boolean canUse() {
@@ -271,6 +286,10 @@ public class SurvivorEntity extends PathfinderMob {
         if (!this.level().isClientSide) {
             if (this.isPassenger() && (this.campfireGoal == null || !this.campfireGoal.isRunning())) {
                 this.stopRiding();
+            }
+
+            if (this.tickCount % ACTIVITY_UPDATE_INTERVAL == 0) {
+                updateActivity();
             }
 
             this.trustUpdateTimer++;
@@ -474,6 +493,102 @@ public class SurvivorEntity extends PathfinderMob {
         }
     }
 
+    public SurvivorActivity getActivity() {
+        return this.currentActivity;
+    }
+
+    /**
+     * Berechnet den zentralen Tagesablauf-Zustand neu. Wird 1x pro Sekunde aus tick()
+     * aufgerufen. Alle Goals lesen anschließend nur noch {@link #getActivity()}.
+     */
+    private void updateActivity() {
+        // 1. Höchste Priorität: Kampf & unmittelbare Gefahr
+        if (this.getTarget() != null || this.hurtTime > 0 || this.isOnFire()) {
+            this.currentActivity = SurvivorActivity.COMBAT;
+            return;
+        }
+
+        // 2. Sitzt er gerade tatsächlich am Feuer? (Reitet auf dem unsichtbaren Sitz-Marker)
+        if (this.campfireGoal != null && this.campfireGoal.isRunning() && this.isPassenger()) {
+            this.currentActivity = SurvivorActivity.CAMPFIRE_IDLE;
+            return;
+        }
+
+        long timeOfDay = this.level().getDayTime() % 24000L;
+        boolean isEarlyEvening = !this.level().isNight()
+                && timeOfDay >= EVENING_SETUP_START
+                && timeOfDay < EVENING_SETUP_END;
+
+        // 3. Früher Abend: Zelt & Lagerfeuer werden aufgebaut, unabhängig vom Jagdverhalten
+        if (isEarlyEvening) {
+            this.currentActivity = SurvivorActivity.EVENING_SETUP;
+            return;
+        }
+
+        // 4. Nachts: Schlafen-oder-Jagen anhand Hunger, Inventar & Persönlichkeit
+        //    Diese Entscheidung wird NUR beim Übergang in die Nacht einmalig getroffen
+        //    und danach für den Rest der Nacht beibehalten (siehe Feld-Kommentar oben).
+        boolean isNightNow = this.level().isNight();
+        if (isNightNow && !this.wasNightLastActivityCheck) {
+            boolean hasFood = this.hasEdibleFoodInInventory();
+            boolean isHungry = this.getHealth() < this.getMaxHealth();
+            boolean isHungryWithoutFood = isHungry && !hasFood;
+
+            String motivation = SurvivorPersonality.getMotivation(this.getUUID());
+            boolean isHunterType = motivation.equalsIgnoreCase("revenge")
+                    || motivation.equalsIgnoreCase("food");
+
+            this.nightDecisionSleep = !(isHungryWithoutFood || isHunterType);
+        }
+        this.wasNightLastActivityCheck = isNightNow;
+
+        if (isNightNow) {
+            this.currentActivity = this.nightDecisionSleep
+                    ? SurvivorActivity.SLEEPING
+                    : SurvivorActivity.NIGHT_PATROL;
+            return;
+        }
+
+        // 5. Tagsüber: normaler Ablauf
+        this.currentActivity = SurvivorActivity.DAY_ROAM;
+    }
+
+    /** True, wenn irgendein essbares Item im Inventar liegt (gleiche Logik wie SurvivorEatGoal). */
+    public boolean hasEdibleFoodInInventory() {
+        for (int i = 0; i < this.inventory.getContainerSize(); i++) {
+            ItemStack stack = this.inventory.getItem(i);
+            if (!stack.isEmpty() && stack.isEdible()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Wie viel Leben (als Anteil von maxHealth) ein Survivor je nach Persönlichkeit noch
+     * "aushält", bevor er flüchtet. Ersetzt den früheren naiven "Gegner-HP > eigene HP"-Vergleich,
+     * der z.B. vor einer gewinnbaren Spinne fliehen ließ, nur weil ihre rohe HP-Zahl zufällig
+     * höher war als sein aktuelles (angeschlagenes) Leben.
+     */
+    public float getFleeHealthThreshold() {
+        String motivation = SurvivorPersonality.getMotivation(this.getUUID());
+        return switch (motivation.toLowerCase()) {
+            case "revenge" -> 0.25F; // kämpft fast bis zum Umfallen
+            case "safety" -> 0.6F;   // sehr vorsichtig, flieht früh
+            case "money" -> 0.45F;
+            case "food" -> 0.4F;
+            default -> 0.5F;         // "purpose" & Fallback
+        };
+    }
+
+    /** True, wenn er gerade ein Ziel hat UND sein Leben unter seine persönliche Fluchtschwelle gefallen ist. */
+    public boolean wantsToFleeFromTarget() {
+        LivingEntity target = this.getTarget();
+        if (target == null) return false;
+        float healthFraction = this.getHealth() / this.getMaxHealth();
+        return healthFraction < getFleeHealthThreshold();
+    }
+
     public int getTrust() { return this.entityData.get(TRUST); }
     public void setTrust(int value) { this.entityData.set(TRUST, Math.min(100, Math.max(0, value))); }
     public void addTrust(int amount) { setTrust(getTrust() + amount); }
@@ -511,6 +626,8 @@ public class SurvivorEntity extends PathfinderMob {
 
     public Player getTradingPlayer() { return this.tradingPlayer; }
     public void setTradingPlayer(Player player) { this.tradingPlayer = player; }
+    public SurvivorTentGoal getTentGoal() { return this.tentGoal; }
+
     public BlockPos getKnownCampfirePos() { 
         return this.knownCampfirePos; 
     }
@@ -542,3 +659,4 @@ public class SurvivorEntity extends PathfinderMob {
         this.markDialogueRead(String.valueOf(optionId));
     }
 }
+

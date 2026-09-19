@@ -1,3 +1,4 @@
+
 package net.kb150.survivorcolonies.entity.ai;
 
 import com.minecolonies.core.entity.other.SittingEntity;
@@ -23,15 +24,20 @@ public class SurvivorCampfireGoal extends Goal {
     private int cookCooldown = 0;
     private int sitLatchTicks = 0;
 
+    // Dynamische Verweildauer: solange kein Grund mehr besteht (nichts zu braten/heilen),
+    // bleibt er nur noch kurz sitzen und zieht dann weiter.
+    private int idleSitTicks = 0;
+    private static final int MAX_IDLE_SIT_TICKS = 200; // ~10 Sekunden ohne Beschäftigung
+
     public SurvivorCampfireGoal(SurvivorEntity survivor) {
         this.survivor = survivor;
         this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
     }
 
-@Override
+    @Override
     public boolean canUse() {
-        // isNight() Abfrage entfernt -> Darf nun auch bei Tag ausgeführt werden
-        if (this.survivor.getTarget() != null 
+        if (!this.survivor.level().isNight() 
+                || this.survivor.getTarget() != null 
                 || this.survivor.hurtTime > 0) {
             return false;
         }
@@ -82,11 +88,11 @@ public class SurvivorCampfireGoal extends Goal {
         return false;
     }
 
-
     @Override
     public void start() {
         this.isGoalRunning = true;
         this.sitLatchTicks = 0;
+        this.idleSitTicks = 0;
         
         if (this.campfirePos != null && !this.survivor.level().isClientSide 
                 && !this.survivor.level().getBlockState(this.campfirePos).is(Blocks.CAMPFIRE)) {
@@ -151,21 +157,44 @@ public class SurvivorCampfireGoal extends Goal {
         }
     }
 
-
     @Override
     public boolean canContinueToUse() {
-        // isNight() Abfrage entfernt
-        boolean isSafeCondition = this.survivor.getTarget() == null 
+        boolean isSafeCondition = this.survivor.level().isNight() 
+            && this.survivor.getTarget() == null 
             && this.survivor.hurtTime == 0 
             && this.campfirePos != null;
 
-        return isSafeCondition || this.sitLatchTicks > 0;
+        if (!isSafeCondition) {
+            return this.sitLatchTicks > 0;
+        }
+
+        // Solange noch Fleisch zu braten ist ODER er noch nicht satt/geheilt ist: sitzen bleiben.
+        if (hasCookableFood() || wantsToHealAndEat()) {
+            this.idleSitTicks = 0;
+            return true;
+        }
+
+        // Nichts (mehr) zu tun am Feuer -> nur noch kurz sitzen bleiben, dann weiterziehen.
+        this.idleSitTicks++;
+        return this.idleSitTicks < MAX_IDLE_SIT_TICKS || this.sitLatchTicks > 0;
+    }
+
+    /** Hat er etwas im Inventar, das am Feuer gebraten werden kann? */
+    private boolean hasCookableFood() {
+        return this.survivor.getInventory().hasAnyOf(Set.of(Items.ROTTEN_FLESH));
+    }
+
+    /** Ist er verletzt UND hat er essbares Food dabei, um sich zu heilen? */
+    private boolean wantsToHealAndEat() {
+        return this.survivor.getHealth() < this.survivor.getMaxHealth()
+                && this.survivor.hasEdibleFoodInInventory();
     }
 
     @Override
     public void stop() {
         this.isGoalRunning = false;
         this.sitLatchTicks = 0;
+        this.idleSitTicks = 0;
         if (this.survivor.isPassenger()) {
             this.survivor.stopRiding();
         }
@@ -219,3 +248,4 @@ public class SurvivorCampfireGoal extends Goal {
 		return forced.immutable();
 	}
 }
+

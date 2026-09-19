@@ -32,7 +32,7 @@ public abstract class AbstractEntityCitizenMixin extends Entity {
         if (entity instanceof DragonBase) {
             // Echter Aufruf der Vanilla Entity#startRiding Methode (kompiliert sauber im Dev-Workspace)
             boolean result = super.startRiding(entity, force);
-            System.out.println("[DragonColonies-Mixin] Echter Vanilla-Aufstieg ausgeführt! Ergebnis: " + result + " | isPassenger: " + this.isPassenger());
+            //System.out.println("[DragonColonies-Mixin] Echter Vanilla-Aufstieg ausgeführt! Ergebnis: " + result + " | isPassenger: " + this.isPassenger());
             cir.setReturnValue(result);
         }
     }
