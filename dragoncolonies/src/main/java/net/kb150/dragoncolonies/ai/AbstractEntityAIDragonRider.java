@@ -173,7 +173,7 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         }
     }
 
-    @Override
+	@Override
     protected IAIState decide() {
         if (this.worker == null || !(this.worker.level() instanceof ServerLevel level)) {
             return super.decide();
@@ -202,7 +202,15 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             }
         }
 
-        if (!workerHasAxe && currentDragon != null) {
+        // --- PRÜFUNG AUF HUNGER UNTERWEGS ---
+        boolean dragonNeedsReturn = false;
+        if (currentDragon != null && currentDragon.isAlive()) {
+            if (isDragonHungry(currentDragon) || isDragonInjured(currentDragon)) {
+                dragonNeedsReturn = true;
+            }
+        }
+
+        if ((!workerHasAxe || dragonNeedsReturn) && currentDragon != null) {
             if (!isReturningDragon) {
                 isReturningDragon = true;
                 currentDragon.setTarget(null);
@@ -217,6 +225,24 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         }
 
         return super.decide();
+    }
+
+    /**
+     * Prüft, ob der aktive Drache Hunger hat und zum Füttern in den Hort muss.
+     */
+    private boolean isDragonHungry(DragonBase dragon) {
+        if (dragon == null || dragon.getNeedsSystem() == null) return false;
+        // Sobald das FoodLevel unter 60 fällt, fliegt die Wache den Drachen zum Hort zurück
+        return dragon.getNeedsSystem().getFoodLevel() < 60;
+    }
+
+    /**
+     * Prüft, ob der Drache verletzt ist und Heilung durch den Beastmaster benötigt.
+     */
+    private boolean isDragonInjured(DragonBase dragon) {
+        if (dragon == null) return false;
+        // Rückkehr, wenn mindestens 10 HP fehlen oder das Leben unter 60% liegt
+        return dragon.getHealth() < (dragon.getMaxHealth() - 10.0f);
     }
 
     @Override

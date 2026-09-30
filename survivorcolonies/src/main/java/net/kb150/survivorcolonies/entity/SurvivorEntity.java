@@ -6,6 +6,8 @@ import net.kb150.survivorcolonies.data.SurvivorDataLoader;
 import net.kb150.survivorcolonies.data.SurvivorPersonality;
 import net.kb150.survivorcolonies.entity.ai.*;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -597,11 +599,29 @@ public class SurvivorEntity extends PathfinderMob {
      * SurvivorFleeToTentGoal (Verstecken vor Gefahr) genutzt - kein riskantes
      * "Pose-Trick"-Reinquetschen unter die niedrige Zelt-Decke mehr.
      */
+    /**
+     * Kleines periodisches Partikel-Lebenszeichen, während er unsichtbar im Zelt schläft.
+     * Funktioniert unabhängig von setInvisible(), da Partikel reine Server->Client-Effekte sind.
+     */
+    public void spawnSleepParticles(BlockPos at) {
+        if (this.level() instanceof ServerLevel serverLevel) {
+            serverLevel.sendParticles(ParticleTypes.CLOUD,
+                    at.getX() + 0.5D, at.getY() + 0.6D, at.getZ() + 0.5D,
+                    3, 0.15D, 0.1D, 0.15D, 0.005D);
+        }
+    }
+
     public void setHiddenInTent(boolean hidden) {
+        if (this.level() instanceof ServerLevel serverLevel) {
+            // Kleiner "Tinten"-Puff beim Verschwinden UND beim Wiederauftauchen
+            serverLevel.sendParticles(ParticleTypes.SQUID_INK,
+                    this.getX(), this.getY() + 0.6D, this.getZ(),
+                    14, 0.25D, 0.3D, 0.25D, 0.01D);
+        }
         this.setInvisible(hidden);
         this.noPhysics = hidden;
         this.setInvulnerable(hidden);
-        this.setPose(hidden ? Pose.SWIMMING : Pose.STANDING); // rein kosmetisch, falls doch mal kurz sichtbar
+        this.setPose(hidden ? Pose.SWIMMING : Pose.STANDING);
     }
 
     public int getTrust() { return this.entityData.get(TRUST); }
