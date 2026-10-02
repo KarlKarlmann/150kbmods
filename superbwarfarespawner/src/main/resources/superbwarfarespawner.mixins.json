@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.kb150.superbwarfarespawner.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "superbwarfarespawner.refmap.json", 
+  "mixins": [
+  "VehicleInteractionMixin"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

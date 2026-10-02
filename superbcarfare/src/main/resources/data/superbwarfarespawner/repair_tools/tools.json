@@ -1,0 +1,7 @@
+{
+  "tools": [
+    "car:wrench",
+    "car:screw_driver",
+    "car:hammer"
+  ]
+}

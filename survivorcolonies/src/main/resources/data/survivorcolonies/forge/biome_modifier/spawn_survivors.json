@@ -3,7 +3,7 @@
   "biomes": "#minecraft:is_overworld",
   "spawners": {
     "type": "survivorcolonies:survivor",
-    "weight": 3,
+    "weight": 1,
     "minCount": 1,
     "maxCount": 2
   }

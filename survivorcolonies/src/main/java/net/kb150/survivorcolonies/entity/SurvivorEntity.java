@@ -1,18 +1,18 @@
-
 package net.kb150.survivorcolonies.entity;
 
 import com.minecolonies.api.entity.citizen.Skill;
+import net.kb150.survivorcolonies.SurvivorColonies;
 import net.kb150.survivorcolonies.data.SurvivorDataLoader;
 import net.kb150.survivorcolonies.data.SurvivorPersonality;
 import net.kb150.survivorcolonies.entity.ai.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
@@ -24,7 +24,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.PathfinderMob;
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -42,14 +41,18 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SwordItem;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.pathfinder.BlockPathTypes;
+import net.minecraft.tags.BlockTags;
 import net.minecraftforge.fml.ModList;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class SurvivorEntity extends PathfinderMob {
 
@@ -67,50 +70,50 @@ public class SurvivorEntity extends PathfinderMob {
     private static final EntityDataAccessor<CompoundTag> SKILLS_TAG = 
         SynchedEntityData.defineId(SurvivorEntity.class, EntityDataSerializers.COMPOUND_TAG);
 
-    // Vertrauens-Wert (0 bis 100)
     private static final EntityDataAccessor<Integer> TRUST = 
         SynchedEntityData.defineId(SurvivorEntity.class, EntityDataSerializers.INT);
 
     private static final EntityDataAccessor<CompoundTag> SYNCED_INVENTORY = 
         SynchedEntityData.defineId(SurvivorEntity.class, EntityDataSerializers.COMPOUND_TAG);
 
-    // Synchronisierter Dialog-Status pro Spieler-UUID
     private static final EntityDataAccessor<CompoundTag> SYNCED_DIALOG_STATES = 
         SynchedEntityData.defineId(SurvivorEntity.class, EntityDataSerializers.COMPOUND_TAG);
 
     private ItemStack extraItem = ItemStack.EMPTY;
     private final SimpleContainer inventory = new SimpleContainer(36);
 
-    // Dialog-Status Cache (UUID -> Node ID)
     private final Map<UUID, Integer> playerDialogStates = new HashMap<>();
 
-    // Proximity Trust Tracker
     private int trustUpdateTimer = 0;
-    private static final int TRUST_TICK_INTERVAL = 1200; // 1 Minute (1200 Ticks)
+    private static final int TRUST_TICK_INTERVAL = 1200;
     private final Set<String> readDialogues = new HashSet<>();
 
     private SurvivorCampfireGoal campfireGoal;
     private SurvivorTentGoal tentGoal;
     private Player tradingPlayer;
+    
     private BlockPos knownCampfirePos = null;
+    private BlockPos knownTentPos = null;
 
-    // Zentraler Tagesablauf-Zustand (siehe SurvivorActivity)
     private SurvivorActivity currentActivity = SurvivorActivity.DAY_ROAM;
-    private static final int ACTIVITY_UPDATE_INTERVAL = 20; // 1x pro Sekunde
+    private static final int ACTIVITY_UPDATE_INTERVAL = 20;
 
-    // Die Schlafen-oder-Jagen-Entscheidung wird EINMAL beim Einbruch der Nacht getroffen
-    // und dann für die ganze Nacht festgehalten - NICHT jede Sekunde neu ausgewürfelt
-    // (sonst flackert die Activity zwischen SLEEPING/NIGHT_PATROL, sobald sich z.B.
-    // durch Essen oder Aufsammeln zwischendurch Hunger/Inventar ändern).
     private boolean wasNightLastActivityCheck = false;
     private boolean nightDecisionSleep = true;
 
-    // Ticks, in denen der frühe Abend beginnt/endet (analog zu Vanilla-Nachtübergang)
     private static final long EVENING_SETUP_START = 12000L;
-    private static final long EVENING_SETUP_END = 13000L; // ab hier ist es i.d.R. schon isNight()
+    private static final long EVENING_SETUP_END = 13000L;
+
+    // Zentraler AI-Selector Debugger
+    private String lastRunningGoalsSummary = "";
+    private int selectorHeartbeatTimer = 0;
 
     public SurvivorEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
+
+        // FEUER & LAGERFEUER ALS ABSOLUT UNPASS㨁BAR DEFINIEREN (-1.0F = NIEMALS DURCHLAUFEN)
+        this.setPathfindingMalus(BlockPathTypes.DAMAGE_FIRE, -1.0F);
+        this.setPathfindingMalus(BlockPathTypes.DANGER_FIRE, -1.0F);
 
         this.inventory.addListener(container -> {
             if (!this.level().isClientSide) {
@@ -148,10 +151,6 @@ public class SurvivorEntity extends PathfinderMob {
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
-
-        // Höchste Bewegungs-Priorität überhaupt: bei wenig Leben rennt er lieber
-        // ins (bereits vorhandene) Zelt, statt zu kämpfen oder wild wegzulaufen.
-        // Deswegen VOR Avoid/Melee registriert - siehe SurvivorFleeToTentGoal.
         this.goalSelector.addGoal(1, new SurvivorFleeToTentGoal(this));
 
         this.goalSelector.addGoal(2, new AvoidEntityGoal<>(
@@ -161,9 +160,7 @@ public class SurvivorEntity extends PathfinderMob {
             1.3D,  
             1.5D,  
             (entity) -> {
-                // Existiert schon ein Zelt, übernimmt SurvivorFleeToTentGoal (Prio 1) das gezielte
-                // Flüchten dorthin. Planloses Weglaufen ist nur noch der Fallback ohne Zelt.
-                boolean hasTentToFleeTo = this.tentGoal != null && this.tentGoal.getTentAnchorPos() != null;
+                boolean hasTentToFleeTo = this.knownTentPos != null;
                 return this.wantsToFleeFromTarget() && !hasTentToFleeTo;
             }
         ));
@@ -171,15 +168,12 @@ public class SurvivorEntity extends PathfinderMob {
         this.goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.2D, true));
         this.goalSelector.addGoal(4, new SurvivorInteractGoal(this));
 
-        // Zelt bekommt bewusst eine hohe Priorität (5): Auf-/Abbau und das
-        // Reingehen zum Schlafen sollen nicht durch ein zufällig herumliegendes
-        // Item (Scavenge) oder Hunger (Eat) unterbrochen werden.
         this.tentGoal = new SurvivorTentGoal(this);
         this.goalSelector.addGoal(5, this.tentGoal);
 
         this.goalSelector.addGoal(6, new SurvivorScavengeGoal(this));
 
-        if (ModList.get().isLoaded("zombiesleeping")) {
+        if (ModList.get().isLoaded("zombieremains")) {
             this.goalSelector.addGoal(7, new SurvivorHarvestRemainsGoal(this));
         }
 
@@ -191,21 +185,11 @@ public class SurvivorEntity extends PathfinderMob {
         this.goalSelector.addGoal(10, new SurvivorSeekShelterGoal(this));
         this.goalSelector.addGoal(11, new SurvivorSentryGoal(this));
 
-        this.targetSelector.addGoal(1, new HurtByTargetGoal(this) {
-            @Override
-            public boolean canUse() {
-                if (!super.canUse()) return false;
-                
-                net.minecraft.world.entity.LivingEntity attacker = SurvivorEntity.this.getLastHurtByMob();
-                if (attacker != null) {
-                    boolean isHealthyEnough = SurvivorEntity.this.getHealth() >= (SurvivorEntity.this.getMaxHealth() * 0.5F);
-                    boolean isEnemyWeakerOrEqual = attacker.getHealth() <= SurvivorEntity.this.getHealth();
-                    return isHealthyEnough && isEnemyWeakerOrEqual;
-                }
-                return false;
-            }
-        });
+        // 1. HurtByTargetGoal: Wer mich angreift, IST mein Ziel (egal wie stark er ist!)
+        // Ob gekämpft oder geflohen wird, entscheidet Prio 1 (Flee) vs Prio 3 (Attack)
+        this.targetSelector.addGoal(1, new HurtByTargetGoal(this));
 
+        // 2. NearestAttackableTargetGoal: Nur schwächere Monster aktiv jagen
         this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(
             this, 
             Monster.class, 
@@ -224,6 +208,106 @@ public class SurvivorEntity extends PathfinderMob {
     }
 
     @Override
+    public void tick() {
+        super.tick();
+
+        if (!this.level().isClientSide) {
+            // --- ZENTRALER GOAL-SELECTOR DEBUGGER ---
+            debugInspectGoalSelector();
+
+            // NOTFALL-REFLEX: Wenn er IM Lagerfeuer steht -> Sofort mit Satz zur Seite wegspringen!
+            if (this.level().getBlockState(this.blockPosition()).is(BlockTags.CAMPFIRES)) {
+                net.minecraft.core.Direction escapeDir = net.minecraft.core.Direction.Plane.HORIZONTAL.getRandomDirection(this.random);
+                this.setDeltaMovement(escapeDir.getStepX() * 0.35D, 0.25D, escapeDir.getStepZ() * 0.35D);
+                this.hurtMarked = true;
+            }
+
+            // Bei Gefahr oder wenn kein Goal läuft: Sofort aufspringen!
+            boolean inDanger = this.getTarget() != null || this.getLastHurtByMob() != null;
+            if (this.isPassenger() && (inDanger || this.campfireGoal == null || !this.campfireGoal.isRunning())) {
+                this.stopRiding();
+            }
+
+            if (this.tickCount % ACTIVITY_UPDATE_INTERVAL == 0) {
+                updateActivity();
+            }
+
+            this.trustUpdateTimer++;
+            if (this.trustUpdateTimer >= TRUST_TICK_INTERVAL) {
+                this.trustUpdateTimer = 0;
+                if (this.level().getNearestPlayer(this, 16.0D) != null) {
+                    this.addTrust(1);
+                }
+            }
+
+            if (this.tickCount % 10 == 0 && this.isAlive()) {
+                List<net.minecraft.world.entity.item.ItemEntity> items = 
+                    this.level().getEntitiesOfClass(
+                        net.minecraft.world.entity.item.ItemEntity.class,
+                        this.getBoundingBox().inflate(3.0D),
+                        item -> item.isAlive() && !item.getItem().isEmpty()
+                    );
+
+                for (net.minecraft.world.entity.item.ItemEntity itemEntity : items) {
+                    ItemStack stack = itemEntity.getItem();
+
+                    if (this.tryEquipBetterItem(stack)) {
+                        itemEntity.discard();
+                    } else {
+                        ItemStack remainder = this.inventory.addItem(stack);
+
+                        if (remainder.isEmpty()) {
+                            itemEntity.discard();
+                            this.playSound(net.minecraft.sounds.SoundEvents.ITEM_PICKUP, 0.2F, 1.0F);
+                        } else if (remainder.getCount() < stack.getCount()) {
+                            itemEntity.setItem(remainder);
+                            this.playSound(net.minecraft.sounds.SoundEvents.ITEM_PICKUP, 0.2F, 1.0F);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void debugInspectGoalSelector() {
+        // Sammelt alle Goals mit vollem Package-Namen, um fremde Mod-Injektionen sofort zu identifizieren
+        String currentRunningGoals = this.goalSelector.getRunningGoals()
+                .map(wg -> "[P" + wg.getPriority() + ":" + wg.getGoal().getClass().getName() + "]")
+                .collect(Collectors.joining(", "));
+
+        if (currentRunningGoals.isEmpty()) {
+            currentRunningGoals = "[NONE]";
+        }
+
+        // 1. Sofortiges Logging bei JEDER Änderung der aktiven Goals
+        if (!currentRunningGoals.equals(this.lastRunningGoalsSummary)) {
+            SurvivorColonies.LOGGER.info("[AI-CHANGE] {}: {} -> {} | Act: {} | Pass: {} | Target: {}",
+                    this.getSurvivorName(),
+                    this.lastRunningGoalsSummary.isEmpty() ? "[INIT]" : this.lastRunningGoalsSummary,
+                    currentRunningGoals,
+                    this.currentActivity,
+                    this.isPassenger(),
+                    this.getTarget() != null ? this.getTarget().getType().getDescriptionId() : "none");
+            this.lastRunningGoalsSummary = currentRunningGoals;
+            this.selectorHeartbeatTimer = 0;
+        }
+
+        // 2. Regelmäßiger Heartbeat alle 60 Ticks (3 Sekunden), falls sich nichts ändert
+        this.selectorHeartbeatTimer++;
+        if (this.selectorHeartbeatTimer >= 60) {
+            this.selectorHeartbeatTimer = 0;
+            SurvivorColonies.LOGGER.info("[AI-STATE] {}: Active: {} | Act: {} | HP: {}/{} | Pos: [{}, {}, {}] | Pass: {}",
+                    this.getSurvivorName(),
+                    currentRunningGoals,
+                    this.currentActivity,
+                    (int) this.getHealth(),
+                    (int) this.getMaxHealth(),
+                    this.getBlockX(), this.getBlockY(), this.getBlockZ(),
+                    this.isPassenger());
+        }
+    }
+
+    @Override
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (hand != InteractionHand.MAIN_HAND) {
             return InteractionResult.PASS;
@@ -232,8 +316,6 @@ public class SurvivorEntity extends PathfinderMob {
         this.setTradingPlayer(player);
 
         if (this.level().isClientSide) {
-            // Vollständige Auslagerung der Client-Logik ohne Lambdas,
-            // verhindert 100% zuverlässig den BootstrapMethodError!
             net.kb150.survivorcolonies.client.ClientHooks.openRecruitScreen(this);
         }
 
@@ -280,56 +362,6 @@ public class SurvivorEntity extends PathfinderMob {
         return level.getFluidState(pos).isEmpty() 
             && level.getFluidState(pos.below()).isEmpty() 
             && level.getBlockState(pos.below()).isSolid();
-    }
-
-    @Override
-    public void tick() {
-        super.tick();
-
-        if (!this.level().isClientSide) {
-            if (this.isPassenger() && (this.campfireGoal == null || !this.campfireGoal.isRunning())) {
-                this.stopRiding();
-            }
-
-            if (this.tickCount % ACTIVITY_UPDATE_INTERVAL == 0) {
-                updateActivity();
-            }
-
-            this.trustUpdateTimer++;
-            if (this.trustUpdateTimer >= TRUST_TICK_INTERVAL) {
-                this.trustUpdateTimer = 0;
-                if (this.level().getNearestPlayer(this, 16.0D) != null) {
-                    this.addTrust(1);
-                }
-            }
-
-            if (this.tickCount % 10 == 0 && this.isAlive()) {
-                java.util.List<net.minecraft.world.entity.item.ItemEntity> items = 
-                    this.level().getEntitiesOfClass(
-                        net.minecraft.world.entity.item.ItemEntity.class,
-                        this.getBoundingBox().inflate(3.0D),
-                        item -> item.isAlive() && !item.getItem().isEmpty()
-                    );
-
-                for (net.minecraft.world.entity.item.ItemEntity itemEntity : items) {
-                    net.minecraft.world.item.ItemStack stack = itemEntity.getItem();
-
-                    if (this.tryEquipBetterItem(stack)) {
-                        itemEntity.discard();
-                    } else {
-                        net.minecraft.world.item.ItemStack remainder = this.inventory.addItem(stack);
-
-                        if (remainder.isEmpty()) {
-                            itemEntity.discard();
-                            this.playSound(net.minecraft.sounds.SoundEvents.ITEM_PICKUP, 0.2F, 1.0F);
-                        } else if (remainder.getCount() < stack.getCount()) {
-                            itemEntity.setItem(remainder);
-                            this.playSound(net.minecraft.sounds.SoundEvents.ITEM_PICKUP, 0.2F, 1.0F);
-                        }
-                    }
-                }
-            }
-        }
     }
 
     @Override
@@ -431,11 +463,19 @@ public class SurvivorEntity extends PathfinderMob {
         if (!this.extraItem.isEmpty()) {
             tag.put("ExtraItem", this.extraItem.save(new CompoundTag()));
         }
+        
         if (this.knownCampfirePos != null) {
             tag.putInt("CampfireX", this.knownCampfirePos.getX());
             tag.putInt("CampfireY", this.knownCampfirePos.getY());
             tag.putInt("CampfireZ", this.knownCampfirePos.getZ());
         }
+
+        if (this.knownTentPos != null) {
+            tag.putInt("TentX", this.knownTentPos.getX());
+            tag.putInt("TentY", this.knownTentPos.getY());
+            tag.putInt("TentZ", this.knownTentPos.getZ());
+        }
+
         tag.put("Skills", this.entityData.get(SKILLS_TAG));
         tag.put("Inventory", this.inventory.createTag());
 
@@ -466,11 +506,20 @@ public class SurvivorEntity extends PathfinderMob {
             this.readDialogues.clear();
             this.readDialogues.addAll(readTag.getAllKeys());
         }
+
         if (tag.contains("CampfireX") && tag.contains("CampfireY") && tag.contains("CampfireZ")) {
             this.knownCampfirePos = new BlockPos(
                 tag.getInt("CampfireX"), 
                 tag.getInt("CampfireY"), 
                 tag.getInt("CampfireZ")
+            );
+        }
+
+        if (tag.contains("TentX") && tag.contains("TentY") && tag.contains("TentZ")) {
+            this.knownTentPos = new BlockPos(
+                tag.getInt("TentX"), 
+                tag.getInt("TentY"), 
+                tag.getInt("TentZ")
             );
         }
 
@@ -500,18 +549,16 @@ public class SurvivorEntity extends PathfinderMob {
         return this.currentActivity;
     }
 
-    /**
-     * Berechnet den zentralen Tagesablauf-Zustand neu. Wird 1x pro Sekunde aus tick()
-     * aufgerufen. Alle Goals lesen anschließend nur noch {@link #getActivity()}.
-     */
     private void updateActivity() {
-        // 1. Höchste Priorität: Kampf & unmittelbare Gefahr
         if (this.getTarget() != null || this.hurtTime > 0 || this.isOnFire()) {
-            this.currentActivity = SurvivorActivity.COMBAT;
-            return;
+            if (this.tentGoal != null && this.tentGoal.isSleeping() && this.getTarget() == null) {
+                // Schlafen bleibt ungestört
+            } else {
+                this.currentActivity = SurvivorActivity.COMBAT;
+                return;
+            }
         }
 
-        // 2. Sitzt er gerade tatsächlich am Feuer? (Reitet auf dem unsichtbaren Sitz-Marker)
         if (this.campfireGoal != null && this.campfireGoal.isRunning() && this.isPassenger()) {
             this.currentActivity = SurvivorActivity.CAMPFIRE_IDLE;
             return;
@@ -522,15 +569,11 @@ public class SurvivorEntity extends PathfinderMob {
                 && timeOfDay >= EVENING_SETUP_START
                 && timeOfDay < EVENING_SETUP_END;
 
-        // 3. Früher Abend: Zelt & Lagerfeuer werden aufgebaut, unabhängig vom Jagdverhalten
         if (isEarlyEvening) {
             this.currentActivity = SurvivorActivity.EVENING_SETUP;
             return;
         }
 
-        // 4. Nachts: Schlafen-oder-Jagen anhand Hunger, Inventar & Persönlichkeit
-        //    Diese Entscheidung wird NUR beim Übergang in die Nacht einmalig getroffen
-        //    und danach für den Rest der Nacht beibehalten (siehe Feld-Kommentar oben).
         boolean isNightNow = this.level().isNight();
         if (isNightNow && !this.wasNightLastActivityCheck) {
             boolean hasFood = this.hasEdibleFoodInInventory();
@@ -552,11 +595,9 @@ public class SurvivorEntity extends PathfinderMob {
             return;
         }
 
-        // 5. Tagsüber: normaler Ablauf
         this.currentActivity = SurvivorActivity.DAY_ROAM;
     }
 
-    /** True, wenn irgendein essbares Item im Inventar liegt (gleiche Logik wie SurvivorEatGoal). */
     public boolean hasEdibleFoodInInventory() {
         for (int i = 0; i < this.inventory.getContainerSize(); i++) {
             ItemStack stack = this.inventory.getItem(i);
@@ -567,42 +608,34 @@ public class SurvivorEntity extends PathfinderMob {
         return false;
     }
 
-    /**
-     * Wie viel Leben (als Anteil von maxHealth) ein Survivor je nach Persönlichkeit noch
-     * "aushält", bevor er flüchtet. Ersetzt den früheren naiven "Gegner-HP > eigene HP"-Vergleich,
-     * der z.B. vor einer gewinnbaren Spinne fliehen ließ, nur weil ihre rohe HP-Zahl zufällig
-     * höher war als sein aktuelles (angeschlagenes) Leben.
-     */
     public float getFleeHealthThreshold() {
         String motivation = SurvivorPersonality.getMotivation(this.getUUID());
         return switch (motivation.toLowerCase()) {
-            case "revenge" -> 0.25F; // kämpft fast bis zum Umfallen
-            case "safety" -> 0.6F;   // sehr vorsichtig, flieht früh
+            case "revenge" -> 0.25F;
+            case "safety" -> 0.6F;
             case "money" -> 0.45F;
             case "food" -> 0.4F;
-            default -> 0.5F;         // "purpose" & Fallback
+            default -> 0.5F;
         };
     }
 
-    /** True, wenn er gerade ein Ziel hat UND sein Leben unter seine persönliche Fluchtschwelle gefallen ist. */
     public boolean wantsToFleeFromTarget() {
         LivingEntity target = this.getTarget();
+        if (target == null) {
+            target = this.getLastHurtByMob();
+        }
         if (target == null) return false;
+
+        // Wenn der Feind übermächtig ist (mehr HP oder mehr Max-HP als der Survivor, z.B. Enderman mit 40 HP):
+        // SOFORT DIE FLUCHT ERGREIFEN!
+        if (target.getMaxHealth() > this.getMaxHealth() || target.getHealth() > this.getHealth()) {
+            return true;
+        }
+
         float healthFraction = this.getHealth() / this.getMaxHealth();
         return healthFraction < getFleeHealthThreshold();
     }
 
-    /**
-     * Macht den Survivor "unsichtbar im Zelt verschwinden": keine Kollisionsbox mehr
-     * (noPhysics=true verhindert u.a. Ersticken, da Entity#isInWall() dann immer false liefert),
-     * unsichtbar, unverwundbar. Wird von SurvivorTentGoal (normales Schlafen) und
-     * SurvivorFleeToTentGoal (Verstecken vor Gefahr) genutzt - kein riskantes
-     * "Pose-Trick"-Reinquetschen unter die niedrige Zelt-Decke mehr.
-     */
-    /**
-     * Kleines periodisches Partikel-Lebenszeichen, während er unsichtbar im Zelt schläft.
-     * Funktioniert unabhängig von setInvisible(), da Partikel reine Server->Client-Effekte sind.
-     */
     public void spawnSleepParticles(BlockPos at) {
         if (this.level() instanceof ServerLevel serverLevel) {
             serverLevel.sendParticles(ParticleTypes.CLOUD,
@@ -613,15 +646,12 @@ public class SurvivorEntity extends PathfinderMob {
 
     public void setHiddenInTent(boolean hidden) {
         if (this.level() instanceof ServerLevel serverLevel) {
-            // Kleiner "Tinten"-Puff beim Verschwinden UND beim Wiederauftauchen
             serverLevel.sendParticles(ParticleTypes.SQUID_INK,
                     this.getX(), this.getY() + 0.6D, this.getZ(),
                     14, 0.25D, 0.3D, 0.25D, 0.01D);
         }
         this.setInvisible(hidden);
-        this.noPhysics = hidden;
         this.setInvulnerable(hidden);
-        this.setPose(hidden ? Pose.SWIMMING : Pose.STANDING);
     }
 
     public int getTrust() { return this.entityData.get(TRUST); }
@@ -669,6 +699,13 @@ public class SurvivorEntity extends PathfinderMob {
     public void setKnownCampfirePos(BlockPos pos) { 
         this.knownCampfirePos = pos; 
     }
+
+    public BlockPos getKnownTentPos() { 
+        return this.knownTentPos; 
+    }
+    public void setKnownTentPos(BlockPos pos) { 
+        this.knownTentPos = pos; 
+    }
     
     public Map<String, Integer> getSkills() {
         Map<String, Integer> map = new HashMap<>();
@@ -694,4 +731,3 @@ public class SurvivorEntity extends PathfinderMob {
         this.markDialogueRead(String.valueOf(optionId));
     }
 }
-

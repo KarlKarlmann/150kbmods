@@ -1,0 +1,10 @@
+{
+"message.superbwarfarespawner.vehicle_intact": "Vehicle is already 100% intact!",
+"message.superbwarfarespawner.admin_repair": "[Admin] Vehicle completely repaired!",
+"message.superbwarfarespawner.need_tool": "[Repair Phase %s%%] You need a %s!",
+"message.superbwarfarespawner.need_material": "Additional material required in inventory: 1x %s",
+"message.superbwarfarespawner.part_installed": "Part installed! Condition: %s%% (%s)",
+"message.superbwarfarespawner.state_wreck": "WRECK",
+"message.superbwarfarespawner.state_intact": "INTACT",
+"message.superbwarfarespawner.repair_progress": "[Repair Phase %s%%] Repairing... %s"
+}

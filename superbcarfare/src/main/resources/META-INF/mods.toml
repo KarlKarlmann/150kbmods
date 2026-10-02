@@ -1,0 +1,58 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="CC BY-NC 4.0"
+
+[[mods]]
+modId="superbcarfare"
+version="${version}"
+displayName="Superb Warfare with Bio Diesel! YEAH!"
+displayURL="https://www.n3g.de"
+authors="Karl Karlmann"
+logoFile="superbcarfare.png"
+description='''
+Go Green! with Bio Diesel :)
+'''
+
+# -------------------------------------------------------------------------
+# ABHÄNGIGKEITEN (DEPENDENCIES)
+# -------------------------------------------------------------------------
+
+# 1. Forge API (auf 47.0.0 gelockert)
+[[dependencies.superbcarfare]]
+modId="forge"
+mandatory=true
+versionRange="[47.0.0,)"
+ordering="NONE"
+side="BOTH"
+
+# 2. Minecraft Core
+[[dependencies.superbcarfare]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="BOTH"
+
+# 3. Superb Warfare (Zwingend erforderlich für Fahrzeug-Entitäten)
+[[dependencies.superbcarfare]]
+modId="superbwarfare"
+mandatory=true
+versionRange="[0.0.0,)"
+ordering="AFTER"
+side="BOTH"
+
+# 4. Ultimate Car Mod (Zwingend erforderlich für Treibstoff-Integration)
+[[dependencies.superbcarfare]]
+modId="car"
+mandatory=true
+versionRange="[0.0.0,)"
+ordering="AFTER"
+side="BOTH"
+
+# 5. Superb Warfare Spawner
+[[dependencies.superbcarfare]]
+modId="superbwarfarespawner"
+mandatory=false
+versionRange="[0.0.0,)"
+ordering="AFTER"
+side="BOTH"

@@ -1,4 +1,3 @@
-
 package net.kb150.survivorcolonies.entity.ai;
 
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
@@ -6,54 +5,46 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * Baut am frühen Abend (Activity.EVENING_SETUP) ein Wollzelt auf und lässt es danach
- * DAUERHAFT stehen - es dient tagsüber wie nachts als Fluchtpunkt (siehe SurvivorFleeToTentGoal).
- * Ob der Survivor abends reingeht und schläft (Activity.SLEEPING) oder das Zelt nur als
- * stehendes Versteck nutzt und lieber jagt/scavengt (Activity.NIGHT_PATROL), entscheidet
- * SurvivorEntity#updateActivity() – dieses Goal fragt das nur noch ab.
- *
- * Das Zelt ist bewusst nur 1 Block hoch (Dach direkt über dem Gang) - normale Monster
- * (2 Blöcke hoch) passen dadurch gar nicht erst rein. Der Survivor selbst muss dafür
- * die Kriech-Pose (SWIMMING) einnehmen.
- *
- * Wird das Goal durch ein höher priorisiertes Kampf-/Flucht-Goal unterbrochen, wird NICHTS
- * abgerissen. Der Zustand bleibt erhalten (State.STANDBY) und der Survivor macht nahtlos
- * weiter, sobald der Kampf vorbei ist.
+ * Baut ein Wollzelt als dauerhafte Basis auf.
+ * tentPos ist die feste Einstiegsposition (vor dem Zelt im Freien).
+ * Das Zeltinnere sowie die 10 Zeltblöcke werden deterministisch vor diesem Einstieg platziert.
  */
 public class SurvivorTentGoal extends Goal {
     private final SurvivorEntity survivor;
     private final List<BlockPos> blocksToBuild = new ArrayList<>();
 
     private BlockPos tentInside = null;
-    private BlockPos tentApproach = null; // Punkt VOR dem Eingang - normal begehbar (2 Blöcke hoch)
-    private BlockPos criticalRoofBlock = null; // Dach direkt über tentInside - Indikator für "Zelt noch intakt"
+    private BlockPos tentApproach = null; // Identisch mit tentPos (fester Einstiegs- und Warteplatz)
+    private BlockPos criticalRoofBlock = null; // Dach direkt über tentInside
     private State state = State.IDLE;
     private int actionTimer = 0;
-    private int hiddenSafetyTimer = 0; // Sicherheitsnetz: erzwingt Aufwachen, falls je etwas hängen bleibt
+    private int hiddenSafetyTimer = 0;
     private int sleepParticleTimer = 0;
-    private boolean tentWasDestroyed = false; // gesetzt, wenn wir wegen Zerstörung aufwachen sollen
+    private boolean tentWasDestroyed = false;
 
-    private static final int MAX_HIDDEN_TICKS = 24000; // 1 voller Minecraft-Tag als absolute Obergrenze
-    private static final int SLEEP_PARTICLE_INTERVAL = 60; // alle ~3 Sekunden ein kleines Partikel-Zeichen
+    private int failedCooldown = 0;
 
-    // Mindestabstand zum bekannten Lagerfeuer, damit das Zelt nicht ins Feuer gebaut wird
-    private static final double MIN_DISTANCE_FROM_CAMPFIRE = 3.5D;
+    private static final int MAX_HIDDEN_TICKS = 24000;
+    private static final int SLEEP_PARTICLE_INTERVAL = 60;
 
     private static final Set<Item> WOOL_ITEMS = Set.of(
         Items.WHITE_WOOL, Items.ORANGE_WOOL, Items.MAGENTA_WOOL, Items.LIGHT_BLUE_WOOL,
@@ -63,142 +54,244 @@ public class SurvivorTentGoal extends Goal {
     );
 
     private enum State {
-        IDLE,        // kein Zelt vorhanden
-        BUILDING,    // wird gerade aufgebaut
-        STANDBY,     // fertig aufgebaut, Survivor macht gerade etwas anderes (z.B. Tag über/Nachtpatrouille)
-        ENTERING,    // läuft rein, um zu schlafen
-        SLEEPING     // liegt drin und schläft
+        IDLE,        // Kein Zelt vorhanden / wird neu gesucht
+        BUILDING,    // Wird gerade aufgebaut oder repariert
+        STANDBY,     // Zelt steht, Survivor macht etwas anderes
+        ENTERING,    // Läuft zum Punkt VOR dem Zelt, um reinzuschlüpfen
+        SLEEPING     // Schläft unsichtbar & unverwundbar im Zelt
     }
 
     public SurvivorTentGoal(SurvivorEntity survivor) {
         this.survivor = survivor;
-        this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK, Goal.Flag.JUMP));
+        // Flag.JUMP ENTFERNT! Verhindert, dass FloatGoal (Prio 0) dieses Goal im Wasser abbricht.
+        this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
     }
 
     @Override
     public boolean canUse() {
         if (survivor.isPassenger()) return false;
 
+        if (this.failedCooldown > 0) {
+            this.failedCooldown--;
+            return false;
+        }
+
+        if (this.state == State.STANDBY && !isTentIntact()) {
+            notifyDestroyed();
+        }
+
         SurvivorActivity act = survivor.getActivity();
         return switch (this.state) {
-            // Kein Zelt vorhanden -> nur im frühen Abend neu aufbauen
-            case IDLE -> act == SurvivorActivity.EVENING_SETUP;
-            // Aktion, die schon läuft, bis zum Ende durchziehen (auch nach kurzer Kampf-Unterbrechung)
+            case IDLE -> act != SurvivorActivity.COMBAT;
             case BUILDING, ENTERING -> true;
-            // Zelt steht bereits (Tag oder Nachtpatrouille): nur reingehen, wenn er jetzt schlafen will
             case STANDBY -> act == SurvivorActivity.SLEEPING;
-            // Weiterschlafen, solange die Activity das hergibt
             case SLEEPING -> act == SurvivorActivity.SLEEPING;
         };
     }
 
     @Override
     public void start() {
+        net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[TENT-GOAL] START called! State: {}, Activity: {}", this.state, survivor.getActivity());
         if (this.state == State.IDLE) {
             if (!planTentLocation()) {
-                // Kein gültiger Bauplatz in der Nähe (Hügel/Wand im Weg, oder zu nah am Lagerfeuer) ->
-                // state bleibt IDLE, canUse() wird nächsten Tick erneut versucht (evtl. hat er sich
-                // inzwischen woandershin bewegt).
+                this.failedCooldown = 100;
+                this.state = State.STANDBY;
                 return;
             }
-            this.state = State.BUILDING;
             this.actionTimer = 0;
             return;
         }
 
         if (this.state == State.STANDBY) {
-            // Zelt steht schon -> er will jetzt schlafen gehen
-            this.state = State.ENTERING;
-            this.actionTimer = 0;
+            if (survivor.getActivity() == SurvivorActivity.SLEEPING) {
+                this.state = State.ENTERING;
+                this.actionTimer = 0;
+            }
             return;
         }
-
-        // BUILDING / ENTERING: wurde nur kurz unterbrochen (z.B. Kampf) -> einfach fortsetzen,
-        // NICHT neu initialisieren, sonst gingen die bereits gesetzten Blöcke "vergessen".
     }
 
-    /**
-     * Sucht einen gültigen Bauplatz: probiert die aktuelle Blickrichtung und die anderen
-     * 3 Himmelsrichtungen durch. Ein Platz gilt nur als gültig, wenn
-     *  - alle Wand-/Dach-Positionen frei sind (kein Hügel, keine Wand im Weg),
-     *  - der Gang selbst frei ist UND auf festem Boden steht (kein halb im Hang stehendes Zelt),
-     *  - genug Abstand zum bekannten Lagerfeuer besteht (baut ihm sonst quasi ins Feuer).
-     * Bei Erfolg werden tentInside und blocksToBuild befüllt.
-     */
     private boolean planTentLocation() {
+        BlockPos knownTent = survivor.getKnownTentPos();
         BlockPos knownCampfire = survivor.getKnownCampfirePos();
-        Direction preferredDir = survivor.getDirection();
-        Direction[] tryOrder = {
-            preferredDir,
-            preferredDir.getClockWise(),
-            preferredDir.getOpposite(),
-            preferredDir.getCounterClockWise()
-        };
 
-        for (Direction dir : tryOrder) {
-            BlockPos entrance = survivor.blockPosition().relative(dir);
-            Direction left = dir.getCounterClockWise();
-            Direction right = dir.getClockWise();
-
-            List<BlockPos> walkway = new ArrayList<>();
-            List<BlockPos> wallsAndRoof = new ArrayList<>();
-            for (int i = 0; i < 3; i++) {
-                BlockPos forwardPos = entrance.relative(dir, i);
-                walkway.add(forwardPos);
-                wallsAndRoof.add(forwardPos.relative(left));
-                wallsAndRoof.add(forwardPos.relative(right));
-                wallsAndRoof.add(forwardPos.above());
+        if (knownTent != null) {
+            if (tryRepairExistingTent(knownTent, knownCampfire)) {
+                return true;
+            } else {
+                dismantleOldTent(knownTent);
+                survivor.setKnownTentPos(null);
             }
-            wallsAndRoof.add(entrance.relative(dir, 2)); // Rückwand, verschließt den Gang
+        }
 
-            if (isLocationValid(wallsAndRoof, walkway, knownCampfire)) {
-                this.tentInside = entrance.relative(dir);
-                this.tentApproach = entrance.relative(dir.getOpposite()); // = seine Ausgangsposition, offen begehbar
-                this.criticalRoofBlock = this.tentInside.above();
-                this.blocksToBuild.clear();
-                this.blocksToBuild.addAll(wallsAndRoof);
+        BlockPos current = survivor.blockPosition();
+
+        if (checkAndSetTentAt(current, knownCampfire)) {
+            survivor.setKnownTentPos(this.tentApproach);
+            return true;
+        }
+
+        for (BlockPos pos : BlockPos.betweenClosed(current.offset(-6, -2, -6), current.offset(6, 2, 6))) {
+            if (pos.equals(current)) continue;
+            if (checkAndSetTentAt(pos, knownCampfire)) {
+                survivor.setKnownTentPos(this.tentApproach);
                 return true;
             }
         }
+
         return false;
     }
 
-    private boolean isLocationValid(List<BlockPos> wallsAndRoof, List<BlockPos> walkway, BlockPos knownCampfire) {
-        for (BlockPos pos : wallsAndRoof) {
-            if (!survivor.level().getBlockState(pos).canBeReplaced()) return false;
-            if (tooCloseToCampfire(pos, knownCampfire)) return false;
+    private boolean tryRepairExistingTent(BlockPos tentPos, BlockPos knownCampfire) {
+        if (!survivor.level().hasChunkAt(tentPos)) {
+            this.tentApproach = tentPos;
+            this.tentInside = getTentInside(tentPos);
+            this.criticalRoofBlock = this.tentInside.above();
+            this.state = State.STANDBY;
+            return true;
         }
-        for (BlockPos pos : walkway) {
-            // Der Gang selbst muss frei sein...
-            if (!survivor.level().getBlockState(pos).canBeReplaced()) return false;
-            // ...und auf festem Boden stehen (verhindert "halb im Hügel"-Zelte oder Zelte über Abgründen)
-            BlockPos floor = pos.below();
-            if (!survivor.level().getBlockState(floor).isFaceSturdy(survivor.level(), floor, Direction.UP)) {
+
+        Map<BlockPos, BlockState> layout = getTentLayout(tentPos, survivor);
+
+        this.blocksToBuild.clear();
+        boolean validStructure = true;
+
+        for (Map.Entry<BlockPos, BlockState> entry : layout.entrySet()) {
+            BlockPos worldPos = entry.getKey();
+            BlockState currentState = survivor.level().getBlockState(worldPos);
+
+            if (isWoolBlock(currentState.getBlock())) {
+                continue; // Steht bereits korrekt
+            } else if (currentState.canBeReplaced()) {
+                this.blocksToBuild.add(worldPos); // Fehlt
+            } else {
+                validStructure = false; // Blockiert durch festen Fremdblock
+                break;
+            }
+        }
+
+        if (validStructure) {
+            this.tentApproach = tentPos;
+            this.tentInside = getTentInside(tentPos);
+            this.criticalRoofBlock = this.tentInside.above();
+
+            this.state = this.blocksToBuild.isEmpty() ? State.STANDBY : State.BUILDING;
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean checkAndSetTentAt(BlockPos center, BlockPos knownCampfire) {
+        Map<BlockPos, BlockState> layout = getTentLayout(center, survivor);
+
+        // 1. Zeltblöcke prüfen: Müssen ersetzbar sein und DÜRFEN KEIN WASSER SEIN
+        for (BlockPos worldPos : layout.keySet()) {
+            if (!survivor.level().getBlockState(worldPos).canBeReplaced()) {
                 return false;
             }
-            if (tooCloseToCampfire(pos, knownCampfire)) return false;
+            if (!survivor.level().getFluidState(worldPos).isEmpty()) {
+                return false; // Kein Zelt im Wasser bauen!
+            }
+            if (tooCloseToCampfire(worldPos, knownCampfire)) {
+                return false;
+            }
         }
+
+        // 2. Einstiegsplatz prüfen (center = tentApproach)
+        if (!survivor.level().getFluidState(center).isEmpty()) {
+            return false; // Einstieg darf nicht unter Wasser sein
+        }
+        BlockPos floor = center.below();
+        if (!survivor.level().getBlockState(floor).isFaceSturdy(survivor.level(), floor, Direction.UP)) {
+            return false;
+        }
+
+        // 3. Laufweg ins Zeltinnere prüfen
+        Direction dir = getDeterministicDirection(center);
+        for (int i = 1; i <= 2; i++) {
+            BlockPos pathPos = center.relative(dir, i);
+            if (!survivor.level().getBlockState(pathPos).canBeReplaced()) return false;
+            if (!survivor.level().getFluidState(pathPos).isEmpty()) return false;
+            BlockPos pathFloor = pathPos.below();
+            if (!survivor.level().getBlockState(pathFloor).isFaceSturdy(survivor.level(), pathFloor, Direction.UP)) {
+                return false;
+            }
+        }
+
+        this.tentApproach = center;
+        this.tentInside = getTentInside(center);
+        this.criticalRoofBlock = this.tentInside.above();
+
+        this.blocksToBuild.clear();
+        this.blocksToBuild.addAll(layout.keySet());
+        this.state = State.BUILDING;
         return true;
     }
 
     private boolean tooCloseToCampfire(BlockPos pos, BlockPos knownCampfire) {
-        return knownCampfire != null
-                && pos.distSqr(knownCampfire) < (MIN_DISTANCE_FROM_CAMPFIRE * MIN_DISTANCE_FROM_CAMPFIRE);
+        if (knownCampfire == null) return false;
+        return pos.equals(knownCampfire) || pos.equals(knownCampfire.above());
+    }
+
+    private void dismantleOldTent(BlockPos oldTentPos) {
+        if (oldTentPos == null) return;
+        Map<BlockPos, BlockState> layout = getTentLayout(oldTentPos, survivor);
+
+        for (BlockPos worldPos : layout.keySet()) {
+            if (isWoolBlock(survivor.level().getBlockState(worldPos).getBlock())) {
+                survivor.level().destroyBlock(worldPos, true, survivor);
+            }
+        }
+    }
+
+    private boolean isWoolBlock(Block block) {
+        return block.defaultBlockState().is(BlockTags.WOOL);
+    }
+
+    @Override
+    public boolean canContinueToUse() {
+        boolean cont = switch (state) {
+            case BUILDING, ENTERING -> true;
+            case SLEEPING -> survivor.getActivity() == SurvivorActivity.SLEEPING
+                    && hiddenSafetyTimer < MAX_HIDDEN_TICKS
+                    && !tentWasDestroyed;
+            default -> false;
+        };
+        if (!cont && state == State.SLEEPING) {
+            net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[TENT-GOAL] SLEEPING CANCELLED! Activity: {}, HiddenTimer: {}, Destroyed: {}", 
+                survivor.getActivity(), hiddenSafetyTimer, tentWasDestroyed);
+        }
+        return cont;
     }
 
     @Override
     public void tick() {
         switch (state) {
             case BUILDING -> {
+                if (tentApproach != null) {
+                    double dx = survivor.getX() - (tentApproach.getX() + 0.5D);
+                    double dz = survivor.getZ() - (tentApproach.getZ() + 0.5D);
+                    if (dx * dx + dz * dz > 2.0D) {
+                        survivor.getNavigation().moveTo(tentApproach.getX() + 0.5D, tentApproach.getY(), tentApproach.getZ() + 0.5D, 1.0D);
+                        return;
+                    }
+                }
+
+                survivor.getNavigation().stop();
                 actionTimer++;
-                if (actionTimer >= 6) { // Alle 0,3 Sekunden einen Block setzen
+                if (actionTimer >= 6) {
                     actionTimer = 0;
                     if (!blocksToBuild.isEmpty()) {
                         BlockPos targetPos = blocksToBuild.remove(0);
-                        // Platz nochmal prüfen (kann sich seit dem Planen minimal geändert haben)
+
+                        if (targetPos.equals(survivor.blockPosition()) || targetPos.equals(survivor.blockPosition().above())) {
+                            if (tentApproach != null) {
+                                survivor.setPos(tentApproach.getX() + 0.5D, tentApproach.getY(), tentApproach.getZ() + 0.5D);
+                            }
+                        }
+
                         if (survivor.level().getBlockState(targetPos).canBeReplaced()) {
-                            // Wenn er Wolle im Inventar hat, wird sie verbraucht - hat er keine,
-                            // baut er trotzdem (kostenlos), siehe tryConsumeOneWool().
                             tryConsumeOneWool();
                             Block woolBlock = getWoolColorForUUID(survivor.getUUID());
                             survivor.level().setBlockAndUpdate(targetPos, woolBlock.defaultBlockState());
@@ -207,11 +300,7 @@ public class SurvivorTentGoal extends Goal {
                             survivor.level().playSound(null, targetPos, SoundEvents.WOOL_PLACE, SoundSource.BLOCKS, 1.0F, 1.0F);
                             survivor.getLookControl().setLookAt(targetPos.getX() + 0.5D, targetPos.getY() + 0.5D, targetPos.getZ() + 0.5D);
                         }
-                        // Falls die Stelle doch nicht frei ist: einfach überspringen (kein Abbruch nötig,
-                        // die Fläche wurde beim Planen bereits geprüft, das hier ist nur ein Sicherheitsnetz).
                     } else {
-                        // Fertig aufgebaut: sofort schlafen legen, oder erstmal nur stehen lassen
-                        // (z.B. weil er nachts noch jagen/scavengen will, oder es noch Tag ist)
                         state = (survivor.getActivity() == SurvivorActivity.SLEEPING)
                                 ? State.ENTERING
                                 : State.STANDBY;
@@ -219,23 +308,17 @@ public class SurvivorTentGoal extends Goal {
                     }
                 }
             }
-            case STANDBY -> {
-                // Zelt steht dauerhaft, hier passiert nichts aktiv - der GoalSelector lässt dieses
-                // Goal ohnehin nur laufen, solange canContinueToUse() true liefert (siehe unten).
-                // Der eigentliche Übergang nach ENTERING passiert über start(), sobald canUse()
-                // erneut true wird (er will schlafen). Tagsüber/beim Patrouillieren bleibt es einfach
-                // stehen und dient SurvivorFleeToTentGoal als Fluchtpunkt.
-            }
+            case STANDBY -> {}
             case ENTERING -> {
-                // Nur bis VOR den Eingang laufen - normale Wegfindung kann nicht durch die
-                // 1-Block-hohe Gang-Öffnung navigieren (das war der eigentliche Bug: er lief
-                // nie an, weil dorthin schlicht kein Pfad existiert).
-                survivor.getNavigation().moveTo(tentApproach.getX() + 0.5D, tentApproach.getY(), tentApproach.getZ() + 0.5D, 0.6D);
+                // Läuft direkt zum Einstiegsblock vor dem Zelt (tentApproach)
+                survivor.getNavigation().moveTo(tentApproach.getX() + 0.5D, tentApproach.getY(), tentApproach.getZ() + 0.5D, 1.0D);
 
-                if (survivor.distanceToSqr(tentApproach.getX() + 0.5D, tentApproach.getY(), tentApproach.getZ() + 0.5D) < 1.2D) {
+                double dx = survivor.getX() - (tentApproach.getX() + 0.5D);
+                double dz = survivor.getZ() - (tentApproach.getZ() + 0.5D);
+
+                if (dx * dx + dz * dz < 1.0D) {
                     survivor.getNavigation().stop();
-                    // Den letzten kurzen Schritt "reinschlüpfen" per Teleport statt laufen lassen -
-                    // spart uns jede weitere Pfadfindungs-Problematik durch die niedrige Öffnung.
+                    // Teleportiert ins Zeltinnere
                     survivor.setPos(tentInside.getX() + 0.5D, tentInside.getY(), tentInside.getZ() + 0.5D);
                     survivor.setHiddenInTent(true);
                     hiddenSafetyTimer = 0;
@@ -244,52 +327,33 @@ public class SurvivorTentGoal extends Goal {
                 }
             }
             case SLEEPING -> {
-                // Er "ist" gerade unsichtbar & kollisionsfrei im Zelt (siehe setHiddenInTent).
-                // Sicherheitsnetz: falls aus irgendeinem Grund canContinueToUse() nie false liefert
-                // (z.B. durch einen künftigen Bug), erzwingt der Timer spätestens nach MAX_HIDDEN_TICKS
-                // ein Aufwachen - er darf NIE dauerhaft unsichtbar/kollisionslos bleiben.
-                hiddenSafetyTimer++;
+                if (tentInside != null) {
+                    survivor.setPos(tentInside.getX() + 0.5D, tentInside.getY(), tentInside.getZ() + 0.5D);
+                }
 
-                // Kleines periodisches Partikel-Zeichen, DASS er noch da ist und schläft -
-                // Partikel werden unabhängig von setInvisible() ganz normal gerendert.
+                hiddenSafetyTimer++;
                 sleepParticleTimer++;
                 if (sleepParticleTimer >= SLEEP_PARTICLE_INTERVAL) {
                     sleepParticleTimer = 0;
                     survivor.spawnSleepParticles(tentInside);
                 }
 
-                // Wurde das Dach über ihm entfernt (z.B. von einem Spieler)? Dann raus damit -
-                // er darf nicht unsichtbar in einem offenen Loch "verschwunden" bleiben.
                 if (!isTentIntact()) {
                     tentWasDestroyed = true;
                 }
             }
-            case IDLE -> { /* nichts zu tun */ }
+            case IDLE -> {}
         }
     }
 
     @Override
-    public boolean canContinueToUse() {
-        return switch (state) {
-            case BUILDING, ENTERING -> true;
-            case SLEEPING -> survivor.getActivity() == SurvivorActivity.SLEEPING
-                    && hiddenSafetyTimer < MAX_HIDDEN_TICKS
-                    && !tentWasDestroyed;
-            // STANDBY & IDLE: dieses Goal ist "inaktiv" -> gibt MOVE/LOOK/JUMP für
-            // Scavenge, Eat & Co. frei, blockiert also nicht unnötig den Tag/die Nachtpatrouille.
-            default -> false;
-        };
-    }
-
-    @Override
     public void stop() {
-        survivor.setPose(Pose.STANDING);
+        net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[TENT-GOAL] STOP called! State was: {}", this.state);
         survivor.getNavigation().stop();
 
         if (state == State.SLEEPING) {
-            // War unsichtbar/kollisionsfrei im Zelt -> erst zurück nach draußen teleportieren
-            // (nicht mitten in den Wollblöcken sichtbar werden!), dann "normal" werden lassen.
             if (tentApproach != null) {
+                // Ausstieg: Teleportiert exakt zurück auf den gesicherten Außenplatz
                 survivor.setPos(tentApproach.getX() + 0.5D, tentApproach.getY(), tentApproach.getZ() + 0.5D);
             }
             survivor.setHiddenInTent(false);
@@ -297,31 +361,23 @@ public class SurvivorTentGoal extends Goal {
 
         if (state == State.ENTERING || state == State.SLEEPING) {
             if (tentWasDestroyed) {
-                // Zelt wurde zerstört (z.B. Dach entfernt) -> komplett zurücksetzen.
-                // Nächsten Abend (EVENING_SETUP) baut er sich ein neues, komplett frisches Zelt.
                 notifyDestroyed();
             } else {
-                // Aufgewacht, oder unterbrochen (z.B. Kampf-/Flucht-Goal hat MOVE übernommen) ->
-                // Zelt bleibt stehen, Survivor "pausiert" im Freien und macht woanders weiter.
                 state = State.STANDBY;
             }
         }
-        // BUILDING (unvollständig) und STANDBY selbst: Zustand bleibt exakt erhalten,
-        // beim nächsten start() geht es nahtlos weiter.
     }
 
-    /** True, solange das Dach über der Schlafposition noch aus der richtigen Wolle besteht. */
+    public boolean isSleeping() {
+        return this.state == State.SLEEPING;
+    }
+
     public boolean isTentIntact() {
         if (criticalRoofBlock == null) return false;
-        return survivor.level().getBlockState(criticalRoofBlock).is(getWoolColorForUUID(survivor.getUUID()));
+        if (!survivor.level().hasChunkAt(criticalRoofBlock)) return true;
+        return survivor.level().getBlockState(criticalRoofBlock).is(BlockTags.WOOL);
     }
 
-    /**
-     * Setzt den kompletten Zelt-Zustand zurück auf IDLE, z.B. wenn das Dach zerstört wurde.
-     * Kann auch von außen (SurvivorFleeToTentGoal) aufgerufen werden, falls DIESES Goal die
-     * Zerstörung bemerkt, während SurvivorTentGoal selbst gerade inaktiv (STANDBY) ist.
-     * Nächsten Abend (EVENING_SETUP) wird ganz normal ein frisches Zelt gebaut.
-     */
     public void notifyDestroyed() {
         this.state = State.IDLE;
         this.blocksToBuild.clear();
@@ -331,27 +387,18 @@ public class SurvivorTentGoal extends Goal {
         this.tentWasDestroyed = false;
     }
 
-    /**
-     * Position im Zeltinneren, solange ein Zelt existiert (auch im STANDBY-Zustand, also
-     * auch tagsüber). Wird u.a. von SurvivorFleeToTentGoal als Fluchtziel genutzt und von
-     * SurvivorScavengeGoal, um gierigen ("money") Survivorn auch im Schlaf noch das
-     * Aufsammeln von Items in Zelt-Nähe zu erlauben.
-     */
     public BlockPos getTentAnchorPos() {
         return (this.state == State.IDLE) ? null : this.tentInside;
     }
 
-    /** Punkt VOR dem Eingang, normal erreichbar per Wegfindung (2 Blöcke hoch). */
     public BlockPos getTentApproachPos() {
         return (this.state == State.IDLE) ? null : this.tentApproach;
     }
 
-    /** Nur für Debug-Logging: aktueller interner Zustand als String. */
     public String getDebugState() {
         return this.state.name();
     }
 
-    /** Entfernt 1 Wolle (egal welche Farbe) aus dem Inventar, falls vorhanden. Gibt true zurück, wenn erfolgreich. */
     private boolean tryConsumeOneWool() {
         var inv = survivor.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
@@ -362,6 +409,40 @@ public class SurvivorTentGoal extends Goal {
             }
         }
         return false;
+    }
+
+    public BlockPos getTentInside(BlockPos tentPos) {
+        Direction dir = getDeterministicDirection(tentPos);
+        return tentPos.relative(dir, 2);
+    }
+
+    public Map<BlockPos, BlockState> getTentLayout(BlockPos tentPos, SurvivorEntity survivor) {
+        Map<BlockPos, BlockState> layout = new HashMap<>();
+
+        BlockState woolState = getWoolColorForUUID(survivor.getUUID()).defaultBlockState();
+        Direction dir = getDeterministicDirection(tentPos);
+
+        Direction left = dir.getCounterClockWise();
+        Direction right = dir.getClockWise();
+
+        // 3 Segmente nach vorne (tentPos selbst bleibt als Einstieg frei)
+        for (int i = 1; i <= 3; i++) {
+            BlockPos forwardPos = tentPos.relative(dir, i);
+
+            layout.put(forwardPos.relative(left), woolState);
+            layout.put(forwardPos.relative(right), woolState);
+            layout.put(forwardPos.above(), woolState);
+        }
+
+        // Rückwand bei Tiefe 3
+        layout.put(tentPos.relative(dir, 3), woolState);
+
+        return layout;
+    }   
+
+    private Direction getDeterministicDirection(BlockPos pos) {
+        Direction[] horizontals = new Direction[]{ Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST };
+        return horizontals[Math.floorMod(pos.hashCode(), horizontals.length)];
     }
 
     private Block getWoolColorForUUID(UUID uuid) {

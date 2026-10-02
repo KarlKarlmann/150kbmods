@@ -3,22 +3,10 @@ package net.kb150.survivorcolonies.entity.ai;
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.entity.monster.Monster;
 
 import java.util.EnumSet;
 
-/**
- * Höchste Bewegungs-Priorität im Goal-Selector (noch vor Avoid/Melee!): Sobald überhaupt
- * eine Fluchtreaktion fällig wäre (persönlichkeitsbasierte Schwelle, siehe
- * SurvivorEntity#wantsToFleeFromTarget), rennt der Survivor GEZIELT zum Zelt statt planlos
- * in die Wildnis. "Ist er erstmal irgendwo im Nirgendwo, hat er eh verloren" - AvoidEntityGoal
- * bleibt daher nur noch als Fallback aktiv, falls gerade kein Zelt existiert.
- *
- * Er läuft nur bis VOR den Eingang (normal per Wegfindung erreichbar - der 1-Block-hohe Gang
- * selbst ist für normale Pfadfindung unpassierbar), wird dort per Teleport reingesetzt und
- * unsichtbar/kollisionsfrei (siehe SurvivorEntity#setHiddenInTent). Ein hartes Sicherheitsnetz
- * (MAX_HIDDEN_TICKS) sorgt dafür, dass er NIE dauerhaft verschwunden bleiben kann, selbst wenn
- * aus irgendeinem Grund die reguläre "sicher genug"-Bedingung nie eintritt.
- */
 public class SurvivorFleeToTentGoal extends Goal {
     private final SurvivorEntity survivor;
 
@@ -28,9 +16,9 @@ public class SurvivorFleeToTentGoal extends Goal {
     private int sleepParticleTimer = 0;
     private boolean tentWasDestroyed = false;
 
-    private static final int SAFE_TICKS_BEFORE_EXIT = 60;  // ~3 Sekunden Ruhe, bevor er von selbst rauskommt
-    private static final int MAX_HIDDEN_TICKS = 6000;       // ~5 Minuten harte Obergrenze, komme was wolle
-    private static final int SLEEP_PARTICLE_INTERVAL = 60;  // alle ~3 Sekunden ein kleines Partikel-Zeichen
+    private static final int SAFE_TICKS_BEFORE_EXIT = 60;
+    private static final int MAX_HIDDEN_TICKS = 6000;
+    private static final int SLEEP_PARTICLE_INTERVAL = 60;
 
     public SurvivorFleeToTentGoal(SurvivorEntity survivor) {
         this.survivor = survivor;
@@ -39,19 +27,34 @@ public class SurvivorFleeToTentGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (this.isHiding) return false; // läuft schon, siehe canContinueToUse()
+        if (this.isHiding) return false;
 
         BlockPos approach = getTentApproach();
-        return approach != null && isInDanger();
+        if (approach == null) return false;
+
+        SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
+        if (tentGoal != null && !tentGoal.isTentIntact()) {
+            return false;
+        }
+
+        boolean danger = isInDanger();
+        if (danger) {
+            net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[FLEE-GOAL] canUse == TRUE! Target: {}, Health: {}/{}", 
+                survivor.getTarget(), survivor.getHealth(), survivor.getMaxHealth());
+        }
+        return danger;
     }
 
-    /** Nutzt dieselbe persönlichkeitsbasierte Schwelle wie der AvoidEntityGoal-Fallback. */
+    /**
+     * Prüft anhand der individuellen Lebensschwelle, ob sich der Survivor in Gefahr befindet.
+     */
     private boolean isInDanger() {
         return this.survivor.wantsToFleeFromTarget();
     }
 
     @Override
     public void start() {
+        net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[FLEE-GOAL] START called!");
         this.isHiding = false;
         this.safeTicks = 0;
         this.hiddenSafetyTimer = 0;
@@ -62,17 +65,21 @@ public class SurvivorFleeToTentGoal extends Goal {
     @Override
     public void tick() {
         BlockPos approach = getTentApproach();
-        if (approach == null) return; // Zelt inzwischen weg -> canContinueToUse beendet das gleich
+        if (approach == null) return;
 
         if (!this.isHiding) {
-            // Nur bis VOR den Eingang laufen - normal begehbar, kein Problem für die Wegfindung.
-            this.survivor.getNavigation().moveTo(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D, 1.1D);
+            // Er navigiert AUSSCHLIESSLICH zum freien Platz vor dem Zelt
+            this.survivor.getNavigation().moveTo(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D, 1.2D);
 
-            if (this.survivor.distanceToSqr(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D) < 1.2D) {
+            double dx = this.survivor.getX() - (approach.getX() + 0.5D);
+            double dz = this.survivor.getZ() - (approach.getZ() + 0.5D);
+
+            // Ankunft vor dem Zelt: Stoppen und direkt ins Innere teleportieren
+            if (dx * dx + dz * dz < 1.5D) {
                 this.survivor.getNavigation().stop();
 
                 BlockPos inside = getTentInside();
-                BlockPos hideTarget = inside != null ? inside : approach; // Notfall-Fallback
+                BlockPos hideTarget = inside != null ? inside : approach;
                 this.survivor.setPos(hideTarget.getX() + 0.5D, hideTarget.getY(), hideTarget.getZ() + 0.5D);
                 this.survivor.setHiddenInTent(true);
 
@@ -81,24 +88,34 @@ public class SurvivorFleeToTentGoal extends Goal {
                 this.hiddenSafetyTimer = 0;
             }
         } else {
+            // Position im Zelt festhalten
+            BlockPos inside = getTentInside();
+            if (inside != null) {
+                this.survivor.setPos(inside.getX() + 0.5D, inside.getY(), inside.getZ() + 0.5D);
+            }
+
             this.hiddenSafetyTimer++;
 
             this.sleepParticleTimer++;
             if (this.sleepParticleTimer >= SLEEP_PARTICLE_INTERVAL) {
                 this.sleepParticleTimer = 0;
-                BlockPos inside = getTentInside();
                 if (inside != null) {
                     this.survivor.spawnSleepParticles(inside);
                 }
             }
 
-            // Dach über ihm entfernt, während er sich versteckt? -> sofort raus damit.
             SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
             if (tentGoal != null && !tentGoal.isTentIntact()) {
                 this.tentWasDestroyed = true;
             }
 
-            boolean stillInDanger = isInDanger();
+            // Nicht rauskommen, solange Monster noch in der Nähe des Zeltes lauern!
+            boolean monstersNearby = !this.survivor.level().getEntitiesOfClass(
+                Monster.class, 
+                this.survivor.getBoundingBox().inflate(10.0D)
+            ).isEmpty();
+
+            boolean stillInDanger = isInDanger() || monstersNearby;
             this.safeTicks = stillInDanger ? 0 : this.safeTicks + 1;
         }
     }
@@ -106,25 +123,28 @@ public class SurvivorFleeToTentGoal extends Goal {
     @Override
     public boolean canContinueToUse() {
         BlockPos approach = getTentApproach();
-        if (approach == null) return false; // Zelt weg -> raus damit
+        if (approach == null) return false;
 
-        if (!this.isHiding) return true; // noch auf dem Weg dahin -> weiterlaufen lassen
+        if (!this.isHiding) return true;
 
-        // Aufwachen entweder weil's sicher genug ist, ODER spätestens beim harten Sicherheitsnetz,
-        // ODER weil das Zelt zerstört wurde - er darf NIE dauerhaft unsichtbar/kollisionslos bleiben.
-        return !this.tentWasDestroyed
+        boolean cont = !this.tentWasDestroyed
                 && this.safeTicks < SAFE_TICKS_BEFORE_EXIT
                 && this.hiddenSafetyTimer < MAX_HIDDEN_TICKS;
+
+        if (!cont) {
+            net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[FLEE-GOAL] STOPPING! SafeTicks: {}, HiddenTimer: {}, Destroyed: {}", 
+                safeTicks, hiddenSafetyTimer, tentWasDestroyed);
+        }
+        return cont;
     }
 
     @Override
     public void stop() {
+        net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[FLEE-GOAL] STOP called! WasHiding: {}", this.isHiding);
         if (this.isHiding) {
             BlockPos approach = getTentApproach();
             if (approach != null) {
-                // Erst zurück nach draußen teleportieren, dann sichtbar werden - nicht mitten
-                // in den Wollblöcken auftauchen. WICHTIG: das muss VOR notifyDestroyed() passieren,
-                // solange approach noch einen gültigen Wert hat.
+                // Vor dem Aufdecken erst sicher nach draußen vor das Zelt teleportieren
                 this.survivor.setPos(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D);
             }
             this.survivor.setHiddenInTent(false);
@@ -133,7 +153,7 @@ public class SurvivorFleeToTentGoal extends Goal {
         if (this.tentWasDestroyed) {
             SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
             if (tentGoal != null) {
-                tentGoal.notifyDestroyed(); // SurvivorTentGoal war inaktiv (STANDBY) und weiß sonst nichts davon
+                tentGoal.notifyDestroyed();
             }
         }
 
@@ -146,11 +166,17 @@ public class SurvivorFleeToTentGoal extends Goal {
 
     private BlockPos getTentApproach() {
         SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
-        return tentGoal != null ? tentGoal.getTentApproachPos() : null;
+        if (tentGoal != null && tentGoal.getTentApproachPos() != null) {
+            return tentGoal.getTentApproachPos();
+        }
+        return this.survivor.getKnownTentPos();
     }
 
     private BlockPos getTentInside() {
         SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
-        return tentGoal != null ? tentGoal.getTentAnchorPos() : null;
+        if (tentGoal != null && tentGoal.getTentAnchorPos() != null) {
+            return tentGoal.getTentAnchorPos();
+        }
+        return this.survivor.getKnownTentPos();
     }
 }
