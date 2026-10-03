@@ -1,0 +1,12 @@
+{
+"message.sbwscavengers.vehicle_intact": "Vehicle is already 100% intact!",
+"message.sbwscavengers.admin_repair": "[Admin] Vehicle completely repaired!",
+"message.sbwscavengers.need_tool": "[Repair Phase %s%%] You need a %s!",
+"message.sbwscavengers.need_material": "Additional material required in inventory: 1x %s",
+"message.sbwscavengers.part_installed": "Part installed! Condition: %s%% (%s)",
+"message.sbwscavengers.state_wreck": "WRECK",
+"message.sbwscavengers.state_intact": "INTACT",
+"message.sbwscavengers.repair_progress": "[Repair Phase %s%%] Repairing... %s",
+"message.sbwscavengers.needs_extinguish": "Vehicle is burning! Extinguish it with a Water Bucket first.",
+"message.sbwscavengers.extinguished": "Fire extinguished! You can now start repairing."
+}

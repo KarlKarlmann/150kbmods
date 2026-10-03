@@ -51,7 +51,7 @@ side="BOTH"
 
 # 5. Superb Warfare Spawner
 [[dependencies.superbcarfare]]
-modId="superbwarfarespawner"
+modId="sbwscavengers"
 mandatory=false
 versionRange="[0.0.0,)"
 ordering="AFTER"

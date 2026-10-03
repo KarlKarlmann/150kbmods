@@ -1,6 +1,7 @@
 package net.kb150.superbcarfare.mixin;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import de.maxhenkel.car.Main;
 import de.maxhenkel.car.items.ItemCanister;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -50,13 +51,27 @@ public class VehicleFuelMixin {
             }
 
             CompoundTag comp = heldItem.getOrCreateTag();
-            FluidStack currentFluid = FluidStack.EMPTY;
+            FluidStack currentFluid = null;
             if (comp.contains("fuel")) {
                 currentFluid = FluidStack.loadFluidStackFromNBT(comp.getCompound("fuel"));
             }
 
-            int currentAmount = currentFluid.isEmpty() ? 0 : currentFluid.getAmount();
-            int maxCapacity = 10000; // Standard UCM Kanister Kapazitaet
+            // Mischen von Treibstoffen blockieren
+            if (currentFluid != null && !currentFluid.isEmpty()) {
+                ResourceLocation fluidKey = ForgeRegistries.FLUIDS.getKey(currentFluid.getFluid());
+                if (fluidKey != null && !fluidKey.toString().equals("car:bio_diesel")) {
+                    if (player.level().isClientSide()) {
+                        player.displayClientMessage(Component.literal("§cDer Kanister enthaelt einen anderen Treibstoff!"), true);
+                    }
+                    cir.setReturnValue(InteractionResult.FAIL);
+                    return;
+                }
+            }
+
+            int currentAmount = (currentFluid != null && !currentFluid.isEmpty()) ? currentFluid.getAmount() : 0;
+            
+            // MAX Kapazitaet dynamisch aus der Ultimate Car Mod Config auslesen
+            int maxCapacity = Main.SERVER_CONFIG.canisterMaxFuel.get();
             int spaceLeft = maxCapacity - currentAmount;
 
             if (spaceLeft <= 0) {
@@ -71,24 +86,28 @@ public class VehicleFuelMixin {
 
             if (mbToExtract > 0) {
                 if (!player.level().isClientSide()) {
-                    // Wenn der Kanister leer ist, erzeugen wir Bio-Diesel aus dem "Magic Loophole"
-                    if (currentFluid.isEmpty() || currentFluid.getFluid() == null) {
-                        net.minecraft.world.level.material.Fluid bioDiesel = ForgeRegistries.FLUIDS.getValue(new ResourceLocation("car", "bio_diesel"));
-                        if (bioDiesel != null && bioDiesel != net.minecraft.world.level.material.Fluids.EMPTY) {
-                            currentFluid = new FluidStack(bioDiesel, mbToExtract);
-                        }
+                    net.minecraft.world.level.material.Fluid bioDiesel = ForgeRegistries.FLUIDS.getValue(new ResourceLocation("car", "bio_diesel"));
+                    if (bioDiesel == null || bioDiesel == net.minecraft.world.level.material.Fluids.EMPTY) {
+                        cir.setReturnValue(InteractionResult.FAIL);
+                        return;
+                    }
+
+                    if (currentFluid == null || currentFluid.isEmpty()) {
+                        currentFluid = new FluidStack(bioDiesel, mbToExtract);
                     } else {
                         currentFluid.setAmount(currentAmount + mbToExtract);
                     }
 
-                    comp.put("fuel", currentFluid.writeToNBT(new CompoundTag()));
+                    CompoundTag fluidTag = new CompoundTag();
+                    currentFluid.writeToNBT(fluidTag);
+                    comp.put("fuel", fluidTag);
                     heldItem.setTag(comp);
 
                     // Fahrzeug Energie abziehen
                     vehicle.setEnergy(Math.max(0, vehicle.getEnergy() - (mbToExtract * ENERGY_PER_MB)));
 
                     player.level().playSound(null, vehicle.blockPosition(), SoundEvents.BUCKET_FILL, SoundSource.BLOCKS, 1.0F, 1.0F);
-                    player.displayClientMessage(Component.literal("§eTreibstoff abgezapft! Kanister: " + currentFluid.getAmount() + " mB"), true);
+                    player.displayClientMessage(Component.literal("§eTreibstoff abgezapft! Kanister: " + currentFluid.getAmount() + " / " + maxCapacity + " mB"), true);
                 }
                 cir.setReturnValue(InteractionResult.SUCCESS);
                 return;
@@ -96,7 +115,10 @@ public class VehicleFuelMixin {
         } 
         // --- TANKEN (Insert) via normalem Rechtsklick ---
         else {
-            if (vehicle.getEnergy() >= vehicle.getMaxEnergy()) {
+            int maxEnergy = vehicle.getMaxEnergy();
+            int currentEnergy = vehicle.getEnergy();
+
+            if (currentEnergy >= maxEnergy) {
                 if (player.level().isClientSide()) {
                     player.displayClientMessage(Component.literal("§aTreibstofftank ist bereits voll!"), true);
                 }
@@ -132,7 +154,7 @@ public class VehicleFuelMixin {
                 return;
             }
 
-            int neededEnergy = vehicle.getMaxEnergy() - vehicle.getEnergy();
+            int neededEnergy = maxEnergy - currentEnergy;
             int maxMbNeeded = (neededEnergy + ENERGY_PER_MB - 1) / ENERGY_PER_MB;
             int mbToDrain = Math.min(fluidStack.getAmount(), maxMbNeeded);
 
@@ -140,16 +162,19 @@ public class VehicleFuelMixin {
                 if (!player.level().isClientSide()) {
                     fluidStack.shrink(mbToDrain);
                     if (fluidStack.isEmpty()) {
-                        comp.put("fuel", new CompoundTag());
+                        comp.put("fuel", new CompoundTag()); // Leeres Tag schreiben, so macht es UCM auch
                     } else {
-                        comp.put("fuel", fluidStack.writeToNBT(new CompoundTag()));
+                        CompoundTag newFuelTag = new CompoundTag();
+                        fluidStack.writeToNBT(newFuelTag);
+                        comp.put("fuel", newFuelTag);
                     }
+                    heldItem.setTag(comp); // WICHTIG: Das updatet das Item auf dem Server sicher
 
                     int energyToAdd = mbToDrain * ENERGY_PER_MB;
-                    vehicle.setEnergy(Math.min(vehicle.getMaxEnergy(), vehicle.getEnergy() + energyToAdd));
+                    vehicle.setEnergy(Math.min(maxEnergy, currentEnergy + energyToAdd));
 
                     player.level().playSound(null, vehicle.blockPosition(), SoundEvents.BREWING_STAND_BREW, SoundSource.BLOCKS, 1.0F, 1.0F);
-                    int percent = (int) (((double) vehicle.getEnergy() / vehicle.getMaxEnergy()) * 100);
+                    int percent = (int) (((double) vehicle.getEnergy() / maxEnergy) * 100);
                     player.displayClientMessage(Component.literal("§aBetankt mit " + fluidStack.getDisplayName().getString() + "! Tankstand: " + percent + "%"), true);
                 }
                 cir.setReturnValue(InteractionResult.SUCCESS);

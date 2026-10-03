@@ -1,0 +1,62 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="CC BY-NC 4.0"
+
+[[mods]]
+modId="sbwscavengers"
+version="${version}"
+displayName="[SBW] Superb Warfare: Scavengers (Wrecks & Repairs)"
+displayURL="https://www.n3g.de"
+authors="Karl Karlmann"
+logoFile="sbwscavengers.png"
+description='''
+A survival overhaul for Superb Warfare. Scavenge the world for abandoned vehicles, quench fires, and restore them using an immersive new repair mechanic!
+
+--- SERVER ADMIN GUIDE ---
+
+World Generation (Markers):
+To ensure maximum compatibility, this mod uses invisible entities to spawn vehicles. To make vehicles spawn in your world, add sbwscavengers:marker_a, sbwscavengers:marker_b, or sbwscavengers:marker_c to your custom Forge biome_modifier JSONs (via Datapack).
+
+Customizing Repair Tools:
+The tools required for the repair minigame are completely data-driven. By default, it requires Iron Axes, Iron Pickaxes, or the SW Wrench. You can easily change this by overriding the following file in a Datapack:
+data/sbwscavengers/repair_tools/tools.json
+
+General Configuration:
+Check the auto-generated server config file to fine-tune wreck spawn chances, starting health, starting fuel, ammo capacities, and to assign which vehicle containers are linked to which Marker (A, B, or C).
+'''
+
+# -------------------------------------------------------------------------
+# ABHÄNGIGKEITEN (DEPENDENCIES)
+# -------------------------------------------------------------------------
+
+# 1. Forge API (auf 47.0.0 gelockert)
+[[dependencies.sbwscavengers]]
+modId="forge"
+mandatory=true
+versionRange="[47.0.0,)"
+ordering="NONE"
+side="BOTH"
+
+# 2. Minecraft Core
+[[dependencies.sbwscavengers]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="BOTH"
+
+# 3. Superb Warfare (Zwingend erforderlich für Fahrzeug-Entitäten)
+[[dependencies.sbwscavengers]]
+modId="superbwarfare"
+mandatory=true
+versionRange="[0.0.0,)"
+ordering="AFTER"
+side="BOTH"
+
+# 4. Ultimate Car Mod (Optional, für Treibstoff-Integration)
+[[dependencies.sbwscavengers]]
+modId="car"
+mandatory=false
+versionRange="[0.0.0,)"
+ordering="AFTER"
+side="BOTH"
