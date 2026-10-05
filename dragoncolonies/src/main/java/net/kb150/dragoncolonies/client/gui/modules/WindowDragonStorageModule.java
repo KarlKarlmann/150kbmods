@@ -459,41 +459,93 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         this.favoriteDietItem = getPrimaryDiet(type);
         this.specialDietItem = getSpecialDiet(type);
 
-        populateAssignmentOptions(dragonNbt, mode);
+        // Zucht erfordert Reife (Adult), Lebendigkeit, kein Ei und mindestens 800 Zuneigung
+        boolean canBreed = !isEgg && !isDead && currentStage >= 2 && this.affectionValue >= 800;
+        populateAssignmentOptions(dragonNbt, mode, canBreed);
 
         setButtonsEnabled(selectedDragonUUID != null, isDeployed, isDead, isEgg, currentStage, this.affectionValue);
     }
 
-    private void populateAssignmentOptions(CompoundTag dragonNbt, String currentMode) {
+    private void populateAssignmentOptions(CompoundTag dragonNbt, String currentMode, boolean canBreed) {
         if (this.dropdownAssignment == null) return;
 
         this.isUpdatingDropdown = true;
         this.currentOptions.clear();
 
-        this.currentOptions.add(new AssignmentOption(DragonStorageModule.MODE_AUTO, -1, Component.literal("§aFrei (Auto)")));
-        this.currentOptions.add(new AssignmentOption(DragonStorageModule.MODE_LOCKED, -1, Component.literal("§cBlockiert")));
-        this.currentOptions.add(new AssignmentOption(DragonStorageModule.MODE_BREEDING, -1, Component.literal("§dZucht")));
+        // Standard-Optionen voll lokalisiert
+        this.currentOptions.add(new AssignmentOption(
+                DragonStorageModule.MODE_AUTO, -1, 
+                Component.translatable("dragoncolonies.gui.dragon_storage.mode.auto")
+        ));
+        this.currentOptions.add(new AssignmentOption(
+                DragonStorageModule.MODE_LOCKED, -1, 
+                Component.translatable("dragoncolonies.gui.dragon_storage.mode.locked")
+        ));
 
-        int selectedIdx = 0;
-        if (DragonStorageModule.MODE_LOCKED.equals(currentMode)) selectedIdx = 1;
-        else if (DragonStorageModule.MODE_BREEDING.equals(currentMode)) selectedIdx = 2;
+        // Zucht nur anbieten, wenn der Drache wirklich zuchtfähig ist (oder bereits in diesem Modus steht)
+        if (canBreed || DragonStorageModule.MODE_BREEDING.equals(currentMode)) {
+            this.currentOptions.add(new AssignmentOption(
+                    DragonStorageModule.MODE_BREEDING, -1, 
+                    Component.translatable("dragoncolonies.gui.dragon_storage.mode.breeding")
+            ));
+        }
 
         int currentCitizenId = dragonNbt.getInt(DragonStorageModule.TAG_ASSIGNED_CITIZEN_ID);
 
-        // Dynamische Drachenreiter-Wachen des Horts aus MineColonies laden
         if (this.buildingView instanceof com.minecolonies.core.colony.buildings.AbstractBuildingGuards.View guardsView) {
-            for (int guardId : guardsView.getGuards()) {
-                ICitizenDataView citizen = guardsView.getColony().getCitizen(guardId);
-                String guardName = citizen != null ? citizen.getName() : ("Wache #" + guardId);
+            List<Integer> guardIds = guardsView.getGuards();
 
-                int optionIndex = this.currentOptions.size();
-                this.currentOptions.add(new AssignmentOption(DragonStorageModule.MODE_ASSIGNED, guardId, Component.literal("§6" + guardName)));
+            if (guardIds != null) {
+                for (int guardId : guardIds) {
+                    ICitizenDataView citizen = guardsView.getColony() != null ? guardsView.getColony().getCitizen(guardId) : null;
+                    String guardName = citizen != null ? citizen.getName() : Component.translatable("dragoncolonies.gui.dragon_storage.mode.guard_fallback", guardId).getString();
+                    String jobStr = citizen != null ? citizen.getJob() : "";
 
-                if (DragonStorageModule.MODE_ASSIGNED.equals(currentMode) && currentCitizenId == guardId) {
-                    selectedIdx = optionIndex;
+                    // Beastmaster aussortieren – nur echte Drachenreiter dürfen zugewiesen werden
+                    if (jobStr.toLowerCase(Locale.ROOT).contains("beastmaster")) {
+                        continue;
+                    }
+
+                    this.currentOptions.add(new AssignmentOption(
+                            DragonStorageModule.MODE_ASSIGNED, guardId, 
+                            Component.translatable("dragoncolonies.gui.dragon_storage.mode.guard", guardName)
+                    ));
                 }
             }
         }
+
+        // Ausgewählten Index dynamisch ermitteln (verhindert Array-Überläufe, wenn Zucht fehlt)
+        int selectedIdx = 0;
+        for (int i = 0; i < this.currentOptions.size(); i++) {
+            AssignmentOption opt = this.currentOptions.get(i);
+            if (DragonStorageModule.MODE_ASSIGNED.equals(currentMode)) {
+                if (opt.citizenId() == currentCitizenId) {
+                    selectedIdx = i;
+                    break;
+                }
+            } else if (opt.mode().equals(currentMode)) {
+                selectedIdx = i;
+                break;
+            }
+        }
+
+        // DataProvider frisch registrieren, damit BlockUI die Zeilen exakt aufbaut
+        this.dropdownAssignment.setDataProvider(new DropDownList.DataProvider() {
+            @Override
+            public int getElementCount() {
+                return currentOptions.size();
+            }
+
+            @Override
+            public String getLabel(int index) {
+                return currentOptions.get(index).label().getString();
+            }
+
+            @Override
+            public net.minecraft.network.chat.MutableComponent getLabelNew(int index) {
+                return (net.minecraft.network.chat.MutableComponent) currentOptions.get(index).label();
+            }
+        });
 
         this.dropdownAssignment.refreshElementPanes();
         this.dropdownAssignment.setSelectedIndex(selectedIdx);

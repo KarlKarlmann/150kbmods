@@ -26,7 +26,7 @@ public final class DragonColoniesConfig {
         LOG_CHANNELS = BUILDER
                 .comment("Aktive Diagnose-Kanalnamen per Semikolon getrennt (z. B. \"DISMOUNT;NAVIGATION\", \"ALL\" oder \"\").",
                          "Fuer Bug-Reports einfach die benoetigten Kanalnamen eintragen lassen.")
-                .define("channels", "DISMOUNT");
+                .define("channels", "");
 
         BUILDER.pop();
         SPEC = BUILDER.build();

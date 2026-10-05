@@ -29,61 +29,57 @@
     <!-- Pergament-Overlay als Rahmen für Modell und Daten (Höhe 170px) -->
     <image pos="0 0" size="188 170" source="bookofdragons:textures/gui/book/overlaydiettext.png"/>
 
+    <!-- Rolle / Zuweisung oben rechts über dem 3D-Modell mit 160px freiem Fallraum nach unten -->
+	<dropdown id="dropdown_assignment" pos="92 4" size="90 16" maxContentHeight="95" dropDownSize="100 95" textcolor="#000000"
+              source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+              label="$(dragoncolonies.gui.dragon_storage.mode.label)" textscale="0.75" enabled="false">
+        <button id="button" pos="0 0" size="100% 14"
+                source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+                label="" textscale="0.75" textcolor="#000000"/>
+    </dropdown>
+
     <!-- Header-Info direkt unterhalb des oberen 3D-Modell-Bereichs -->
-    <text id="detail_name" pos="6 54" size="115 10" color="#FFFFFF" label="$(dragoncolonies.gui.dragon_storage.select_dragon)" textscale="0.95"/>
-    <text id="detail_status_badge" pos="122 54" size="60 10" color="#55FF55" label="$(dragoncolonies.gui.dragon_storage.status_placeholder)" textscale="0.8" textalign="MIDDLE"/>
+<text id="detail_name" pos="6 54" size="115 10" color="#FFFFFF" label="$(dragoncolonies.gui.dragon_storage.select_dragon)" textscale="0.95"/>
+<text id="detail_status_badge" pos="122 54" size="60 10" color="#55FF55" label="$(dragoncolonies.gui.dragon_storage.status_placeholder)" textscale="0.8" textalign="MIDDLE"/>
 
-    <text id="detail_species" pos="6 64" size="88 9" color="#FFD700" label="$(dragoncolonies.gui.dragon_storage.species_placeholder)" textscale="0.75"/>
-    <text id="detail_stage" pos="95 64" size="88 9" color="#D0D0D0" label="$(dragoncolonies.gui.dragon_storage.stage_placeholder)" textscale="0.75"/>
+<text id="detail_species" pos="6 64" size="88 9" color="#FFD700" label="$(dragoncolonies.gui.dragon_storage.species_placeholder)" textscale="0.75"/>
+<text id="detail_stage" pos="95 64" size="88 9" color="#D0D0D0" label="$(dragoncolonies.gui.dragon_storage.stage_placeholder)" textscale="0.75"/>
 
-    <!-- Vital-Block (Priorität: Hunger vor HP) -->
-    <text pos="6 76" size="40 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.hunger)" textscale="0.75"/>
-    <text id="detail_hunger" pos="48 76" size="130 8" color="#FFAA00" label="0%" textscale="0.75"/>
+<!-- Vital-Block (Priorität: Hunger vor HP) -->
+<text pos="6 76" size="40 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.hunger)" textscale="0.75"/>
+<text id="detail_hunger" pos="48 76" size="130 8" color="#FFAA00" label="0%" textscale="0.75"/>
 
-    <text pos="6 86" size="40 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.hp)" textscale="0.75"/>
-    <text id="detail_health" pos="48 86" size="130 8" color="#55FF55" label="0 / 0" textscale="0.75"/>
+<text pos="6 86" size="40 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.hp)" textscale="0.75"/>
+<text id="detail_health" pos="48 86" size="130 8" color="#55FF55" label="0 / 0" textscale="0.75"/>
 
-    <text pos="6 96" size="40 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.affection)" textscale="0.75"/>
-    <text id="detail_affection" pos="48 96" size="130 8" color="#FF55FF" label="0 / 1000" textscale="0.75"/>
+<text pos="6 96" size="40 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.affection)" textscale="0.75"/>
+<text id="detail_affection" pos="48 96" size="130 8" color="#FF55FF" label="0 / 1000" textscale="0.75"/>
 
-    <!-- Attribut-Grid -->
-    <text pos="6 108" size="176 8" color="#FFD700" label="$(dragoncolonies.gui.dragon_storage.primary_attributes)" textscale="0.72" textalign="MIDDLE"/>
-    <text id="detail_stats_grid_1" pos="6 118" size="176 9" color="#FFFFFF" label="CON: -  ATH: -  AGI: -" textscale="0.75"/>
-    <text id="detail_stats_grid_2" pos="6 128" size="176 9" color="#FFFFFF" label="PRW: -  POT: -  VIG: -" textscale="0.75"/>
+<!-- Attribut-Grid -->
+<text pos="6 108" size="176 8" color="#FFD700" label="$(dragoncolonies.gui.dragon_storage.primary_attributes)" textscale="0.72" textalign="MIDDLE"/>
+<text id="detail_stats_grid_1" pos="6 118" size="176 9" color="#FFFFFF" label="CON: -  ATH: -  AGI: -" textscale="0.75"/>
+<text id="detail_stats_grid_2" pos="6 128" size="176 9" color="#FFFFFF" label="PRW: -  POT: -  VIG: -" textscale="0.75"/>
 
-	<!-- Ausrüstungs- & Nahrungs-Label -->
-	<text pos="6 140" size="85 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.equipment)" textscale="0.7"/>
-	<text pos="95 140" size="85 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.favorite_food)" textscale="0.7"/>
+<!-- Ausrüstungs- & Nahrungs-Label -->
+<text pos="6 140" size="85 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.equipment)" textscale="0.7"/>
+<text pos="95 140" size="85 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.favorite_food)" textscale="0.7"/>
 
+<!-- Aktions-Buttons unten aufgeräumt (Reihe 1: Abholen & Notfall / Reihe 2: Export & Freilassen) -->
+<button id="btn_retrieve" pos="0 170" size="92 16" textcolor="#000000"
+        source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+        label="$(dragoncolonies.gui.dragon_storage.btn_retrieve)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_retrieve.tooltip)"/>
 
-	<!-- Aktions-Buttons unten (Mit direkten Tooltips) -->
-	<button id="btn_retrieve" pos="0 170" size="92 16" textcolor="#000000"
-			source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
-			label="$(dragoncolonies.gui.dragon_storage.btn_retrieve)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_retrieve.tooltip)"/>
+<button id="btn_emergency" pos="96 170" size="92 16" textcolor="#8B0000"
+        source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+        label="$(dragoncolonies.gui.dragon_storage.btn_emergency)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_emergency.tooltip)"/>
 
-	<button id="btn_emergency" pos="96 170" size="92 16" textcolor="#8B0000"
-			source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
-			label="$(dragoncolonies.gui.dragon_storage.btn_emergency)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_emergency.tooltip)"/>
+<button id="btn_sell" pos="0 188" size="92 16" textcolor="#000000"
+        source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+        label="$(dragoncolonies.gui.dragon_storage.btn_export)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_export.tooltip)"/>
 
-	<!-- Ersetzt den alten Zucht-Button: Dropdown fuer Modus & Zuweisung -->
-	<dropdown id="dropdown_assignment" pos="0 188" size="92 16" dropDownSize="120 80" textcolor="#000000"
-			  source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
-			  label="Modus" textscale="0.75" enabled="false">
-		<box size="100% 16" linewidth="0">
-			<button id="button" pos="0 0" size="100% 16"
-					source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
-					label="" textscale="0.75" textcolor="#000000"/>
-		</box>
-	</dropdown>
-
-	<button id="btn_sell" pos="96 188" size="92 16" textcolor="#000000"
-			source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
-			label="$(dragoncolonies.gui.dragon_storage.btn_export)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_export.tooltip)"/>
-
-	<button id="btn_release" pos="0 206" size="188 14" textcolor="#FF2222"
-			source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
-			label="$(dragoncolonies.gui.dragon_storage.btn_release)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_release.tooltip)"/>
-    
+<button id="btn_release" pos="96 188" size="92 16" textcolor="#FF2222"
+        source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+        label="$(dragoncolonies.gui.dragon_storage.btn_release)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_release.tooltip)"/>
 
 </view>
 </window> 
