@@ -34,6 +34,7 @@ public abstract class CitizenDragonRiderRenderMixin {
     ) {
         if (citizen.getVehicle() instanceof DragonBase dragon) {
             int dragonId = dragon.getId();
+
             // 1. Live-Matrix aus RiderMatrixDataflow abfragen
             Matrix4f viewMatrix = RiderMatrixDataflow.get(dragonId);
             if (viewMatrix == null) {

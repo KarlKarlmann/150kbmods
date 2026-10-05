@@ -5,7 +5,8 @@ import com.minecolonies.api.sounds.ModSoundEvents;
 import com.minecolonies.api.util.Tuple;
 import net.kb150.dragoncolonies.network.DragonColoniesNetwork;
 import net.kb150.dragoncolonies.registry.DragonColoniesRegistries;
-import net.kb150.dragoncolonies.export.DragonExportManager; 
+import net.kb150.dragoncolonies.export.DragonExportManager;
+import net.kb150.dragoncolonies.config.DragonColoniesConfig;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -14,6 +15,12 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
+
+import java.util.List;
+import java.util.Map;
 
 import java.util.List;
 import java.util.Map;
@@ -24,8 +31,27 @@ public class DragonColonies {
     public static final String MOD_ID = "dragoncolonies";
     public static final Logger LOGGER = LogManager.getLogger();
 
+    public static boolean isLogging(String channel) {
+        return DragonColoniesConfig.isLogging(channel);
+    }
+
+    public static void debug(String channel, String message, Object... args) {
+        if (isLogging(channel)) {
+            LOGGER.warn("[" + channel + "] " + message, args);
+        }
+    }
+
+    public static void debugStack(String channel, String message) {
+        if (isLogging(channel)) {
+            LOGGER.warn("[" + channel + "] " + message, new Throwable(channel + "-Trace"));
+        }
+    }
+
     public DragonColonies() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, DragonColoniesConfig.SPEC);
+        modEventBus.addListener(DragonColoniesConfig::onConfigLoad);
 
         DragonColoniesRegistries.register(modEventBus);
         modEventBus.addListener(this::setup);

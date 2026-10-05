@@ -182,10 +182,19 @@ public class VehicleInteractionMixin {
                 return;
             }
 
-            Item requiredMaterial = lootPool.get(seededRandom.nextInt(lootPool.size()));
-            int slot = player.getInventory().findSlotMatchingItem(new ItemStack(requiredMaterial));
+			Item requiredMaterial = lootPool.get(seededRandom.nextInt(lootPool.size()));
 
-            // Material fehlt? Wirft Fehler und bricht VOR den 1/5 Schritten ab.
+			// --- FIX: Sucht das Item und ignoriert dabei jegliche NBT-Tags ---
+			int slot = -1;
+			for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+				if (player.getInventory().getItem(i).getItem() == requiredMaterial) {
+					slot = i;
+					break;
+				}
+			}
+			// -----------------------------------------------------------------
+
+			// Material fehlt? Wirft Fehler und bricht VOR den 1/5 Schritten ab.
 			if (slot == -1) {
                 player.displayClientMessage(
                         Component.translatable("message.sbwscavengers.need_material", requiredMaterial.getDescription().copy().withStyle(ChatFormatting.YELLOW)).withStyle(ChatFormatting.RED),

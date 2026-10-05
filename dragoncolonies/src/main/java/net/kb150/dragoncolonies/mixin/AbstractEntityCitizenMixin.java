@@ -21,7 +21,6 @@ public abstract class AbstractEntityCitizenMixin extends Entity {
         super(type, level);
     }
 
-    /* STREAMING_CHUNK:Injecting super.startRiding bypass... */
     @Inject(
         method = {"m_7998_", "startRiding"},
         at = @At("HEAD"),

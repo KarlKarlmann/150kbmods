@@ -14,6 +14,7 @@ import net.kb150.dragoncolonies.network.message.RequestRoostPointerMessage;
 import net.kb150.dragoncolonies.network.message.RetrieveDragonMessage;
 import net.kb150.dragoncolonies.network.message.RequestExportOffersMessage;
 import net.kb150.dragoncolonies.network.message.ToggleBreedingStatusMessage;
+import net.kb150.dragoncolonies.ai.AbstractEntityAIDragonRider;
 
 import net.magister.bookofdragons.client.gui.book.DragonStatGrader;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
@@ -268,24 +269,28 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         return (type != null) ? type.getDisplayName() : Component.translatable("dragoncolonies.gui.module.dragon_storage.dragon_number", index + 1).getString();
     }
 
-    private String buildPrioritizedSubInfo(CompoundTag tag, DragonType type) {
-        if (tag == null) return Component.translatable("dragoncolonies.gui.module.dragon_storage.no_data").getString();
-        
-        int hunger = 100;
-        if (tag.contains("dragonNeeds")) {
-            hunger = tag.getCompound("dragonNeeds").getInt("foodLevel");
-        }
-        
-        float health = tag.contains("Health") ? tag.getFloat("Health") : 0f;
-        float maxHp = extractMaxHealth(tag);
-        
-        String species = (type != null) ? type.getDisplayName() : Component.translatable("dragoncolonies.gui.module.dragon_storage.unknown").getString();
-        
-        String hpFormatted = String.format(Locale.ROOT, "%.0f", health);
-        String maxHpFormatted = String.format(Locale.ROOT, "%.0f", maxHp);
+	private String buildPrioritizedSubInfo(CompoundTag tag, DragonType type) {
+		if (tag == null) return Component.translatable("dragoncolonies.gui.module.dragon_storage.no_data").getString();
+		
+		int hunger = 100;
+		if (tag.contains("dragonNeeds")) {
+			hunger = tag.getCompound("dragonNeeds").getInt("foodLevel");
+		}
+		
+		float health = tag.contains("Health") ? tag.getFloat("Health") : 0f;
+		float maxHp = extractMaxHealth(tag);
+		
+		String species = (type != null) ? type.getDisplayName() : Component.translatable("dragoncolonies.gui.module.dragon_storage.unknown").getString();
+		
+		String hpFormatted = String.format(Locale.ROOT, "%.0f", health);
+		String maxHpFormatted = String.format(Locale.ROOT, "%.0f", maxHp);
 
-        return Component.translatable("dragoncolonies.gui.module.dragon_storage.subinfo", hunger, hpFormatted, maxHpFormatted, species).getString();
-    }
+		// Sattel-Status aus dem NBT auslesen
+		boolean saddled = AbstractEntityAIDragonRider.isDragonSaddledInNbt(tag);
+		String saddleTag = saddled ? " §6[Saddle]§r" : "";
+
+		return Component.translatable("dragoncolonies.gui.module.dragon_storage.subinfo", hunger, hpFormatted, maxHpFormatted, species).getString() + saddleTag;
+	}
 
     private DragonType parseDragonType(CompoundTag tag) {
         if (tag == null) return null;
@@ -407,11 +412,11 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             this.detailStatsGrid2.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.stats2", prw, pot, vig));
         }
 
-        boolean hasSaddle = dragonNbt.getBoolean("Saddle") || dragonNbt.getBoolean("HasSaddle");
-        boolean hasChest = dragonNbt.getBoolean("Chest") || dragonNbt.getBoolean("HasChest");
+		boolean hasSaddle = AbstractEntityAIDragonRider.isDragonSaddledInNbt(dragonNbt);
+		boolean hasChest = dragonNbt.getBoolean("Chest") || dragonNbt.getBoolean("HasChest");
 
-        this.saddleItem = hasSaddle ? new ItemStack(Items.SADDLE) : ItemStack.EMPTY;
-        this.chestItem = hasChest ? new ItemStack(Items.CHEST) : ItemStack.EMPTY;
+		this.saddleItem = hasSaddle ? new ItemStack(Items.SADDLE) : ItemStack.EMPTY;
+		this.chestItem = hasChest ? new ItemStack(Items.CHEST) : ItemStack.EMPTY;
         this.favoriteDietItem = getPrimaryDiet(type);
         this.specialDietItem = getSpecialDiet(type);
 

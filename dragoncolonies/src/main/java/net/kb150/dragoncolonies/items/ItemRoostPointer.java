@@ -83,51 +83,19 @@ public class ItemRoostPointer extends Item {
                 DragonStorageModule storageModule = roost.getStorageModule();
                 if (storageModule == null) return InteractionResult.FAIL;
 
-                dragon.ejectPassengers();
+                UUID existingRoostId = dragon.getPersistentData().hasUUID("DragonColonies_RoostDragonID")
+                        ? dragon.getPersistentData().getUUID("DragonColonies_RoostDragonID")
+                        : null;
 
-                CompoundTag dragonNbt = new CompoundTag();
-                dragon.saveWithoutId(dragonNbt);
-
-                ResourceLocation entityKey = ForgeRegistries.ENTITY_TYPES.getKey(dragon.getType());
-                if (entityKey != null) {
-                    dragonNbt.putString("id", entityKey.toString());
+                if (!storageModule.canStoreMore() && (existingRoostId == null || storageModule.getDragonByRoostId(existingRoostId).isEmpty())) {
+                    player.sendSystemMessage(Component.translatable("dragoncolonies.message.pointer.roost_full", storageModule.getCapacity()));
+                    return InteractionResult.FAIL;
                 }
-
-                dragonNbt.remove("Passengers");
 
                 String dragonDisplayName = dragon.hasCustomName() ? dragon.getCustomName().getString() : dragon.getName().getString();
-                dragonNbt.putString("CustomName", Component.Serializer.toJson(Component.literal(dragonDisplayName)));
 
-                // RoostDragonID ermitteln: Beibehalten, falls vorhanden, sonst neu anlegen
-                UUID roostDragonId;
-                if (dragon.getPersistentData().hasUUID("DragonColonies_RoostDragonID")) {
-                    roostDragonId = dragon.getPersistentData().getUUID("DragonColonies_RoostDragonID");
-                } else {
-                    roostDragonId = UUID.randomUUID();
-                }
-
-                dragonNbt.putUUID(DragonStorageModule.TAG_ROOST_DRAGON_ID, roostDragonId);
-
-                boolean success;
-
-                if (storageModule.getDragonByRoostId(roostDragonId).isPresent()) {
-                    storageModule.updateDragonData(roostDragonId, dragonNbt);
-                    success = true;
-                } else {
-                    if (!storageModule.canStoreMore()) {
-                        player.sendSystemMessage(Component.translatable("dragoncolonies.message.pointer.roost_full", storageModule.getCapacity()));
-                        return InteractionResult.FAIL;
-                    }
-                    success = storageModule.addDragon(dragonNbt);
-                }
-
-                if (success) {
-                    dragon.getPersistentData().remove("DragonColonies_RoostPos");
-                    dragon.getPersistentData().remove("DragonColonies_RoostDragonID");
-                    dragon.getPersistentData().remove("DragonColonies_GuardDeployed");
-                    dragon.getPersistentData().remove("DragonColonies_GuardUUID");
-
-                    dragon.discard();
+                // Zentrales Einlagern: Eject, Save, UUID-Invalidierung und Discard in einem Aufruf
+                if (storageModule.storeDragon(dragon)) {
                     player.sendSystemMessage(Component.translatable("dragoncolonies.message.pointer.success", dragonDisplayName));
                     return InteractionResult.SUCCESS;
                 }

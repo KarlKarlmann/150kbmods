@@ -8,7 +8,8 @@ import net.kb150.dragoncolonies.network.message.EmergencyRecallMessage;
 import net.kb150.dragoncolonies.network.message.RequestExportOffersMessage;
 import net.kb150.dragoncolonies.network.message.OpenExportWindowMessage;
 import net.kb150.dragoncolonies.network.message.AcceptExportOfferMessage;
-import net.kb150.dragoncolonies.network.message.ToggleBreedingStatusMessage; // <-- NEU
+import net.kb150.dragoncolonies.network.message.ToggleBreedingStatusMessage;
+import net.kb150.dragoncolonies.network.message.RiderLeapMessage;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
@@ -85,7 +86,6 @@ public class DragonColoniesNetwork {
                 AcceptExportOfferMessage::handle
         );
 
-        // Paket 8: Zucht Status Umschalter
         CHANNEL.registerMessage(
                 packetId++,
                 ToggleBreedingStatusMessage.class,
@@ -94,6 +94,13 @@ public class DragonColoniesNetwork {
                 ToggleBreedingStatusMessage::handle
         );
 
+        CHANNEL.registerMessage(
+                packetId++,
+                RiderLeapMessage.class,
+                RiderLeapMessage::encode,
+                RiderLeapMessage::decode,
+                RiderLeapMessage::handle
+        );
         //DragonColonies.LOGGER.info("DragonColonies: Netzwerk-Kanal registriert. Pakete für Drachenhort sind bereit.");
     }
 }

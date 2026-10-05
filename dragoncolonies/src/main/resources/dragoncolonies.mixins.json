@@ -18,11 +18,9 @@
   "AIPathResolverBridgeMixin"
   ],
   "client": [
-  "StructurePacksMixin",
-  "WindowBuildingBrowserMixin",
+  "client.StructurePacksMixin",
+  "client.WindowBuildingBrowserMixin",
   "client.CitizenDragonRiderRenderMixin",
-  "client.DragonRendererMatrixHookMixin",
-  "client.DragonRendererAzMultiPassMixin"
   ],
   "injectors": {
     "defaultRequire": 1

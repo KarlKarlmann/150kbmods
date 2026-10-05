@@ -1,4 +1,4 @@
-package net.kb150.dragoncolonies.mixin;
+package net.kb150.dragoncolonies.mixin.client;
 
 import com.ldtteam.structurize.blueprints.v1.Blueprint;
 import com.ldtteam.structurize.storage.StructurePackMeta;

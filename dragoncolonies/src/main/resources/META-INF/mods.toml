@@ -38,13 +38,13 @@ side="BOTH"
 [[dependencies.dragoncolonies]]
 modId="minecolonies"
 mandatory=true
-versionRange="[1.1.4,)" # Platzhalter, bitte an die echte Minimum-Version anpassen
+versionRange="[1.20.1-1.1.1214,)" #1.20.1-1.1.1276
 ordering="NONE"
 side="BOTH"
 
 # 4. Book of Dragons
 [[dependencies.dragoncolonies]]
-modId="bookofdragons" # Ggf. auf die exakte Mod-ID von Book of Dragons anpassen (z.B. bod, book_of_dragons etc.)
+modId="bookofdragons"
 mandatory=true
 versionRange="[1.0.0,)"
 ordering="NONE"

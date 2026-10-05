@@ -28,8 +28,9 @@ import java.util.UUID;
 
 /**
  * Mixin für DragonBase.
- * Fälscht isVehicle() für Bürger-Passagiere, validiert aufwachende Entitäten anhand
- * der Kombination aus RoostDragonID und EntityUUID gegen den Hort, fängt Tode und Löschungen ab.
+ * Fälscht isVehicle() für Bürger-Passagiere, validiert aktive Entitäten periodisch
+ * gegen den Hort (verhindert Duplikate und entfernt Entitäten nach Notfall-Rückruf),
+ * und fängt Tode sowie Verhungern ab.
  */
 @Mixin(DragonBase.class)
 public abstract class DragonBaseMixin {
@@ -38,8 +39,10 @@ public abstract class DragonBaseMixin {
     private boolean dragoncolonies$spawnValidated = false;
 
     /**
-     * Prüft beim Laden eines Chunks, ob dieser Drache noch die legitimierte Entität
-     * für seine RoostDragonID ist. Ein altes Duplikat wird sofort verworfen.
+     * Einmalige Validierung beim Erwachen/Laden der Entität in der Welt:
+     * Prüft gegen den Hort, ob dieser Drache (Entity-UUID) für seine RoostDragonID
+     * überhaupt als deployed registriert ist. Wurde er während Chunk-Entladung
+     * per Notfall-Rückruf eingezogen, existiert ein ungültiges Duplikat, das sofort verworfen wird.
      */
     @Inject(method = {"serverTick", "m_8119_"}, at = @At("HEAD"), remap = false, require = 0)
     private void dragoncolonies$validateSpawn(CallbackInfo ci) {
@@ -63,9 +66,7 @@ public abstract class DragonBaseMixin {
                 if (storage != null) {
                     boolean isValid = storage.isEntityValidForRoostId(roostDragonId, dragon.getUUID());
                     if (!isValid) {
-                        //System.out.println("[DragonColonies] Veraltetes Duplikat/Geist erkannt und entfernt: "
-                        //        + dragon.getName().getString() + " (RoostID: " + roostDragonId + ", EntityUUID: " + dragon.getUUID() + ")");
-
+                        dragon.ejectPassengers();
                         data.remove("DragonColonies_RoostPos");
                         data.remove("DragonColonies_RoostDragonID");
                         data.remove("DragonColonies_GuardDeployed");
@@ -174,8 +175,6 @@ public abstract class DragonBaseMixin {
                         data.remove("DragonColonies_OrphanTicks");
                         data.remove("DragonColonies_GuardUUID");
                     }
-
-                    //System.out.println("[DragonColonies] Drache '" + dragon.getName().getString() + "' hat wegen Verhungerns die Bindung verloren und ist wieder wild!");
                 }
             }
         }
@@ -223,27 +222,8 @@ public abstract class DragonBaseMixin {
 
                 if (colony != null && colony.getServerBuildingManager().getBuilding(roostPos) instanceof BuildingDragonRoost roost) {
                     DragonStorageModule storage = roost.getStorageModule();
-                    UUID roostDragonId = data.hasUUID("DragonColonies_RoostDragonID") ? data.getUUID("DragonColonies_RoostDragonID") : null;
-
-                    if (storage != null && roostDragonId != null && storage.getDragonByRoostId(roostDragonId).isPresent()) {
-                        CompoundTag dragonNbt = new CompoundTag();
-                        dragon.saveWithoutId(dragonNbt);
-
-                        ResourceLocation entityKey = ForgeRegistries.ENTITY_TYPES.getKey(dragon.getType());
-                        if (entityKey != null) {
-                            dragonNbt.putString("id", entityKey.toString());
-                        }
-                        dragonNbt.remove("Passengers");
-                        dragonNbt.putString("CustomName", dragon.hasCustomName() ? dragon.getCustomName().getString() : dragon.getName().getString());
-
-                        data.remove("DragonColonies_RoostPos");
-                        data.remove("DragonColonies_RoostDragonID");
-                        data.remove("DragonColonies_GuardDeployed");
-                        data.remove("DragonColonies_OrphanTicks");
-                        data.remove("DragonColonies_GuardUUID");
-
-                        storage.updateDragonData(roostDragonId, dragonNbt);
-                        dragon.discard();
+                    if (storage != null) {
+                        storage.storeDragon(dragon);
                         return;
                     }
                 }
@@ -314,7 +294,6 @@ public abstract class DragonBaseMixin {
 
                     if (reason == Entity.RemovalReason.KILLED) {
                         dragonNbt.putBoolean(DragonStorageModule.TAG_IS_DEAD, true);
-                        //System.out.println("[DragonColonies] Drache '" + dragon.getName().getString() + "' ist gefallen. Status im Hort auf M.I.A. gesetzt!");
                     }
 
                     storage.updateDragonData(roostDragonId, dragonNbt);

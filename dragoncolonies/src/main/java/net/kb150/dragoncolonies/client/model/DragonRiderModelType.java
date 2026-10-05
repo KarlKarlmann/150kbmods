@@ -38,13 +38,7 @@ public class DragonRiderModelType implements IModelType {
 
     @Override
     public ResourceLocation getTexture(AbstractEntityCitizen citizen) {
-        String style = citizen.getEntityData().get(AbstractEntityCitizen.DATA_STYLE);
-        String suffix = citizen.getEntityData().get(AbstractEntityCitizen.DATA_TEXTURE_SUFFIX);
-        String gender = citizen.isFemale() ? "female" : "male";
-        int textureId = (citizen.getTextureId() % 1) + 1;
-
-        return new ResourceLocation(DragonColonies.MOD_ID, 
-            "textures/entity/citizen/" + style + "/dragonrider" + gender + textureId + suffix + ".png");
+        return CitizenTextureHelper.getTexture(citizen, "dragonrider");
     }
 
     @SubscribeEvent
