@@ -4,16 +4,19 @@ import com.ldtteam.blockui.BOGuiGraphics;
 import com.ldtteam.blockui.Pane;
 import com.ldtteam.blockui.controls.Button;
 import com.ldtteam.blockui.controls.Text;
+import com.ldtteam.blockui.views.DropDownList;
 import com.ldtteam.blockui.views.ScrollingList;
+import com.minecolonies.api.colony.ICitizenDataView;
 import com.minecolonies.core.client.gui.AbstractModuleWindow;
 import net.kb150.dragoncolonies.DragonColonies;
+import net.kb150.dragoncolonies.buildings.modules.DragonStorageModule;
 import net.kb150.dragoncolonies.network.DragonColoniesNetwork;
 import net.kb150.dragoncolonies.network.message.EmergencyRecallMessage;
 import net.kb150.dragoncolonies.network.message.ReleaseDragonMessage;
 import net.kb150.dragoncolonies.network.message.RequestRoostPointerMessage;
 import net.kb150.dragoncolonies.network.message.RetrieveDragonMessage;
 import net.kb150.dragoncolonies.network.message.RequestExportOffersMessage;
-import net.kb150.dragoncolonies.network.message.ToggleBreedingStatusMessage;
+import net.kb150.dragoncolonies.network.message.SetDragonAssignmentMessage;
 import net.kb150.dragoncolonies.ai.AbstractEntityAIDragonRider;
 
 import net.magister.bookofdragons.client.gui.book.DragonStatGrader;
@@ -66,7 +69,12 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
     private Button btnEmergency;
     private Button btnSell;
     private Button btnRelease;
-    private Button btnBreedToggle;
+
+    // Ersetzt den alten Toggle-Button durch das persistente Zuweisungs-Dropdown
+    private DropDownList dropdownAssignment;
+    private record AssignmentOption(String mode, int citizenId, Component label) {}
+    private final List<AssignmentOption> currentOptions = new ArrayList<>();
+    private boolean isUpdatingDropdown = false;
 
     private UUID selectedDragonUUID = null;
     private LivingEntity previewEntity = null;
@@ -80,9 +88,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
     private int hungerPercent = 0;
     private int affectionValue = 0;
 
-    // Speichert den dynamischen Tooltip für die Karteikarten und den Zucht-Button (Manuell verwaltet für BlockUI)
     private final java.util.Map<Button, List<Component>> listHoverTooltips = new java.util.IdentityHashMap<>();
-    private final List<Component> breedToggleTooltip = new ArrayList<>();
 
     public WindowDragonStorageModule(DragonStorageModuleView moduleView) {
         super(moduleView, new ResourceLocation(DragonColonies.MOD_ID, "gui/dragon_storage.xml"));
@@ -92,21 +98,20 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         this.registerButton("btn_emergency", this::onEmergencyClicked);
         this.registerButton("btn_sell", this::onSellClicked);
         this.registerButton("btn_release", this::onReleaseClicked);
-        this.registerButton("btn_breed_toggle", this::onBreedToggleClicked);
     }
-	
-	private Component getFormattedCooldownComponent(int ticks) {
-		int totalSeconds = ticks / 20;
-		int hours = totalSeconds / 3600;
-		int minutes = (totalSeconds % 3600) / 60;
 
-		if (hours > 0) {
-			return Component.translatable("dragoncolonies.gui.dragon_storage.cooldown.hours_minutes", hours, minutes);
-		} else {
-			return Component.translatable("dragoncolonies.gui.dragon_storage.cooldown.minutes", Math.max(1, minutes));
-		}
-	}
-	
+    private Component getFormattedCooldownComponent(int ticks) {
+        int totalSeconds = ticks / 20;
+        int hours = totalSeconds / 3600;
+        int minutes = (totalSeconds % 3600) / 60;
+
+        if (hours > 0) {
+            return Component.translatable("dragoncolonies.gui.dragon_storage.cooldown.hours_minutes", hours, minutes);
+        } else {
+            return Component.translatable("dragoncolonies.gui.dragon_storage.cooldown.minutes", Math.max(1, minutes));
+        }
+    }
+
     @Override
     public void onOpened() {
         super.onOpened();
@@ -129,8 +134,28 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             this.btnEmergency = this.window.findPaneOfTypeByID("btn_emergency", Button.class);
             this.btnSell = this.window.findPaneOfTypeByID("btn_sell", Button.class);
             this.btnRelease = this.window.findPaneOfTypeByID("btn_release", Button.class);
-            this.btnBreedToggle = this.window.findPaneOfTypeByID("btn_breed_toggle", Button.class);
-            
+
+            this.dropdownAssignment = this.window.findPaneOfTypeByID("dropdown_assignment", DropDownList.class);
+            if (this.dropdownAssignment != null) {
+                this.dropdownAssignment.setHandler(this::onAssignmentChanged);
+                this.dropdownAssignment.setDataProvider(new DropDownList.DataProvider() {
+                    @Override
+                    public int getElementCount() {
+                        return currentOptions.size();
+                    }
+
+                    @Override
+                    public String getLabel(int index) {
+                        return currentOptions.get(index).label().getString();
+                    }
+
+                    @Override
+                    public net.minecraft.network.chat.MutableComponent getLabelNew(int index) {
+                        return (net.minecraft.network.chat.MutableComponent) currentOptions.get(index).label();
+                    }
+                });
+            }
+
             resetInspector();
         }
 
@@ -147,7 +172,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         if (this.moduleView == null) return;
 
         List<CompoundTag> storedDragons = this.moduleView.getStoredDragons();
-        this.listHoverTooltips.clear(); // Liste leeren, damit sich nichts ansammelt
+        this.listHoverTooltips.clear();
 
         if (this.titleText != null) {
             this.titleText.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.capacity", storedDragons.size(), this.moduleView.getCapacity()));
@@ -179,7 +204,11 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                     boolean isDeployed = dragonNbt.getBoolean("Deployed");
                     boolean isDead = dragonNbt.getBoolean("IsDead");
                     boolean isEgg = dragonNbt.getBoolean("DragonColonies_IsEgg");
-                    boolean allowBreeding = dragonNbt.getBoolean("DragonColonies_AllowBreeding");
+
+                    String mode = dragonNbt.getString(DragonStorageModule.TAG_ASSIGNMENT_MODE);
+                    if (mode.isEmpty()) {
+                        mode = DragonStorageModule.MODE_AUTO;
+                    }
 
                     int currentStage = 2; // Default Adult
                     if (dragonNbt.contains("GrowthStage")) {
@@ -197,7 +226,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                         displayName += " " + Component.translatable("dragoncolonies.gui.module.dragon_storage.deployed_short").getString();
                     } else if (isEgg) {
                         displayName += " [EGG]";
-                    } else if (allowBreeding) {
+                    } else if (DragonStorageModule.MODE_BREEDING.equals(mode)) {
                         int hunger = dragonNbt.contains("dragonNeeds") ? dragonNbt.getCompound("dragonNeeds").getInt("foodLevel") : 100;
                         float hp = dragonNbt.contains("Health") ? dragonNbt.getFloat("Health") : extractMaxHealth(dragonNbt);
                         float maxHp = extractMaxHealth(dragonNbt);
@@ -208,13 +237,17 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                         if (hunger < 80 || hp < (maxHp - 5.0f) || cd > 0) {
                             displayName += " §c" + breedTag + "§r"; 
                             rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_blocked"));
-                            
+
                             if (cd > 0) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_cd_detail", getFormattedCooldownComponent(cd)));
                             if (hunger < 80) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_hungry_detail", hunger));
                             if (hp < (maxHp - 5.0f)) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_injured_detail", String.format(Locale.ROOT, "%.0f", hp), String.format(Locale.ROOT, "%.0f", maxHp)));
                         } else {
                             displayName += " §a" + breedTag + "§r"; 
                         }
+                    } else if (DragonStorageModule.MODE_LOCKED.equals(mode)) {
+                        displayName += " §c[L]§r";
+                    } else if (DragonStorageModule.MODE_ASSIGNED.equals(mode)) {
+                        displayName += " §6[A]§r";
                     }
 
                     DragonType type = parseDragonType(dragonNbt);
@@ -269,28 +302,27 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         return (type != null) ? type.getDisplayName() : Component.translatable("dragoncolonies.gui.module.dragon_storage.dragon_number", index + 1).getString();
     }
 
-	private String buildPrioritizedSubInfo(CompoundTag tag, DragonType type) {
-		if (tag == null) return Component.translatable("dragoncolonies.gui.module.dragon_storage.no_data").getString();
-		
-		int hunger = 100;
-		if (tag.contains("dragonNeeds")) {
-			hunger = tag.getCompound("dragonNeeds").getInt("foodLevel");
-		}
-		
-		float health = tag.contains("Health") ? tag.getFloat("Health") : 0f;
-		float maxHp = extractMaxHealth(tag);
-		
-		String species = (type != null) ? type.getDisplayName() : Component.translatable("dragoncolonies.gui.module.dragon_storage.unknown").getString();
-		
-		String hpFormatted = String.format(Locale.ROOT, "%.0f", health);
-		String maxHpFormatted = String.format(Locale.ROOT, "%.0f", maxHp);
+    private String buildPrioritizedSubInfo(CompoundTag tag, DragonType type) {
+        if (tag == null) return Component.translatable("dragoncolonies.gui.module.dragon_storage.no_data").getString();
 
-		// Sattel-Status aus dem NBT auslesen
-		boolean saddled = AbstractEntityAIDragonRider.isDragonSaddledInNbt(tag);
-		String saddleTag = saddled ? " §6[Saddle]§r" : "";
+        int hunger = 100;
+        if (tag.contains("dragonNeeds")) {
+            hunger = tag.getCompound("dragonNeeds").getInt("foodLevel");
+        }
 
-		return Component.translatable("dragoncolonies.gui.module.dragon_storage.subinfo", hunger, hpFormatted, maxHpFormatted, species).getString() + saddleTag;
-	}
+        float health = tag.contains("Health") ? tag.getFloat("Health") : 0f;
+        float maxHp = extractMaxHealth(tag);
+
+        String species = (type != null) ? type.getDisplayName() : Component.translatable("dragoncolonies.gui.module.dragon_storage.unknown").getString();
+
+        String hpFormatted = String.format(Locale.ROOT, "%.0f", health);
+        String maxHpFormatted = String.format(Locale.ROOT, "%.0f", maxHp);
+
+        boolean saddled = AbstractEntityAIDragonRider.isDragonSaddledInNbt(tag);
+        String saddleTag = saddled ? " §6[Saddle]§r" : "";
+
+        return Component.translatable("dragoncolonies.gui.module.dragon_storage.subinfo", hunger, hpFormatted, maxHpFormatted, species).getString() + saddleTag;
+    }
 
     private DragonType parseDragonType(CompoundTag tag) {
         if (tag == null) return null;
@@ -345,13 +377,16 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             this.detailStage.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.stage", stageStr));
         }
 
-        boolean allowBreeding = dragonNbt.getBoolean("DragonColonies_AllowBreeding");
-        
+        String mode = dragonNbt.getString(DragonStorageModule.TAG_ASSIGNMENT_MODE);
+        if (mode.isEmpty()) {
+            mode = DragonStorageModule.MODE_AUTO;
+        }
+
         this.hungerPercent = 100;
         if (dragonNbt.contains("dragonNeeds")) {
             this.hungerPercent = dragonNbt.getCompound("dragonNeeds").getInt("foodLevel");
         }
-        
+
         this.currentHealth = dragonNbt.contains("Health") ? dragonNbt.getFloat("Health") : 0f;
         this.maxHealth = extractMaxHealth(dragonNbt);
 
@@ -362,7 +397,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                 this.detailStatusBadge.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.deployed"));
             } else if (isEgg) {
                 this.detailStatusBadge.setText(Component.literal("[INCUBATING]"));
-            } else if (allowBreeding) {
+            } else if (DragonStorageModule.MODE_BREEDING.equals(mode)) {
                 int cd = dragonNbt.getInt("DragonColonies_BreedingCooldown");
                 if (cd > 0) {
                     this.detailStatusBadge.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_cd_detail", cd / 20));
@@ -373,6 +408,10 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                 } else {
                     this.detailStatusBadge.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_ready"));
                 }
+            } else if (DragonStorageModule.MODE_LOCKED.equals(mode)) {
+                this.detailStatusBadge.setText(Component.literal("§c[LOCKED]"));
+            } else if (DragonStorageModule.MODE_ASSIGNED.equals(mode)) {
+                this.detailStatusBadge.setText(Component.literal("§6[ASSIGNED]"));
             } else {
                 this.detailStatusBadge.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.ready"));
             }
@@ -386,7 +425,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             this.detailHealth.setText(Component.literal(String.format(Locale.ROOT, "%.0f / %.0f", this.currentHealth, this.maxHealth)));
         }
 
-        this.affectionValue = 0; // Standardwert
+        this.affectionValue = 0;
         if (dragonNbt.contains("AffectionMap")) {
             CompoundTag affectionMap = dragonNbt.getCompound("AffectionMap");
             if (Minecraft.getInstance().player != null) {
@@ -412,32 +451,80 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             this.detailStatsGrid2.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.stats2", prw, pot, vig));
         }
 
-		boolean hasSaddle = AbstractEntityAIDragonRider.isDragonSaddledInNbt(dragonNbt);
-		boolean hasChest = dragonNbt.getBoolean("Chest") || dragonNbt.getBoolean("HasChest");
+        boolean hasSaddle = AbstractEntityAIDragonRider.isDragonSaddledInNbt(dragonNbt);
+        boolean hasChest = dragonNbt.getBoolean("Chest") || dragonNbt.getBoolean("HasChest");
 
-		this.saddleItem = hasSaddle ? new ItemStack(Items.SADDLE) : ItemStack.EMPTY;
-		this.chestItem = hasChest ? new ItemStack(Items.CHEST) : ItemStack.EMPTY;
+        this.saddleItem = hasSaddle ? new ItemStack(Items.SADDLE) : ItemStack.EMPTY;
+        this.chestItem = hasChest ? new ItemStack(Items.CHEST) : ItemStack.EMPTY;
         this.favoriteDietItem = getPrimaryDiet(type);
         this.specialDietItem = getSpecialDiet(type);
 
-        if (this.btnBreedToggle != null) {
-            this.btnBreedToggle.setText(Component.translatable(allowBreeding ? "dragoncolonies.gui.dragon_storage.btn_breed_on" : "dragoncolonies.gui.dragon_storage.btn_breed_off"));
-            
-            this.breedToggleTooltip.clear();
-            if (isEgg) {
-                this.breedToggleTooltip.add(Component.translatable("dragoncolonies.tooltip.breed_fail.is_egg"));
-            } else if (currentStage < 2) {
-                this.breedToggleTooltip.add(Component.translatable("dragoncolonies.tooltip.breed_fail.too_young"));
-            } else if (this.hungerPercent < 80) {
-                this.breedToggleTooltip.add(Component.translatable("dragoncolonies.tooltip.breed_fail.hungry"));
-            } else if (dragonNbt.getInt("DragonColonies_BreedingCooldown") > 0) {
-                this.breedToggleTooltip.add(Component.translatable("dragoncolonies.tooltip.breed_fail.cooldown"));
-            } else {
-                this.breedToggleTooltip.add(Component.translatable("dragoncolonies.tooltip.breed_success"));
+        populateAssignmentOptions(dragonNbt, mode);
+
+        setButtonsEnabled(selectedDragonUUID != null, isDeployed, isDead, isEgg, currentStage, this.affectionValue);
+    }
+
+    private void populateAssignmentOptions(CompoundTag dragonNbt, String currentMode) {
+        if (this.dropdownAssignment == null) return;
+
+        this.isUpdatingDropdown = true;
+        this.currentOptions.clear();
+
+        this.currentOptions.add(new AssignmentOption(DragonStorageModule.MODE_AUTO, -1, Component.literal("§aFrei (Auto)")));
+        this.currentOptions.add(new AssignmentOption(DragonStorageModule.MODE_LOCKED, -1, Component.literal("§cBlockiert")));
+        this.currentOptions.add(new AssignmentOption(DragonStorageModule.MODE_BREEDING, -1, Component.literal("§dZucht")));
+
+        int selectedIdx = 0;
+        if (DragonStorageModule.MODE_LOCKED.equals(currentMode)) selectedIdx = 1;
+        else if (DragonStorageModule.MODE_BREEDING.equals(currentMode)) selectedIdx = 2;
+
+        int currentCitizenId = dragonNbt.getInt(DragonStorageModule.TAG_ASSIGNED_CITIZEN_ID);
+
+        // Dynamische Drachenreiter-Wachen des Horts aus MineColonies laden
+        if (this.buildingView instanceof com.minecolonies.core.colony.buildings.AbstractBuildingGuards.View guardsView) {
+            for (int guardId : guardsView.getGuards()) {
+                ICitizenDataView citizen = guardsView.getColony().getCitizen(guardId);
+                String guardName = citizen != null ? citizen.getName() : ("Wache #" + guardId);
+
+                int optionIndex = this.currentOptions.size();
+                this.currentOptions.add(new AssignmentOption(DragonStorageModule.MODE_ASSIGNED, guardId, Component.literal("§6" + guardName)));
+
+                if (DragonStorageModule.MODE_ASSIGNED.equals(currentMode) && currentCitizenId == guardId) {
+                    selectedIdx = optionIndex;
+                }
             }
         }
 
-        setButtonsEnabled(selectedDragonUUID != null, isDeployed, isDead, isEgg, currentStage, this.affectionValue);
+        this.dropdownAssignment.refreshElementPanes();
+        this.dropdownAssignment.setSelectedIndex(selectedIdx);
+        this.isUpdatingDropdown = false;
+    }
+
+    private void onAssignmentChanged(DropDownList dropdown) {
+        if (this.isUpdatingDropdown || selectedDragonUUID == null || this.buildingView == null) return;
+
+        int idx = dropdown.getSelectedIndex();
+        if (idx < 0 || idx >= this.currentOptions.size()) return;
+
+        AssignmentOption chosen = this.currentOptions.get(idx);
+
+        DragonColoniesNetwork.CHANNEL.sendToServer(
+                new SetDragonAssignmentMessage(this.buildingView.getID(), selectedDragonUUID, chosen.mode(), chosen.citizenId())
+        );
+
+        if (this.moduleView != null) {
+            for (CompoundTag tag : this.moduleView.getStoredDragons()) {
+                if ((tag.hasUUID("RoostDragonID") && tag.getUUID("RoostDragonID").equals(selectedDragonUUID)) ||
+                        (tag.hasUUID("UUID") && tag.getUUID("UUID").equals(selectedDragonUUID))) {
+                    tag.putString(DragonStorageModule.TAG_ASSIGNMENT_MODE, chosen.mode());
+                    tag.putInt(DragonStorageModule.TAG_ASSIGNED_CITIZEN_ID, chosen.citizenId());
+                    tag.remove("DragonColonies_AllowBreeding");
+                    break;
+                }
+            }
+        }
+
+        refreshStoredList();
     }
 
     private float extractMaxHealth(CompoundTag tag) {
@@ -453,33 +540,32 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         return tag.contains("Health") ? tag.getFloat("Health") : 20.0f;
     }
 
-	private LivingEntity createPreviewEntity(CompoundTag dragonNbt) {
-		ClientLevel clientLevel = Minecraft.getInstance().level;
-		if (clientLevel == null || dragonNbt == null) return null;
-		try {
-			CompoundTag copy = dragonNbt.copy();
+    private LivingEntity createPreviewEntity(CompoundTag dragonNbt) {
+        ClientLevel clientLevel = Minecraft.getInstance().level;
+        if (clientLevel == null || dragonNbt == null) return null;
+        try {
+            CompoundTag copy = dragonNbt.copy();
 
-			// FIX: Reinen Text in valides JSON umwandeln, damit Minecrafts Serializer nicht abstürzt
-			if (copy.contains("CustomName")) {
-				String rawName = copy.getString("CustomName");
-				if (!rawName.startsWith("{")) {
-					copy.putString("CustomName", Component.Serializer.toJson(Component.literal(rawName)));
-				}
-			}
+            if (copy.contains("CustomName")) {
+                String rawName = copy.getString("CustomName");
+                if (!rawName.startsWith("{")) {
+                    copy.putString("CustomName", Component.Serializer.toJson(Component.literal(rawName)));
+                }
+            }
 
-			Entity loaded = EntityType.loadEntityRecursive(copy, clientLevel, e -> e);
-			if (loaded instanceof LivingEntity living) {
-				if (living instanceof DragonBase dragon) {
-					dragon.setTransportMode(TransportMode.GROUNDED);
-					dragon.setGroundStance(GroundStance.IDLE);
-				}
-				return living;
-			}
-		} catch (Exception e) {
-			DragonColonies.LOGGER.error("Fehler beim Erstellen der Drachen-Vorschau", e);
-		}
-		return null;
-	}
+            Entity loaded = EntityType.loadEntityRecursive(copy, clientLevel, e -> e);
+            if (loaded instanceof LivingEntity living) {
+                if (living instanceof DragonBase dragon) {
+                    dragon.setTransportMode(TransportMode.GROUNDED);
+                    dragon.setGroundStance(GroundStance.IDLE);
+                }
+                return living;
+            }
+        } catch (Exception e) {
+            DragonColonies.LOGGER.error("Fehler beim Erstellen der Drachen-Vorschau", e);
+        }
+        return null;
+    }
 
     private ItemStack getPrimaryDiet(DragonType type) {
         if (type == null) return ItemStack.EMPTY;
@@ -524,7 +610,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             if (this.previewEntity != null) {
                 int renderX = containerX + 94;
                 int renderY = containerY + 48;
-                
+
                 float bbWidth = Math.max(0.8f, this.previewEntity.getBbWidth());
                 int scale = (int) (16.0f / bbWidth);
 
@@ -549,23 +635,13 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             renderItemSlot(guiGraphics, this.favoriteDietItem, containerX + 95, slotY, mouseX, mouseY);
             renderItemSlot(guiGraphics, this.specialDietItem, containerX + 115, slotY, mouseX, mouseY);
 
-            // 1. Tooltip für den Zucht Button unten zeichnen
-            if (this.btnBreedToggle != null && this.btnBreedToggle.wasCursorInPane() && !this.breedToggleTooltip.isEmpty()) {
-                guiGraphics.pose().pushPose();
-                guiGraphics.pose().translate(0.0F, 0.0F, 500.0F);
-                guiGraphics.renderComponentTooltip(Minecraft.getInstance().font, this.breedToggleTooltip, (int) mouseX, (int) mouseY);
-                guiGraphics.flush(); // ZWINGEND ERFORDERLICH, damit der Tooltip im Vordergrund bleibt
-                guiGraphics.pose().popPose();
-            }
-
-            // 2. Tooltips für die Listen-Einträge zeichnen
             if (!this.listHoverTooltips.isEmpty()) {
                 for (java.util.Map.Entry<Button, List<Component>> entry : this.listHoverTooltips.entrySet()) {
                     if (entry.getKey() != null && entry.getKey().wasCursorInPane() && entry.getValue() != null && !entry.getValue().isEmpty()) {
                         guiGraphics.pose().pushPose();
                         guiGraphics.pose().translate(0.0F, 0.0F, 500.0F);
                         guiGraphics.renderComponentTooltip(Minecraft.getInstance().font, entry.getValue(), (int) mouseX, (int) mouseY);
-                        guiGraphics.flush(); // ZWINGEND ERFORDERLICH!
+                        guiGraphics.flush();
                         guiGraphics.pose().popPose();
                         break;
                     }
@@ -587,7 +663,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                 guiGraphics.pose().pushPose();
                 guiGraphics.pose().translate(0.0F, 0.0F, 500.0F);
                 guiGraphics.renderTooltip(Minecraft.getInstance().font, stack, (int) mouseX, (int) mouseY);
-                guiGraphics.flush(); // <- Dieser Aufruf fehlte! Er zwingt Minecraft, den Tooltip *jetzt* im Vordergrund zu rendern.
+                guiGraphics.flush();
                 guiGraphics.pose().popPose();
             }
         }
@@ -598,10 +674,9 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         if (this.btnEmergency != null) this.btnEmergency.setEnabled(enabled && isDeployed && !isDead && !isEgg);
         if (this.btnSell != null) this.btnSell.setEnabled(enabled && !isDeployed && !isDead && !isEgg);
         if (this.btnRelease != null) this.btnRelease.setEnabled(enabled && (!isDeployed || isDead));
-        
-        // Zucht Toggle Hard-Lock! (Nur klickbar wenn Stage >= 2 und Affection >= 800)
-        if (this.btnBreedToggle != null) {
-            this.btnBreedToggle.setEnabled(enabled && !isDeployed && !isDead && !isEgg && stage >= 2 && affection >= 800);
+
+        if (this.dropdownAssignment != null) {
+            this.dropdownAssignment.setEnabled(enabled && !isDeployed && !isDead && !isEgg);
         }
     }
 
@@ -625,29 +700,6 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         }
     }
 
-    private void onBreedToggleClicked(Button button) {
-        if (selectedDragonUUID != null && this.buildingView != null) {
-            DragonColoniesNetwork.CHANNEL.sendToServer(new ToggleBreedingStatusMessage(this.buildingView.getID(), selectedDragonUUID));
-            
-            if (this.moduleView != null) {
-                for (CompoundTag tag : this.moduleView.getStoredDragons()) {
-                    if ((tag.hasUUID("RoostDragonID") && tag.getUUID("RoostDragonID").equals(selectedDragonUUID)) ||
-                        (tag.hasUUID("UUID") && tag.getUUID("UUID").equals(selectedDragonUUID))) {
-                        
-                        boolean current = tag.getBoolean("DragonColonies_AllowBreeding");
-                        tag.putBoolean("DragonColonies_AllowBreeding", !current);
-                        
-                        if (this.btnBreedToggle != null) {
-                            this.btnBreedToggle.setText(Component.translatable(!current ? "dragoncolonies.gui.dragon_storage.btn_breed_on" : "dragoncolonies.gui.dragon_storage.btn_breed_off"));
-                        }
-                        refreshStoredList();
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
     private void onSellClicked(Button button) {
         if (selectedDragonUUID != null && this.buildingView != null) {
             DragonColoniesNetwork.CHANNEL.sendToServer(new RequestExportOffersMessage(this.buildingView.getID(), selectedDragonUUID));
@@ -668,14 +720,17 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         this.chestItem = ItemStack.EMPTY;
         this.favoriteDietItem = ItemStack.EMPTY;
         this.specialDietItem = ItemStack.EMPTY;
-        this.breedToggleTooltip.clear();
-        
+        this.currentOptions.clear();
+
         if (this.detailName != null) this.detailName.setText(Component.translatable("dragoncolonies.gui.dragon_storage.select_dragon"));
         if (this.detailSpecies != null) this.detailSpecies.setText(Component.translatable("dragoncolonies.gui.dragon_storage.species_placeholder"));
         if (this.detailStage != null) this.detailStage.setText(Component.translatable("dragoncolonies.gui.dragon_storage.stage_placeholder"));
         if (this.detailStatusBadge != null) this.detailStatusBadge.setText(Component.translatable("dragoncolonies.gui.dragon_storage.status_placeholder"));
-        if (this.btnBreedToggle != null) this.btnBreedToggle.setText(Component.literal(""));
-        
+
+        if (this.dropdownAssignment != null) {
+            this.dropdownAssignment.refreshElementPanes();
+        }
+
         setButtonsEnabled(false, false, false, false, 0, 0);
     }
 }

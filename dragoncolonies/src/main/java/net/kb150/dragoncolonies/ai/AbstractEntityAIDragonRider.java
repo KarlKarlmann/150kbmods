@@ -34,6 +34,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.NotNull;
+import net.minecraft.world.entity.LivingEntity;
 
 import java.util.List;
 import java.util.UUID;
@@ -311,28 +312,38 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             return super.patrol();
         }
 
+        // 1. KAMPF-ABBRUCH: Hat die Wache Feinde im Visier, pausiert die Patrouille sofort vollständig!
+        // Verhindert den fatalen Konflikt, bei dem Patrouille und Kampf zeitgleich Flugpunkte in den Drachen hämmern.
+        if (this.worker.getTarget() != null && this.worker.getTarget().isAlive()) {
+            return null;
+        }
+        if (this.worker instanceof com.minecolonies.api.entity.ai.combat.threat.IThreatTableEntity threatEntity) {
+            LivingEntity threatTarget = threatEntity.getThreatTable().getTargetMob();
+            if (threatTarget != null && threatTarget.isAlive()) {
+                return null;
+            }
+        }
+
         DragonBase currentDragon = getAssignedDragon();
         boolean hasDragon = currentDragon != null && currentDragon.isAlive();
 
-        // 1. ZU FUSS: Hat die Wache keinen aktiven Drachen, übernimmt MineColonies vollständig die Bodenpatrouille.
-        // Kein doppelter Code, kein künstlicher Nachbau von Zufallswegpunkten und Verzögerungen.
+        // 2. ZU FUSS: Hat die Wache keinen aktiven Drachen, übernimmt MineColonies vollständig die Bodenpatrouille.
         if (!hasDragon) {
             return super.patrol();
         }
 
-        // 2. MOUNT-PRIORITÄT: Ein Drachenreiter läuft niemals zu Fuß unter seinem Luftziel her.
-        // Ist er am Boden (z. B. nach Truhenleerung), hat das Aufsitzen absoluten Vorrang.
+        // 3. MOUNT-PRIORITÄT: Ein Drachenreiter läuft niemals zu Fuß unter seinem Luftziel her.
         if (!isReturningDragon && this.worker.getVehicle() != currentDragon) {
             this.isMountingDragon = true;
             handleMountingPhase(this.worker);
             return null;
         }
 
-        // 3. FLUGPATROUILLE: Wache sitzt im Sattel und steuert rein dreidimensionale Luftziele an.
+        // 4. FLUGPATROUILLE: Wache sitzt im Sattel und steuert rein dreidimensionale Luftziele an.
         if (this.buildingGuards.requiresManualTarget()) {
             if (this.currentPatrolPoint == null || this.walkToSafePos(this.currentPatrolPoint)) {
                 this.currentPatrolPoint = null;
-                this.setCurrentDelay(0);
+                this.setCurrentDelay(hasDragon ? 20 : 10);
 
                 if (this.worker.getRandom().nextInt(5) <= 1) {
                     BlockPos rawRandom = this.randomPatrolPoint();
@@ -346,9 +357,9 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             BlockPos rawTarget = this.buildingGuards.getNextPatrolTarget(false);
 
             if (rawTarget != null) {
-                // Loitering: Am erreichten Wegpunkt kreist der Drache im Luftraum, statt bewegungslos in der Luft zu parken
+                // Loitering: Am erreichten Wegpunkt kreist der Drache im Luftraum mit ausreichend Flugzeit
                 if (rawTarget.equals(this.lastReachedPatrolPoint)) {
-                    this.loiterAngle += 0.05F;
+                    this.loiterAngle += 0.35F;
                     if (this.loiterAngle > (float) (Math.PI * 2)) this.loiterAngle -= (float) (Math.PI * 2);
 
                     int radius = 35;
@@ -364,13 +375,14 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
                     );
 
                     this.walkToSafePos(this.currentPatrolPoint);
-                    this.setCurrentDelay(0);
+                    // Mindestens 30-40 Ticks Flugzeit geben, damit der Drache den Bogen fliegen kann statt jeden Tick überschrieben zu werden
+                    this.setCurrentDelay(40);
 
                 } else {
                     this.currentPatrolPoint = DragonNavigationHandler.getHighAirPos(level, rawTarget);
 
                     if (this.walkToSafePos(this.currentPatrolPoint)) {
-                        this.setCurrentDelay(0);
+                        this.setCurrentDelay(hasDragon ? 20 : 0);
                         this.lastReachedPatrolPoint = rawTarget;
                         this.buildingGuards.arrivedAtPatrolPoint(this.worker);
 
@@ -512,15 +524,35 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         List<CompoundTag> stored = storage.getStoredDragons();
         if (stored == null || stored.isEmpty()) return false;
 
+        int workerCitizenId = this.worker.getCitizenData() != null ? this.worker.getCitizenData().getId() : -1;
         CompoundTag targetDragonNbt = null;
 
-        // Im Hort gibt es keine Guard-Bindung mehr: Der erste fitte, nicht deployte Drache wird genommen
+        // 1. PRIORITAET: Feste Zuweisung an genau diese Wache
         for (CompoundTag tag : stored) {
-            if (!tag.getBoolean(DragonStorageModule.TAG_DEPLOYED)
-                    && !tag.getBoolean(DragonStorageModule.TAG_IS_DEAD)
-                    && isDragonFit(tag)) {
-                targetDragonNbt = tag;
-                break;
+            if (isEligibleForFlight(tag)) {
+                String mode = tag.getString(DragonStorageModule.TAG_ASSIGNMENT_MODE);
+                int assignedId = tag.getInt(DragonStorageModule.TAG_ASSIGNED_CITIZEN_ID);
+
+                if (DragonStorageModule.MODE_ASSIGNED.equals(mode) && assignedId == workerCitizenId) {
+                    targetDragonNbt = tag;
+                    break;
+                }
+            }
+        }
+
+        // 2. PRIORITAET: Freier Pool (AUTO) - Nur wenn keine fremde Bindung oder Sperre vorliegt
+        if (targetDragonNbt == null) {
+            for (CompoundTag tag : stored) {
+                if (isEligibleForFlight(tag)) {
+                    String mode = tag.getString(DragonStorageModule.TAG_ASSIGNMENT_MODE);
+                    
+                    // Ein Drache mit Modus LOCKED, BREEDING oder ASSIGNED an andere darf niemals automatisch genommen werden
+                    boolean isAuto = mode.isEmpty() || DragonStorageModule.MODE_AUTO.equals(mode);
+                    if (isAuto) {
+                        targetDragonNbt = tag;
+                        break;
+                    }
+                }
             }
         }
 
@@ -543,6 +575,13 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         return false;
     }
 
+    private boolean isEligibleForFlight(CompoundTag tag) {
+        return !tag.getBoolean(DragonStorageModule.TAG_DEPLOYED)
+                && !tag.getBoolean(DragonStorageModule.TAG_IS_DEAD)
+                && !tag.getBoolean("DragonColonies_IsEgg")
+                && isDragonFit(tag);
+    }
+	
     private void handleReturnDragonToRoost(ServerLevel level) {
         DragonBase currentDragon = getAssignedDragon();
         if (currentDragon == null || !isReturningDragon) {

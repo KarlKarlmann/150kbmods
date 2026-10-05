@@ -33,11 +33,19 @@ import java.util.UUID;
  */
 public class DragonStorageModule extends AbstractBuildingModule implements IPersistentModule, ITickingModule {
 
-    public static final String TAG_ROOST_DRAGON_ID = "RoostDragonID";
-    public static final String TAG_ACTIVE_ENTITY_UUID = "ActiveEntityUUID";
-    public static final String TAG_GUARD_UUID = "DragonColonies_GuardUUID";
     public static final String TAG_DEPLOYED = "Deployed";
     public static final String TAG_IS_DEAD = "IsDead";
+    public static final String TAG_GUARD_UUID = "DragonColonies_GuardUUID";
+    public static final String TAG_ROOST_DRAGON_ID = "RoostDragonID";
+    public static final String TAG_ACTIVE_ENTITY_UUID = "DragonColonies_ActiveEntityUUID";
+
+    public static final String TAG_ASSIGNMENT_MODE = "DragonColonies_AssignmentMode";
+    public static final String TAG_ASSIGNED_CITIZEN_ID = "DragonColonies_AssignedCitizenId";
+
+    public static final String MODE_AUTO = "AUTO";
+    public static final String MODE_LOCKED = "LOCKED";
+    public static final String MODE_BREEDING = "BREEDING";
+    public static final String MODE_ASSIGNED = "ASSIGNED";
 
     private final List<CompoundTag> storedDragons = new ArrayList<>();
 
@@ -279,7 +287,7 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
      * Sichert Zustand, leert die ActiveEntityUUID, entwertet die gespeicherte UUID
      * und verwirft die Entität aus der Welt.
      */
-    public boolean storeDragon(DragonBase dragon) {
+   public boolean storeDragon(DragonBase dragon) {
         if (dragon == null || dragon.level().isClientSide()) return false;
 
         dragon.ejectPassengers();
@@ -296,7 +304,7 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
         String dragonDisplayName = dragon.hasCustomName() ? dragon.getCustomName().getString() : dragon.getName().getString();
         dragonNbt.putString("CustomName", Component.Serializer.toJson(Component.literal(dragonDisplayName)));
 
-        // Im Hort existieren keine Wachen-Bindungen: Ein eingelagerter Drache ist sofort für jeden frei verfügbar
+        // Im Hort existieren keine ephemeren Wachen-Bindungen: Nur der persistente Spieler-Modus bleibt
         dragonNbt.remove(TAG_GUARD_UUID);
 
         // RoostDragonID ermitteln: Beibehalten oder neu vergeben
@@ -308,8 +316,16 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
         }
         dragonNbt.putUUID(TAG_ROOST_DRAGON_ID, roostDragonId);
 
-        boolean exists = getDragonByRoostId(roostDragonId).isPresent();
-        if (exists) {
+        // Verhindert das Ueberschreiben von Spieler-Einstellungen (Zucht, Gesperrt, Fester Reiter) beim Einlagern
+        Optional<CompoundTag> existingTag = getDragonByRoostId(roostDragonId);
+        if (existingTag.isPresent()) {
+            CompoundTag prev = existingTag.get();
+            if (prev.contains(TAG_ASSIGNMENT_MODE)) {
+                dragonNbt.putString(TAG_ASSIGNMENT_MODE, prev.getString(TAG_ASSIGNMENT_MODE));
+            }
+            if (prev.contains(TAG_ASSIGNED_CITIZEN_ID)) {
+                dragonNbt.putInt(TAG_ASSIGNED_CITIZEN_ID, prev.getInt(TAG_ASSIGNED_CITIZEN_ID));
+            }
             updateDragonData(roostDragonId, dragonNbt);
         } else {
             if (!canStoreMore()) {
@@ -394,13 +410,20 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
                         ? current.getUUID(TAG_ROOST_DRAGON_ID)
                         : roostDragonId;
 
-                UUID preservedGuard = current.hasUUID(TAG_GUARD_UUID)
-                        ? current.getUUID(TAG_GUARD_UUID)
-                        : null;
-
                 updatedNbt.putUUID(TAG_ROOST_DRAGON_ID, preservedRoostId);
                 updatedNbt.putBoolean(TAG_DEPLOYED, false);
                 updatedNbt.remove(TAG_ACTIVE_ENTITY_UUID);
+
+                // Welt-Entitäten kennen Spielereinstellungen nicht; verhindern, dass ein Respawn/Tod den Modus im Hort plattwalzt
+                if (current.contains(TAG_ASSIGNMENT_MODE) && !updatedNbt.contains(TAG_ASSIGNMENT_MODE)) {
+                    updatedNbt.putString(TAG_ASSIGNMENT_MODE, current.getString(TAG_ASSIGNMENT_MODE));
+                }
+                if (current.contains(TAG_ASSIGNED_CITIZEN_ID) && !updatedNbt.contains(TAG_ASSIGNED_CITIZEN_ID)) {
+                    updatedNbt.putInt(TAG_ASSIGNED_CITIZEN_ID, current.getInt(TAG_ASSIGNED_CITIZEN_ID));
+                }
+
+                // Datenmüll alter Spielstände aktiv beim Speichern tilgen
+                updatedNbt.remove("DragonColonies_AllowBreeding");
 
                 storedDragons.set(i, updatedNbt);
                 this.markDirty();

@@ -463,7 +463,11 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
     }
 
     private boolean isReadyToBreed(CompoundTag tag) {
-        if (!tag.getBoolean("DragonColonies_AllowBreeding")) return false;
+        // Zucht ist ausschließlich aktiv, wenn der Spieler diesen Modus explizit im Dropdown gesetzt hat
+        if (!DragonStorageModule.MODE_BREEDING.equals(tag.getString(DragonStorageModule.TAG_ASSIGNMENT_MODE))) {
+            return false;
+        }
+
         if (tag.getBoolean("Deployed") || tag.getBoolean("IsDead") || tag.getBoolean("DragonColonies_IsEgg")) return false;
         if (tag.getInt("DragonColonies_BreedingCooldown") > 0) return false;
         if (tag.contains("GrowthStage") && tag.getInt("GrowthStage") < 2) return false;

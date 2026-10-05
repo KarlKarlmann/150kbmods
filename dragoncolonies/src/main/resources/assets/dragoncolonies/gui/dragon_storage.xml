@@ -51,30 +51,39 @@
     <text id="detail_stats_grid_1" pos="6 118" size="176 9" color="#FFFFFF" label="CON: -  ATH: -  AGI: -" textscale="0.75"/>
     <text id="detail_stats_grid_2" pos="6 128" size="176 9" color="#FFFFFF" label="PRW: -  POT: -  VIG: -" textscale="0.75"/>
 
-    <!-- Ausrüstungs- & Nahrungs-Label -->
-    <text pos="6 140" size="85 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.equipment)" textscale="0.7"/>
-    <text pos="95 140" size="85 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.favorite_food)" textscale="0.7"/>
+	<!-- Ausrüstungs- & Nahrungs-Label -->
+	<text pos="6 140" size="85 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.equipment)" textscale="0.7"/>
+	<text pos="95 140" size="85 8" color="#AAAAAA" label="$(dragoncolonies.gui.dragon_storage.favorite_food)" textscale="0.7"/>
 
-    <!-- Aktions-Buttons unten (Mit direkten Tooltips) -->
+
+	<!-- Aktions-Buttons unten (Mit direkten Tooltips) -->
+	<button id="btn_retrieve" pos="0 170" size="92 16" textcolor="#000000"
+			source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+			label="$(dragoncolonies.gui.dragon_storage.btn_retrieve)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_retrieve.tooltip)"/>
+
+	<button id="btn_emergency" pos="96 170" size="92 16" textcolor="#8B0000"
+			source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+			label="$(dragoncolonies.gui.dragon_storage.btn_emergency)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_emergency.tooltip)"/>
+
+	<!-- Ersetzt den alten Zucht-Button: Dropdown fuer Modus & Zuweisung -->
+	<dropdown id="dropdown_assignment" pos="0 188" size="92 16" dropDownSize="120 80" textcolor="#000000"
+			  source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+			  label="Modus" textscale="0.75" enabled="false">
+		<box size="100% 16" linewidth="0">
+			<button id="button" pos="0 0" size="100% 16"
+					source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+					label="" textscale="0.75" textcolor="#000000"/>
+		</box>
+	</dropdown>
+
+	<button id="btn_sell" pos="96 188" size="92 16" textcolor="#000000"
+			source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+			label="$(dragoncolonies.gui.dragon_storage.btn_export)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_export.tooltip)"/>
+
+	<button id="btn_release" pos="0 206" size="188 14" textcolor="#FF2222"
+			source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
+			label="$(dragoncolonies.gui.dragon_storage.btn_release)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_release.tooltip)"/>
     
-    <button id="btn_retrieve" pos="0 170" size="92 16" textcolor="#000000"
-            source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
-            label="$(dragoncolonies.gui.dragon_storage.btn_retrieve)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_retrieve.tooltip)"/>
 
-    <button id="btn_emergency" pos="96 170" size="92 16" textcolor="#8B0000"
-            source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
-            label="$(dragoncolonies.gui.dragon_storage.btn_emergency)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_emergency.tooltip)"/>
-
-    <button id="btn_breed_toggle" pos="0 188" size="92 16" textcolor="#000000"
-            source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
-            label="Zucht" textscale="0.75" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_breed.tooltip)"/>
-
-    <button id="btn_sell" pos="96 188" size="92 16" textcolor="#000000"
-            source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
-            label="$(dragoncolonies.gui.dragon_storage.btn_export)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_export.tooltip)"/>
-
-    <button id="btn_release" pos="0 206" size="188 14" textcolor="#FF2222"
-            source="minecolonies:textures/gui/builderhut/builder_button_quite_small.png"
-            label="$(dragoncolonies.gui.dragon_storage.btn_release)" textscale="0.8" enabled="false" tooltip="$(dragoncolonies.gui.dragon_storage.btn_release.tooltip)"/>
 </view>
 </window> 

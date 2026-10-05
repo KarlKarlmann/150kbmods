@@ -1,15 +1,7 @@
 package net.kb150.dragoncolonies.network;
 
 import net.kb150.dragoncolonies.DragonColonies;
-import net.kb150.dragoncolonies.network.message.RequestRoostPointerMessage;
-import net.kb150.dragoncolonies.network.message.RetrieveDragonMessage;
-import net.kb150.dragoncolonies.network.message.ReleaseDragonMessage;
-import net.kb150.dragoncolonies.network.message.EmergencyRecallMessage;
-import net.kb150.dragoncolonies.network.message.RequestExportOffersMessage;
-import net.kb150.dragoncolonies.network.message.OpenExportWindowMessage;
-import net.kb150.dragoncolonies.network.message.AcceptExportOfferMessage;
-import net.kb150.dragoncolonies.network.message.ToggleBreedingStatusMessage;
-import net.kb150.dragoncolonies.network.message.RiderLeapMessage;
+import net.kb150.dragoncolonies.network.message.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
@@ -100,6 +92,14 @@ public class DragonColoniesNetwork {
                 RiderLeapMessage::encode,
                 RiderLeapMessage::decode,
                 RiderLeapMessage::handle
+        );
+
+        CHANNEL.registerMessage(
+                packetId++,
+                SetDragonAssignmentMessage.class,
+                SetDragonAssignmentMessage::encode,
+                SetDragonAssignmentMessage::decode,
+                SetDragonAssignmentMessage::handle
         );
         //DragonColonies.LOGGER.info("DragonColonies: Netzwerk-Kanal registriert. Pakete für Drachenhort sind bereit.");
     }
