@@ -3,18 +3,23 @@ package net.kb150.dragoncolonies.mixin;
 import com.minecolonies.api.IMinecoloniesAPI;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
+import net.kb150.dragoncolonies.DragonColonies;
 import net.kb150.dragoncolonies.buildings.BuildingDragonRoost;
 import net.kb150.dragoncolonies.buildings.modules.DragonStorageModule;
+import net.kb150.dragoncolonies.config.DragonColoniesConfig;
+import net.kb150.dragoncolonies.data.WildDragonData;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
 import net.magister.bookofdragons.entity.component.TamingComponent;
 import net.magister.bookofdragons.entity.component.ranged.OmniAttackHandler;
 import net.magister.bookofdragons.entity.state.TransportMode;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.spongepowered.asm.mixin.Mixin;
@@ -26,24 +31,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.UUID;
 
-/**
- * Mixin für DragonBase.
- * Fälscht isVehicle() für Bürger-Passagiere, validiert aktive Entitäten periodisch
- * gegen den Hort (verhindert Duplikate und entfernt Entitäten nach Notfall-Rückruf),
- * und fängt Tode sowie Verhungern ab.
- */
+// Authoritative bridge between Book of Dragons entities and Minecolonies systems.
+// Enforces single-source-of-truth roost leasing, prevents player-cast crashes on guards,
+// and routes starvation breakouts into lag-free lazy wild persistence.
 @Mixin(DragonBase.class)
 public abstract class DragonBaseMixin {
 
     @Unique
     private boolean dragoncolonies$spawnValidated = false;
 
-    /**
-     * Einmalige Validierung beim Erwachen/Laden der Entität in der Welt:
-     * Prüft gegen den Hort, ob dieser Drache (Entity-UUID) für seine RoostDragonID
-     * überhaupt als deployed registriert ist. Wurde er während Chunk-Entladung
-     * per Notfall-Rückruf eingezogen, existiert ein ungültiges Duplikat, das sofort verworfen wird.
-     */
+    // Discards ghost clones spawned by reloaded chunks if the roost already invalidated their active lease.
     @Inject(method = {"serverTick", "m_8119_"}, at = @At("HEAD"), remap = false, require = 0)
     private void dragoncolonies$validateSpawn(CallbackInfo ci) {
         if (this.dragoncolonies$spawnValidated) return;
@@ -63,23 +60,21 @@ public abstract class DragonBaseMixin {
             if (colony != null && colony.getServerBuildingManager().getBuilding(roostPos) instanceof BuildingDragonRoost roost) {
                 DragonStorageModule storage = roost.getStorageModule();
 
-                if (storage != null) {
-                    boolean isValid = storage.isEntityValidForRoostId(roostDragonId, dragon.getUUID());
-                    if (!isValid) {
-                        dragon.ejectPassengers();
-                        data.remove("DragonColonies_RoostPos");
-                        data.remove("DragonColonies_RoostDragonID");
-                        data.remove("DragonColonies_GuardDeployed");
-                        data.remove("DragonColonies_OrphanTicks");
-                        data.remove("DragonColonies_GuardUUID");
-
-                        dragon.discard();
-                    }
+                if (storage != null && !storage.isEntityValidForRoostId(roostDragonId, dragon.getUUID())) {
+                    DragonColonies.debug("NAVIGATION", "[VALIDATE-DISCARD] Discarding invalid dragon instance {}", dragon.getUUID());
+                    dragon.ejectPassengers();
+                    data.remove("DragonColonies_RoostPos");
+                    data.remove("DragonColonies_RoostDragonID");
+                    data.remove("DragonColonies_GuardDeployed");
+                    data.remove("DragonColonies_OrphanTicks");
+                    data.remove("DragonColonies_GuardUUID");
+                    dragon.discard();
                 }
             }
         }
     }
 
+    // Permits adult dragons to carry Minecolonies citizen guards regardless of vanilla tamable limits.
     @Inject(
         method = {"canAddPassenger", "m_7310_"},
         at = @At("HEAD"),
@@ -90,14 +85,11 @@ public abstract class DragonBaseMixin {
     private void dragoncolonies$allowCitizenPassenger(Entity passenger, CallbackInfoReturnable<Boolean> cir) {
         if (passenger instanceof AbstractEntityCitizen) {
             DragonBase dragon = (DragonBase) (Object) this;
-            if (dragon.getGrowthStage() < 2) {
-                cir.setReturnValue(false);
-            } else {
-                cir.setReturnValue(dragon.getPassengers().size() < 2);
-            }
+            cir.setReturnValue(dragon.getGrowthStage() >= 2 && dragon.getPassengers().size() < 2);
         }
     }
 
+    // Prevents BoD movement loops from hard-casting citizen guards to ServerPlayer.
     @Inject(
         method = {"getControllingPassenger", "m_6688_"},
         at = @At("HEAD"),
@@ -112,6 +104,7 @@ public abstract class DragonBaseMixin {
         }
     }
 
+    // Stops BoD from suspending autonomous pathfinding while a guard is seated.
     @Inject(
         method = {"isVehicle", "m_20160_"},
         at = @At("HEAD"),
@@ -126,6 +119,8 @@ public abstract class DragonBaseMixin {
         }
     }
 
+    // Ticks hunger loss and handles clean untaming when starved, dropping items physically
+    // and initiating an ascent vector rather than loitering inside the colony border.
     @Inject(
         method = {"serverTick", "m_8119_"},
         at = @At("TAIL"),
@@ -134,10 +129,9 @@ public abstract class DragonBaseMixin {
     )
     private void dragoncolonies$handleStarvationAffection(CallbackInfo ci) {
         DragonBase dragon = (DragonBase) (Object) this;
-        if (dragon.level().isClientSide()) return;
+        if (dragon.level().isClientSide() || !DragonColoniesConfig.isStarvationUntamingAllowed()) return;
 
         int foodLevel = dragon.getEntityData().get(DragonBase.getHungerLevelData());
-
         if (foodLevel <= 0 && dragon.tickCount % 60 == 0) {
             TamingComponent taming = (TamingComponent) dragon.componentRegistry.get(TamingComponent.class);
 
@@ -149,11 +143,21 @@ public abstract class DragonBaseMixin {
                     int newAffection = Math.max(0, currentAffection - 5);
                     taming.setAffection(ownerUUID, newAffection);
                     dragon.getEntityData().set(DragonBase.getDebugAffectionData(), newAffection);
-
                 } else if (dragon.isTame()) {
                     dragon.ejectPassengers();
                     dragon.setTame(false);
                     dragon.setOwnerUUID(null);
+
+                    // Clears BoD ritual locks to allow natural re-taming without memory leak loops.
+                    dragon.setTamingRitualCompleted(false);
+                    dragon.setAwaitingTamingRitual(false);
+                    dragon.setTamingRitualTimer(0);
+                    dragon.setSaddled(false);
+
+                    // Physical drop prevents invisible equipment artifacts in Slot 0.
+                    if (dragon.getInventory() != null && !dragon.getInventory().getItem(0).isEmpty()) {
+                        dragon.spawnAtLocation(dragon.getInventory().removeItem(0, 1));
+                    }
 
                     CompoundTag data = dragon.getPersistentData();
                     if (data.contains("DragonColonies_RoostPos") && data.hasUUID("DragonColonies_RoostDragonID")) {
@@ -168,18 +172,111 @@ public abstract class DragonBaseMixin {
                                 storage.removeDragon(roostDragonId);
                             }
                         }
-
-                        data.remove("DragonColonies_RoostPos");
-                        data.remove("DragonColonies_RoostDragonID");
-                        data.remove("DragonColonies_GuardDeployed");
-                        data.remove("DragonColonies_OrphanTicks");
-                        data.remove("DragonColonies_GuardUUID");
                     }
+
+                    data.remove("DragonColonies_RoostPos");
+                    data.remove("DragonColonies_RoostDragonID");
+                    data.remove("DragonColonies_GuardDeployed");
+                    data.remove("DragonColonies_OrphanTicks");
+                    data.remove("DragonColonies_GuardUUID");
+
+                    dragoncolonies$triggerWildFlee(dragon, (ServerLevel) dragon.level());
                 }
             }
         }
     }
 
+    // High-altitude climb and chunk handoff: Prevents frozen entities at simulation borders by saving
+    // escaping dragons to WildDragonData once out of player view.
+    @Inject(
+        method = {"serverTick", "m_8119_"},
+        at = @At("TAIL"),
+        remap = false,
+        require = 0
+    )
+    private void dragoncolonies$tickWildFleeing(CallbackInfo ci) {
+        DragonBase dragon = (DragonBase) (Object) this;
+        if (dragon.level().isClientSide()) return;
+
+        CompoundTag data = dragon.getPersistentData();
+        if (!data.contains("DragonColonies_FleeingTicks")) return;
+
+        int fleeTicks = data.getInt("DragonColonies_FleeingTicks") + 1;
+        data.putInt("DragonColonies_FleeingTicks", fleeTicks);
+
+        ServerLevel level = (ServerLevel) dragon.level();
+
+        // Ascent ceiling reached or flight timeout elapsed: Handoff to lazy SavedData
+        if (dragon.getY() >= 190.0 || fleeTicks >= 200) {
+            CompoundTag dragonNbt = new CompoundTag();
+            dragon.saveWithoutId(dragonNbt);
+
+            ResourceLocation entityKey = ForgeRegistries.ENTITY_TYPES.getKey(dragon.getType());
+            if (entityKey != null) {
+                dragonNbt.putString("id", entityKey.toString());
+            }
+
+            // Strips ephemeral transit flags before persistence
+            CompoundTag persistent = dragonNbt.getCompound("ForgeData");
+            persistent.remove("DragonColonies_FleeingTicks");
+            persistent.remove("DragonColonies_RoostPos");
+            persistent.remove("DragonColonies_RoostDragonID");
+            persistent.remove("DragonColonies_GuardDeployed");
+            persistent.remove("DragonColonies_GuardUUID");
+
+            // Calculates random destination vector between 500 and 5000 blocks away
+            double angle = level.random.nextDouble() * 2 * Math.PI;
+            double dist = 500.0 + level.random.nextDouble() * 4500.0;
+            int targetX = (int) (dragon.getX() + Math.cos(angle) * dist);
+            int targetZ = (int) (dragon.getZ() + Math.sin(angle) * dist);
+            long chunkKey = ChunkPos.asLong(targetX >> 4, targetZ >> 4);
+
+            WildDragonData.get(level).addDragon(chunkKey, targetX, targetZ, dragonNbt);
+
+            level.sendParticles(ParticleTypes.CLOUD, dragon.getX(), dragon.getY(), dragon.getZ(), 24, 1.8, 0.8, 1.8, 0.04);
+            DragonColonies.debug("AI", "[ESCAPE-RELOCATE] Dragon '{}' ascended into clouds. Relocated to chunk [{}, {}]",
+                    dragon.getName().getString(), targetX >> 4, targetZ >> 4);
+
+            dragon.discard();
+            return;
+        }
+
+        if (fleeTicks % 20 == 0 && dragon.canFly()) {
+            if (dragon.getTransportMode() != TransportMode.AIRBORNE) {
+                dragon.setTransportMode(TransportMode.AIRBORNE);
+            }
+            var aiMove = dragon.getAIMovement();
+            if (aiMove != null && !aiMove.isActive()) {
+                Vec3 fleeTarget = new Vec3(dragon.getX(), 210.0, dragon.getZ());
+                aiMove.setWaypoint(fleeTarget, 1.5D);
+            }
+        }
+    }
+
+    // Directs the untamed dragon into an immediate steep climb towards cloud level.
+    @Unique
+    private static void dragoncolonies$triggerWildFlee(DragonBase dragon, ServerLevel level) {
+        dragon.getPersistentData().putInt("DragonColonies_FleeingTicks", 1);
+        dragon.setTarget(null);
+
+        if (dragon.canFly()) {
+            dragon.setTransportMode(TransportMode.AIRBORNE);
+            double angle = level.random.nextDouble() * 2 * Math.PI;
+            Vec3 fleeTarget = new Vec3(
+                    dragon.getX() + Math.cos(angle) * 300.0,
+                    210.0,
+                    dragon.getZ() + Math.sin(angle) * 300.0
+            );
+
+            var aiMove = dragon.getAIMovement();
+            if (aiMove != null) {
+                aiMove.clearAllWaypoints();
+                aiMove.setWaypoint(fleeTarget, 1.5D);
+            }
+        }
+    }
+
+    // Automatically steers abandoned guard mounts home when their rider is killed or removed.
     @Inject(
         method = {"serverTick", "m_8119_"},
         at = @At("TAIL"),
@@ -191,69 +288,73 @@ public abstract class DragonBaseMixin {
         if (dragon.level().isClientSide()) return;
 
         CompoundTag data = dragon.getPersistentData();
+        if (!data.contains("DragonColonies_RoostPos") || !data.getBoolean("DragonColonies_GuardDeployed")) {
+            return;
+        }
 
-        if (data.contains("DragonColonies_RoostPos") && data.getBoolean("DragonColonies_GuardDeployed")) {
+        if (!dragon.getPassengers().isEmpty()) {
+            data.remove("DragonColonies_OrphanTicks");
+            return;
+        }
 
-            if (!dragon.getPassengers().isEmpty()) {
-                data.remove("DragonColonies_OrphanTicks");
-                return;
+        boolean guardAlive = false;
+        if (data.hasUUID("DragonColonies_GuardUUID") && dragon.level() instanceof ServerLevel serverLevel) {
+            Entity guard = serverLevel.getEntity(data.getUUID("DragonColonies_GuardUUID"));
+            if (guard instanceof AbstractEntityCitizen citizen && citizen.isAlive() && !citizen.isRemoved()) {
+                guardAlive = true;
+            }
+        }
+
+        if (guardAlive) {
+            data.remove("DragonColonies_OrphanTicks");
+            return;
+        }
+
+        int orphanTicks = data.getInt("DragonColonies_OrphanTicks") + 1;
+        data.putInt("DragonColonies_OrphanTicks", orphanTicks);
+
+        BlockPos roostPos = BlockPos.of(data.getLong("DragonColonies_RoostPos"));
+        double distanceToRoost = dragon.distanceToSqr(roostPos.getX() + 0.5, roostPos.getY() + 1.0, roostPos.getZ() + 0.5);
+
+        if ((orphanTicks > 60 && distanceToRoost < 256.0D) || orphanTicks > 1200) {
+            ServerLevel level = (ServerLevel) dragon.level();
+            IColony colony = IMinecoloniesAPI.getInstance().getColonyManager().getColonyByPosFromWorld(level, roostPos);
+
+            if (colony != null && colony.getServerBuildingManager().getBuilding(roostPos) instanceof BuildingDragonRoost roost) {
+                DragonStorageModule storage = roost.getStorageModule();
+                if (storage != null) {
+                    DragonColonies.debug("NAVIGATION", "[WATCHDOG-STORE] Orphaned dragon {} returning to roost", dragon.getName().getString());
+                    storage.storeDragon(dragon);
+                    return;
+                }
+            }
+        }
+
+        if (orphanTicks % 20 == 0) {
+            dragon.setTarget(null);
+            OmniAttackHandler attackHandler = (OmniAttackHandler) dragon.componentRegistry.get(OmniAttackHandler.class);
+            if (attackHandler != null && attackHandler.isAttacking()) {
+                attackHandler.handlePlayerFiring(false);
             }
 
-            if (data.hasUUID("DragonColonies_GuardUUID") && dragon.level() instanceof ServerLevel serverLevel) {
-                Entity guard = serverLevel.getEntity(data.getUUID("DragonColonies_GuardUUID"));
-
-                if (guard instanceof AbstractEntityCitizen citizen && citizen.isAlive()) {
-                    if (dragon.distanceToSqr(citizen) <= 400.0D) {
-                        data.remove("DragonColonies_OrphanTicks");
-                        return;
-                    }
+            if (dragon.canFly()) {
+                if (dragon.getTransportMode() != TransportMode.AIRBORNE) {
+                    dragon.setTransportMode(TransportMode.AIRBORNE);
                 }
-            }
-
-            int orphanTicks = data.getInt("DragonColonies_OrphanTicks") + 1;
-            data.putInt("DragonColonies_OrphanTicks", orphanTicks);
-
-            BlockPos roostPos = BlockPos.of(data.getLong("DragonColonies_RoostPos"));
-            double distanceToRoost = dragon.distanceToSqr(roostPos.getX() + 0.5, roostPos.getY() + 1.0, roostPos.getZ() + 0.5);
-
-            if ((orphanTicks > 60 && distanceToRoost < 256.0D) || orphanTicks > 1200) {
-                ServerLevel level = (ServerLevel) dragon.level();
-                IColony colony = IMinecoloniesAPI.getInstance().getColonyManager().getColonyByPosFromWorld(level, roostPos);
-
-                if (colony != null && colony.getServerBuildingManager().getBuilding(roostPos) instanceof BuildingDragonRoost roost) {
-                    DragonStorageModule storage = roost.getStorageModule();
-                    if (storage != null) {
-                        storage.storeDragon(dragon);
-                        return;
-                    }
+                var aiMove = dragon.getAIMovement();
+                if (aiMove != null) {
+                    aiMove.setWaypoint(new Vec3(roostPos.getX() + 0.5, roostPos.getY() + 15.0, roostPos.getZ() + 0.5), 1.0D);
                 }
-            }
-
-            if (orphanTicks % 20 == 0) {
-                dragon.setTarget(null);
-                OmniAttackHandler attackHandler = (OmniAttackHandler) dragon.componentRegistry.get(OmniAttackHandler.class);
-                if (attackHandler != null && attackHandler.isAttacking()) {
-                    attackHandler.handlePlayerFiring(false);
+            } else {
+                if (dragon.getTransportMode() != TransportMode.GROUNDED) {
+                    dragon.setTransportMode(TransportMode.GROUNDED);
                 }
-
-                if (dragon.canFly()) {
-                    if (dragon.getTransportMode() != TransportMode.AIRBORNE) {
-                        dragon.setTransportMode(TransportMode.AIRBORNE);
-                    }
-                    var aiMove = dragon.getAIMovement();
-                    if (aiMove != null) {
-                        aiMove.setWaypoint(new Vec3(roostPos.getX() + 0.5, roostPos.getY() + 15.0, roostPos.getZ() + 0.5), 1.0D);
-                    }
-                } else {
-                    if (dragon.getTransportMode() != TransportMode.GROUNDED) {
-                        dragon.setTransportMode(TransportMode.GROUNDED);
-                    }
-                    dragon.getNavigation().moveTo(roostPos.getX() + 0.5, roostPos.getY() + 1.0, roostPos.getZ() + 0.5, 1.0D);
-                }
+                dragon.getNavigation().moveTo(roostPos.getX() + 0.5, roostPos.getY() + 1.0, roostPos.getZ() + 0.5, 1.0D);
             }
         }
     }
 
+    // Syncs health and death states back into storage before world unloads remove the entity.
     @Inject(
         method = {"remove", "m_142687_"},
         at = @At("HEAD"),
@@ -274,7 +375,6 @@ public abstract class DragonBaseMixin {
                 DragonStorageModule storage = roost.getStorageModule();
 
                 if (storage != null && storage.getDragonByRoostId(roostDragonId).isPresent()) {
-                    // Prüfen, ob wir überhaupt noch die aktive Entität sind
                     if (!storage.isEntityValidForRoostId(roostDragonId, dragon.getUUID())) {
                         data.remove("DragonColonies_RoostPos");
                         data.remove("DragonColonies_RoostDragonID");

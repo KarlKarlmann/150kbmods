@@ -15,8 +15,9 @@ public final class DragonColoniesConfig {
     public static final ForgeConfigSpec SPEC;
 
     private static final ForgeConfigSpec.ConfigValue<String> LOG_CHANNELS;
+    public static final ForgeConfigSpec.BooleanValue ALLOW_STARVATION_UNTAMING;
 
-    // Cache verhindert String-Zerteilungen und GC-Druck im Server-Tick
+    // Cache prevents repeated string splitting and GC overhead during server ticks
     private static Set<String> activeChannels = new HashSet<>();
     private static boolean logAll = false;
 
@@ -24,11 +25,21 @@ public final class DragonColoniesConfig {
         BUILDER.push("logging");
 
         LOG_CHANNELS = BUILDER
-                .comment("Aktive Diagnose-Kanalnamen per Semikolon getrennt (z. B. \"DISMOUNT;NAVIGATION\", \"ALL\" oder \"\").",
-                         "Fuer Bug-Reports einfach die benoetigten Kanalnamen eintragen lassen.")
+                .comment("Active diagnostic channel names separated by semicolons (e.g. \"DISMOUNT;NAVIGATION;AI\", \"ALL\" or \"\").",
+                         "Enables granular diagnostic tracking without flooding log outputs.")
                 .define("channels", "");
 
         BUILDER.pop();
+
+        BUILDER.push("gameplay");
+
+        ALLOW_STARVATION_UNTAMING = BUILDER
+                .comment("Controls whether dragons lose affection and revert to wild status upon starvation.",
+                         "Default: false (prevents in-flight dismounts and corrupted NBT taming states).")
+                .define("allowStarvationUntaming", false);
+
+        BUILDER.pop();
+
         SPEC = BUILDER.build();
     }
 
@@ -40,7 +51,6 @@ public final class DragonColoniesConfig {
         }
     }
 
-    // Wandelt den Konfigurations-String in ein O(1) Lookup-Set um
     private static void updateCache() {
         String raw = LOG_CHANNELS.get();
         if (raw == null || raw.isBlank()) {
@@ -52,9 +62,12 @@ public final class DragonColoniesConfig {
         activeChannels = new HashSet<>(Arrays.asList(raw.toUpperCase().split("\\s*;\\s*")));
     }
 
+    public static boolean isStarvationUntamingAllowed() {
+        return ALLOW_STARVATION_UNTAMING.get();
+    }
+
     public static boolean isLogging(String channel) {
-        if (logAll) return true;
-        return activeChannels.contains(channel);
+        return logAll || activeChannels.contains(channel);
     }
 
     public static boolean isLogAll() {
@@ -75,14 +88,7 @@ public final class DragonColoniesConfig {
             return logAll;
         }
 
-        boolean enabled;
-        if (activeChannels.contains(channel)) {
-            activeChannels.remove(channel);
-            enabled = false;
-        } else {
-            activeChannels.add(channel);
-            enabled = true;
-        }
+        boolean enabled = activeChannels.contains(channel) ? !activeChannels.remove(channel) : activeChannels.add(channel);
         saveToConfig();
         return enabled;
     }
@@ -94,11 +100,8 @@ public final class DragonColoniesConfig {
             if (enable) activeChannels.add("ALL");
             else activeChannels.remove("ALL");
         } else {
-            if (enable) {
-                activeChannels.add(channel);
-            } else {
-                activeChannels.remove(channel);
-            }
+            if (enable) activeChannels.add(channel);
+            else activeChannels.remove(channel);
         }
         saveToConfig();
     }
@@ -110,8 +113,7 @@ public final class DragonColoniesConfig {
     }
 
     private static void saveToConfig() {
-        String serialized = logAll ? "ALL" : String.join(";", activeChannels);
-        LOG_CHANNELS.set(serialized);
+        LOG_CHANNELS.set(logAll ? "ALL" : String.join(";", activeChannels));
         SPEC.save();
     }
 }

@@ -13,28 +13,25 @@ import com.minecolonies.api.util.InventoryUtils;
 import com.minecolonies.core.colony.buildings.AbstractBuildingGuards;
 import com.minecolonies.core.colony.jobs.AbstractJobGuard;
 import com.minecolonies.core.entity.ai.workers.guard.AbstractEntityAIGuard;
+import net.kb150.dragoncolonies.DragonColonies;
 import net.kb150.dragoncolonies.buildings.BuildingDragonRoost;
 import net.kb150.dragoncolonies.buildings.modules.DragonStorageModule;
 import net.kb150.dragoncolonies.network.DragonColoniesNetwork;
 import net.kb150.dragoncolonies.network.message.RiderLeapMessage;
+import net.kb150.dragoncolonies.util.DragonStatusHelper;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
 import net.magister.bookofdragons.entity.component.ranged.OmniAttackHandler;
 import net.magister.bookofdragons.entity.state.GroundStance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.NotNull;
-import net.minecraft.world.entity.LivingEntity;
 
 import java.util.List;
 import java.util.UUID;
@@ -46,7 +43,7 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
     protected boolean isReturningDragon = false;
     protected int retrievedCooldownTicks = 0;
     protected int mountingTicks = 0;
-    private static final int MAX_MOUNT_TICKS = 60; // 3 Sekunden Gnadenfrist
+    private static final int MAX_MOUNT_TICKS = 60;
     private Vec3 currentReturnTarget = null;
     private long nextRetrieveAllowedTime = 0;
     private final MountedDragonController flightController = new MountedDragonController();
@@ -54,7 +51,6 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
     private static java.lang.reflect.Field SLEEP_TIMER_FIELD;
 
     private BlockPos lastReachedPatrolPoint = null;
-    private float loiterAngle = 0.0F;
     private long radarTickCounter = 0;
     private int cachedLoiterAltitude = -1;
 
@@ -142,7 +138,6 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         return this.building;
     }
 
-// ... existing code ...
     public boolean hasAxe() {
         if (this.worker == null) return false;
         int maxLevel = this.building != null ? this.building.getMaxEquipmentLevel() : 1;
@@ -157,11 +152,9 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
 
     @Override
     protected int getActionsDoneUntilDumping() {
-        // Standard in MineColonies-Guards ist 5 * Stufe (bereits nach 10-15s erreicht).
-        // Wir erhöhen den Schwellenwert auf ausgiebige Patrouillenzeiten (z. B. 120 Aktionen).
         return 120 * (this.building != null ? this.building.getBuildingLevelEquivalent() : 1);
     }
-	
+
     private void triggerMountLeapEffect(AbstractEntityCitizen citizen, Vec3 startPos, Vec3 targetPos) {
         if (!citizen.level().isClientSide()) {
             DragonColoniesNetwork.CHANNEL.send(
@@ -170,19 +163,17 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             );
         }
     }
-	
+
     @Override
     protected boolean inventoryNeedsDump() {
         if (this.worker == null || !this.canBeInterrupted()) {
             return false;
         }
 
-        // 1. Wenn die Taschen randvoll sind (z. B. durch aufgesammelten Mob-Loot), muss geleert werden
         if (this.worker.getCitizenInventoryHandler().isInventoryFull()) {
             return true;
         }
 
-        // 2. Timer-Schwelle erreicht: Nur landen und zur Kiste laufen, wenn auch wirklich Loot existiert!
         if (((com.minecolonies.core.colony.jobs.AbstractJob<?, ?>) this.job).getActionsDone() >= this.getActionsDoneUntilDumping()) {
             return hasDumpableItems();
         }
@@ -196,14 +187,12 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         for (int i = 0; i < inv.getSlots(); i++) {
             net.minecraft.world.item.ItemStack stack = inv.getStackInSlot(i);
             if (!stack.isEmpty()) {
-                // Rüstung und Waffen werden nicht als abzugebender "Müll/Loot" gewertet
                 if (!(stack.getItem() instanceof net.minecraft.world.item.ArmorItem)
                         && !(stack.getItem() instanceof net.minecraft.world.item.TieredItem)) {
                     return true;
                 }
             }
         }
-        // Inventar ist leer oder enthält nur persönliche Ausrüstung -> kein Blasendruck, weiterfliegen!
         ((com.minecolonies.core.colony.jobs.AbstractJob<?, ?>) this.job).clearActionsDone();
         return false;
     }
@@ -219,6 +208,10 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
 
         if (this.worker != null && !this.worker.level().isClientSide()) {
             DragonBase currentDragon = getAssignedDragon();
+
+            if (isMountingDragon) {
+                handleMountingPhase(this.worker);
+            }
 
             if (currentDragon != null) {
                 boolean isGroundTask = !hasAxe() || isReturningDragon;
@@ -258,31 +251,30 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
                 setAssignedDragonUUID(ridingDragon.getUUID());
                 ridingDragon.getPersistentData().putUUID("DragonColonies_GuardUUID", this.worker.getUUID());
             } else if (currentTime >= this.nextRetrieveAllowedTime) {
+                DragonColonies.debug("AI", "[RETRIEVE-TRY] Wache {} versucht Drachen abzurufen (Axt: {}, ZeitOK: true)",
+                        this.worker.getName().getString(), workerHasAxe);
                 boolean retrieved = tryRetrieveDragonFromRoost(level);
                 this.nextRetrieveAllowedTime = currentTime + (retrieved ? 200 : 40);
+                DragonColonies.debug("AI", "[RETRIEVE-RESULT] Wache {} Abruf-Ergebnis: {}",
+                        this.worker.getName().getString(), retrieved);
             }
+        } else if (!shouldWork && currentDragon == null && this.radarTickCounter % 40 == 0) {
+            DragonColonies.debug("AI", "[RETRIEVE-BLOCKED] Wache {} kann nicht arbeiten: HasAxe={}, Building={}",
+                    this.worker.getName().getString(), workerHasAxe, this.building != null);
         }
 
-        // Wenn der Drache existiert, Dienst aktiv ist und wir nicht aufsitzen -> Aufsitzen erzwingen!
         if (shouldWork && currentDragon != null && currentDragon.isAlive() && !isReturningDragon && this.worker.getVehicle() != currentDragon) {
             this.isMountingDragon = true;
         }
 
-        if (isMountingDragon) {
-            handleMountingPhase(this.worker);
-        }
-
-        boolean dragonNeedsReturn = false;
-        if (currentDragon != null && currentDragon.isAlive()) {
-            if (isDragonHungry(currentDragon) || isDragonInjured(currentDragon)) {
-                dragonNeedsReturn = true;
-            }
-        }
+        boolean dragonNeedsReturn = currentDragon != null && currentDragon.isAlive() && !DragonStatusHelper.isFitToFly(currentDragon);
 
         if ((!workerHasAxe || dragonNeedsReturn) && currentDragon != null) {
             if (!isReturningDragon) {
                 isReturningDragon = true;
                 currentDragon.setTarget(null);
+                DragonColonies.debug("NAVIGATION", "[RETURN-TRIGGER] Rueckruf eingeleitet | WacheAxt: {} | FitToFly: {}",
+                        workerHasAxe, !dragonNeedsReturn);
             }
             handleReturnDragonToRoost(level);
             return super.decide();
@@ -296,24 +288,12 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         return super.decide();
     }
 
-    private boolean isDragonHungry(DragonBase dragon) {
-        if (dragon == null || dragon.getNeedsSystem() == null) return false;
-        return dragon.getNeedsSystem().getFoodLevel() < 60;
-    }
-
-    private boolean isDragonInjured(DragonBase dragon) {
-        if (dragon == null) return false;
-        return dragon.getHealth() < (dragon.getMaxHealth() - 10.0f);
-    }
-
     @Override
     public IAIState patrol() {
         if (this.buildingGuards == null || !(this.worker.level() instanceof ServerLevel level)) {
             return super.patrol();
         }
 
-        // 1. KAMPF-ABBRUCH: Hat die Wache Feinde im Visier, pausiert die Patrouille sofort vollständig!
-        // Verhindert den fatalen Konflikt, bei dem Patrouille und Kampf zeitgleich Flugpunkte in den Drachen hämmern.
         if (this.worker.getTarget() != null && this.worker.getTarget().isAlive()) {
             return null;
         }
@@ -327,19 +307,15 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         DragonBase currentDragon = getAssignedDragon();
         boolean hasDragon = currentDragon != null && currentDragon.isAlive();
 
-        // 2. ZU FUSS: Hat die Wache keinen aktiven Drachen, übernimmt MineColonies vollständig die Bodenpatrouille.
         if (!hasDragon) {
             return super.patrol();
         }
 
-        // 3. MOUNT-PRIORITÄT: Ein Drachenreiter läuft niemals zu Fuß unter seinem Luftziel her.
-        if (!isReturningDragon && this.worker.getVehicle() != currentDragon) {
+        if (this.worker.getVehicle() != currentDragon) {
             this.isMountingDragon = true;
-            handleMountingPhase(this.worker);
             return null;
         }
 
-        // 4. FLUGPATROUILLE: Wache sitzt im Sattel und steuert rein dreidimensionale Luftziele an.
         if (this.buildingGuards.requiresManualTarget()) {
             if (this.currentPatrolPoint == null || this.walkToSafePos(this.currentPatrolPoint)) {
                 this.currentPatrolPoint = null;
@@ -357,27 +333,12 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             BlockPos rawTarget = this.buildingGuards.getNextPatrolTarget(false);
 
             if (rawTarget != null) {
-                // Loitering: Am erreichten Wegpunkt kreist der Drache im Luftraum mit ausreichend Flugzeit
                 if (rawTarget.equals(this.lastReachedPatrolPoint)) {
-                    this.loiterAngle += 0.35F;
-                    if (this.loiterAngle > (float) (Math.PI * 2)) this.loiterAngle -= (float) (Math.PI * 2);
-
-                    int radius = 35;
-                    double offsetX = Math.cos(this.loiterAngle) * radius;
-                    double offsetZ = Math.sin(this.loiterAngle) * radius;
-
-                    int safeY = this.cachedLoiterAltitude != -1 ? this.cachedLoiterAltitude : DragonNavigationHandler.getHighAirPos(level, rawTarget).getY();
-
-                    this.currentPatrolPoint = BlockPos.containing(
-                            rawTarget.getX() + offsetX,
-                            safeY,
-                            rawTarget.getZ() + offsetZ
-                    );
-
-                    this.walkToSafePos(this.currentPatrolPoint);
-                    // Mindestens 30-40 Ticks Flugzeit geben, damit der Drache den Bogen fliegen kann statt jeden Tick überschrieben zu werden
-                    this.setCurrentDelay(40);
-
+                    if (this.currentPatrolPoint == null || this.walkToSafePos(this.currentPatrolPoint)) {
+                        this.currentPatrolPoint = calculateKinematicOrbitPoint(currentDragon, rawTarget, level);
+                        this.walkToSafePos(this.currentPatrolPoint);
+                        this.setCurrentDelay(20);
+                    }
                 } else {
                     this.currentPatrolPoint = DragonNavigationHandler.getHighAirPos(level, rawTarget);
 
@@ -386,7 +347,6 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
                         this.lastReachedPatrolPoint = rawTarget;
                         this.buildingGuards.arrivedAtPatrolPoint(this.worker);
 
-                        // Geländehöhe im 35-Block-Kreis scannen, um Berg- und Baumkollisionen beim Kreisen zu verhindern
                         int maxAltitude = this.currentPatrolPoint.getY();
                         int radius = 35;
                         for (int i = 0; i < 8; i++) {
@@ -403,6 +363,30 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         }
 
         return null;
+    }
+
+    private BlockPos calculateKinematicOrbitPoint(DragonBase dragon, BlockPos center, ServerLevel level) {
+        Vec3 dragonPos = dragon.position();
+        double dx = dragonPos.x - (center.getX() + 0.5D);
+        double dz = dragonPos.z - (center.getZ() + 0.5D);
+        double distFromCenter = Math.sqrt(dx * dx + dz * dz);
+
+        float yaw = dragon.getYRot();
+
+        if (distFromCenter > 45.0D) {
+            float toCenterYaw = (float) (Mth.atan2(-dz, -dx) * (180.0D / Math.PI)) - 90.0F;
+            yaw = Mth.rotLerp(0.35F, yaw, toCenterYaw);
+        } else {
+            yaw += 25.0F;
+        }
+
+        double rad = Math.toRadians(yaw + 90.0F);
+        double forwardDist = 18.0D;
+        double targetX = dragonPos.x + Math.cos(rad) * forwardDist;
+        double targetZ = dragonPos.z + Math.sin(rad) * forwardDist;
+        int safeY = this.cachedLoiterAltitude != -1 ? this.cachedLoiterAltitude : DragonNavigationHandler.getHighAirPos(level, center).getY();
+
+        return new BlockPos(Mth.floor(targetX), safeY, Mth.floor(targetZ));
     }
 
     public void handleMountingPhase(AbstractEntityCitizen citizen) {
@@ -423,22 +407,26 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         if (!citizen.isPassenger()) {
             this.mountingTicks++;
             double distSqr = citizen.distanceToSqr(currentDragon);
+            boolean navInProgress = currentDragon.getNavigation() != null && currentDragon.getNavigation().isInProgress();
 
-            // 1. DYNAMISCHES AUFSAMMELN: Drache schließt aktiv mit Tempo auf den Reiter auf
-            if (currentDragon.getNavigation() != null && !currentDragon.getNavigation().isInProgress()) {
-                currentDragon.getNavigation().moveTo(citizen, 1.35D);
+            if (this.mountingTicks % 10 == 0 || this.mountingTicks == 1) {
+                DragonColonies.debug("NAVIGATION", "[MOUNT-PHASE] Tick: {} | DistSqr: {} | DragonNavInProgress: {} | CitizenPos: {} | DragonPos: {}",
+                        this.mountingTicks, String.format("%.2f", distSqr), navInProgress, citizen.blockPosition().toShortString(), currentDragon.blockPosition().toShortString());
             }
 
-            // 2. FLIEGENDER PICKUP (Reichweite <= 4.0 Blöcke)
-            // 2. Regulärer dynamischer Pickup im Vorbeigehen (Reichweite <= 4.0 Blöcke)
+            if (currentDragon.getNavigation() != null && !navInProgress) {
+                boolean navMoved = currentDragon.getNavigation().moveTo(citizen, 1.35D);
+                DragonColonies.debug("NAVIGATION", "[MOUNT-NAV] Drache moveTo(citizen) aufgerufen -> Ergebnis: {}", navMoved);
+            }
+
             if (distSqr <= 16.0D) {
                 Vec3 startPos = citizen.position();
                 Vec3 targetPos = new Vec3(currentDragon.getX(), currentDragon.getY() + 0.5D, currentDragon.getZ());
 
-                // Zum Testen: Effekt auch beim normalen Aufsteigen direkt abfeuern
                 triggerMountLeapEffect(citizen, startPos, targetPos);
 
                 boolean mounted = citizen.startRiding(currentDragon, true);
+                DragonColonies.debug("NAVIGATION", "[MOUNT-TRY] startRiding(standard) ausgefuehrt -> Erfolg: {}", mounted);
                 if (mounted) {
                     this.isMountingDragon = false;
                     this.mountingTicks = 0;
@@ -449,20 +437,20 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
                 }
             }
 
-            // 3. DER HAMMER: Timeout nach 3 Sekunden oder Navigation komplett festgefahren
             if (this.mountingTicks >= MAX_MOUNT_TICKS || citizen.getNavigation().isStuck()) {
                 Vec3 startPos = citizen.position();
                 Vec3 targetPos = new Vec3(currentDragon.getX(), currentDragon.getY() + 0.5D, currentDragon.getZ());
 
-                // Clientseitigen Phantom-Dash via Netzwerk triggern
+                DragonColonies.debug("NAVIGATION", "[MOUNT-FORCE] Timeout/Stuck erreicht (Ticks: {}) -> Teleportiere Citizen zu Drache", this.mountingTicks);
+
                 triggerMountLeapEffect(citizen, startPos, targetPos);
 
-                // Physikalisch sofort aufsatteln
                 citizen.moveTo(targetPos.x, targetPos.y, targetPos.z);
                 boolean mounted = citizen.startRiding(currentDragon, true);
+                DragonColonies.debug("NAVIGATION", "[MOUNT-FORCE] startRiding(force) ausgefuehrt -> Erfolg: {}", mounted);
                 if (mounted) {
-                    isMountingDragon = false;
-                    mountingTicks = 0;
+                    this.isMountingDragon = false;
+                    this.mountingTicks = 0;
                     currentDragon.getNavigation().stop();
                     currentDragon.setCommand(0);
                     currentDragon.setGroundStance(GroundStance.IDLE);
@@ -506,82 +494,110 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             this.isMountingDragon = false;
         }
     }
-	
-	public boolean hasDragonOrCanGetOne() {
-		DragonBase current = getAssignedDragon();
-		if (current != null && current.isAlive()) {
-			return true;
-		}
-		return isDragonAvailableInRoost();
-	}
-	
-    private boolean tryRetrieveDragonFromRoost(ServerLevel level) {
-        if (!(this.building instanceof BuildingDragonRoost roost)) return false;
 
+    public boolean hasDragonOrCanGetOne() {
+        DragonBase current = getAssignedDragon();
+        if (current != null && current.isAlive()) {
+            return true;
+        }
+        return isDragonAvailableInRoost();
+    }
+
+    public boolean isDragonAvailableInRoost() {
+        if (!(this.building instanceof BuildingDragonRoost roost)) return false;
         DragonStorageModule storage = roost.getStorageModule();
         if (storage == null) return false;
 
         List<CompoundTag> stored = storage.getStoredDragons();
         if (stored == null || stored.isEmpty()) return false;
 
+        for (CompoundTag tag : stored) {
+            if (DragonStatusHelper.isFitToFly(tag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean tryRetrieveDragonFromRoost(ServerLevel level) {
+        if (!(this.building instanceof BuildingDragonRoost roost)) {
+            DragonColonies.debug("AI", "[RETRIEVE-FAIL] Gebaeude ist kein BuildingDragonRoost");
+            return false;
+        }
+
+        DragonStorageModule storage = roost.getStorageModule();
+        if (storage == null) {
+            DragonColonies.debug("AI", "[RETRIEVE-FAIL] StorageModule ist null");
+            return false;
+        }
+
+        List<CompoundTag> stored = storage.getStoredDragons();
+        if (stored == null || stored.isEmpty()) {
+            DragonColonies.debug("AI", "[RETRIEVE-FAIL] Keine Drachen im Hort gespeichert");
+            return false;
+        }
+
         int workerCitizenId = this.worker.getCitizenData() != null ? this.worker.getCitizenData().getId() : -1;
         CompoundTag targetDragonNbt = null;
 
-        // 1. PRIORITAET: Feste Zuweisung an genau diese Wache
-        for (CompoundTag tag : stored) {
-            if (isEligibleForFlight(tag)) {
-                String mode = tag.getString(DragonStorageModule.TAG_ASSIGNMENT_MODE);
-                int assignedId = tag.getInt(DragonStorageModule.TAG_ASSIGNED_CITIZEN_ID);
+        for (int i = 0; i < stored.size(); i++) {
+            CompoundTag tag = stored.get(i);
+            boolean fit = DragonStatusHelper.isFitToFly(tag);
+            String mode = tag.getString(DragonStorageModule.TAG_ASSIGNMENT_MODE);
+            int assignedId = tag.getInt(DragonStorageModule.TAG_ASSIGNED_CITIZEN_ID);
 
+            DragonColonies.debug("AI", "[RETRIEVE-SCAN] Drache #{}: Fit={}, Mode='{}', AssignedId={}, WorkerId={}",
+                    i, fit, mode, assignedId, workerCitizenId);
+
+            if (fit) {
                 if (DragonStorageModule.MODE_ASSIGNED.equals(mode) && assignedId == workerCitizenId) {
                     targetDragonNbt = tag;
+                    DragonColonies.debug("AI", "[RETRIEVE-MATCH] Passender zugewiesener Drache gefunden (Index {})", i);
                     break;
                 }
             }
         }
 
-        // 2. PRIORITAET: Freier Pool (AUTO) - Nur wenn keine fremde Bindung oder Sperre vorliegt
         if (targetDragonNbt == null) {
-            for (CompoundTag tag : stored) {
-                if (isEligibleForFlight(tag)) {
+            for (int i = 0; i < stored.size(); i++) {
+                CompoundTag tag = stored.get(i);
+                if (DragonStatusHelper.isFitToFly(tag)) {
                     String mode = tag.getString(DragonStorageModule.TAG_ASSIGNMENT_MODE);
-                    
-                    // Ein Drache mit Modus LOCKED, BREEDING oder ASSIGNED an andere darf niemals automatisch genommen werden
                     boolean isAuto = mode.isEmpty() || DragonStorageModule.MODE_AUTO.equals(mode);
                     if (isAuto) {
                         targetDragonNbt = tag;
+                        DragonColonies.debug("AI", "[RETRIEVE-MATCH] Passender AUTO-Drache gefunden (Index {})", i);
                         break;
                     }
                 }
             }
         }
 
-        if (targetDragonNbt == null) return false;
+        if (targetDragonNbt == null) {
+            DragonColonies.debug("AI", "[RETRIEVE-FAIL] Kein einsatzbereiter Drache fuer Wache {} verfuegbar",
+                    this.worker.getName().getString());
+            return false;
+        }
 
         UUID roostDragonId = targetDragonNbt.hasUUID(DragonStorageModule.TAG_ROOST_DRAGON_ID)
                 ? targetDragonNbt.getUUID(DragonStorageModule.TAG_ROOST_DRAGON_ID)
                 : UUID.randomUUID();
 
-        // Zentraler Lifecycle-Aufruf: Erzeugt Entity-UUID, setzt ActiveEntityUUID und stempelt PersistentData
         DragonBase dragon = storage.deployDragon(roostDragonId, level, roost.getPosition(), this.worker.getUUID());
         if (dragon != null) {
             this.assignedDragon = dragon;
             setAssignedDragonUUID(dragon.getUUID());
             this.isReturningDragon = false;
             this.isMountingDragon = true;
+            DragonColonies.debug("NAVIGATION", "[DEPLOY] Drache {} aus Hort geholt fuer Wache {}",
+                    dragon.getName().getString(), this.worker.getName().getString());
             return true;
         }
 
+        DragonColonies.debug("AI", "[RETRIEVE-FAIL] deployDragon schlug fehl fuer RoostID {}", roostDragonId);
         return false;
     }
 
-    private boolean isEligibleForFlight(CompoundTag tag) {
-        return !tag.getBoolean(DragonStorageModule.TAG_DEPLOYED)
-                && !tag.getBoolean(DragonStorageModule.TAG_IS_DEAD)
-                && !tag.getBoolean("DragonColonies_IsEgg")
-                && isDragonFit(tag);
-    }
-	
     private void handleReturnDragonToRoost(ServerLevel level) {
         DragonBase currentDragon = getAssignedDragon();
         if (currentDragon == null || !isReturningDragon) {
@@ -605,8 +621,9 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
                 }
 
                 DragonStorageModule storage = roost.getStorageModule();
-                // Zentrales Einlagern und Entwerten über DragonStorageModule
                 if (storage != null && storage.storeDragon(currentDragon)) {
+                    DragonColonies.debug("NAVIGATION", "[RETURN-STORE] Drache {} im Hort eingelagert (Dist: {}m)",
+                            currentDragon.getName().getString(), String.format("%.1f", Math.sqrt(trueDistance)));
                     this.assignedDragon = null;
                     setAssignedDragonUUID(null);
                     this.isReturningDragon = false;
@@ -674,72 +691,4 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
     public void setPatrolPoint(BlockPos pos) {
         this.currentPatrolPoint = pos;
     }
-
-    public boolean isDragonAvailableInRoost() {
-        if (!(this.building instanceof BuildingDragonRoost roost)) return false;
-        DragonStorageModule storage = roost.getStorageModule();
-        if (storage == null) return false;
-
-        List<CompoundTag> stored = storage.getStoredDragons();
-        if (stored == null || stored.isEmpty()) return false;
-
-        for (CompoundTag tag : stored) {
-            if (!tag.getBoolean(DragonStorageModule.TAG_DEPLOYED) && !tag.getBoolean(DragonStorageModule.TAG_IS_DEAD) && isDragonFit(tag)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Prüft autark, ob der Drache fit für den Wachtdienst ist.
-     * Zucht-Drachen, Eier, Babys UND UNSATTELE DRATIONEN WERDEN ABGELEHNT!
-     */
-    private boolean isDragonFit(CompoundTag dragonTag) {
-        if (dragonTag == null) return false;
-        
-        // 1. Zucht / Ei Sicherheits-Filter
-        if (dragonTag.getBoolean("DragonColonies_IsEgg")) return false;
-        if (dragonTag.getBoolean("DragonColonies_AllowBreeding")) return false;
-        
-        // 2. Muss mindestens Broad Wing (Stage 2) sein
-        if (dragonTag.contains("GrowthStage") && dragonTag.getInt("GrowthStage") < 2) return false;
-        
-        // 3. Sättigung prüfen
-        if (dragonTag.contains("dragonNeeds")) {
-            CompoundTag needs = dragonTag.getCompound("dragonNeeds");
-            if (needs.contains("foodLevel") && needs.getInt("foodLevel") < 60) {
-                return false;
-            }
-        }
-
-        // 4. SATTEL-PRÜFUNG: Drache muss gesattelt sein!
-        return isDragonSaddledInNbt(dragonTag);
-    }
-
-    /**
-     * Hilfsmethode: Prüft im NBT des gespeicherten Drachens, ob ein Sattel ausgerüstet ist.
-     */
-	public static boolean isDragonSaddledInNbt(CompoundTag dragonTag) {
-		if (dragonTag == null) return false;
-
-		// 1. Direct synched entity data check (falls die Entity live aus dem RAM gespeichert wurde)
-		if (dragonTag.getBoolean("isSaddled") || dragonTag.getBoolean("IsSaddled") || dragonTag.getBoolean("Saddle")) {
-			return true;
-		}
-
-		// 2. Echtes Book of Dragons NBT-Inventar prüfen (Slot 0 in der "Inventory"-Liste)
-		if (dragonTag.contains("Inventory", net.minecraft.nbt.Tag.TAG_LIST)) {
-			net.minecraft.nbt.ListTag invList = dragonTag.getList("Inventory", net.minecraft.nbt.Tag.TAG_COMPOUND);
-			for (int i = 0; i < invList.size(); i++) {
-				CompoundTag itemTag = invList.getCompound(i);
-				if (itemTag.getByte("Slot") == 0) {
-					String id = itemTag.getString("id");
-					return id.equals("minecraft:saddle") || id.endsWith(":saddle");
-				}
-			}
-		}
-
-		return false;
-	}
 }

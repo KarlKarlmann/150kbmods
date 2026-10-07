@@ -17,7 +17,7 @@ import net.kb150.dragoncolonies.network.message.RequestRoostPointerMessage;
 import net.kb150.dragoncolonies.network.message.RetrieveDragonMessage;
 import net.kb150.dragoncolonies.network.message.RequestExportOffersMessage;
 import net.kb150.dragoncolonies.network.message.SetDragonAssignmentMessage;
-import net.kb150.dragoncolonies.ai.AbstractEntityAIDragonRider;
+import net.kb150.dragoncolonies.util.DragonStatusHelper;
 
 import net.magister.bookofdragons.client.gui.book.DragonStatGrader;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
@@ -70,7 +70,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
     private Button btnSell;
     private Button btnRelease;
 
-    // Ersetzt den alten Toggle-Button durch das persistente Zuweisungs-Dropdown
+    // Dropdown fuer Zuweisungen und Zuchtstatus
     private DropDownList dropdownAssignment;
     private record AssignmentOption(String mode, int citizenId, Component label) {}
     private final List<AssignmentOption> currentOptions = new ArrayList<>();
@@ -210,7 +210,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                         mode = DragonStorageModule.MODE_AUTO;
                     }
 
-                    int currentStage = 2; // Default Adult
+                    int currentStage = 2;
                     if (dragonNbt.contains("GrowthStage")) {
                         currentStage = dragonNbt.getInt("GrowthStage");
                     } else if (dragonNbt.contains("AgeTicks") && dragonNbt.getInt("AgeTicks") < 24000) {
@@ -227,20 +227,20 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                     } else if (isEgg) {
                         displayName += " [EGG]";
                     } else if (DragonStorageModule.MODE_BREEDING.equals(mode)) {
-                        int hunger = dragonNbt.contains("dragonNeeds") ? dragonNbt.getCompound("dragonNeeds").getInt("foodLevel") : 100;
-                        float hp = dragonNbt.contains("Health") ? dragonNbt.getFloat("Health") : extractMaxHealth(dragonNbt);
-                        float maxHp = extractMaxHealth(dragonNbt);
+                        int hunger = DragonStatusHelper.getFoodLevel(dragonNbt);
+                        float hp = DragonStatusHelper.getHealth(dragonNbt);
+                        float maxHp = DragonStatusHelper.getMaxHealth(dragonNbt);
                         int cd = dragonNbt.getInt("DragonColonies_BreedingCooldown");
 
                         String breedTag = Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed").getString();
 
-                        if (hunger < 80 || hp < (maxHp - 5.0f) || cd > 0) {
+                        if (hunger < DragonStatusHelper.HUNGER_THRESHOLD_FEEDING || DragonStatusHelper.isInjured(dragonNbt) || cd > 0) {
                             displayName += " §c" + breedTag + "§r"; 
                             rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_blocked"));
 
                             if (cd > 0) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_cd_detail", getFormattedCooldownComponent(cd)));
-                            if (hunger < 80) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_hungry_detail", hunger));
-                            if (hp < (maxHp - 5.0f)) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_injured_detail", String.format(Locale.ROOT, "%.0f", hp), String.format(Locale.ROOT, "%.0f", maxHp)));
+                            if (hunger < DragonStatusHelper.HUNGER_THRESHOLD_FEEDING) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_hungry_detail", hunger));
+                            if (DragonStatusHelper.isInjured(dragonNbt)) rowTooltip.add(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_injured_detail", String.format(Locale.ROOT, "%.0f", hp), String.format(Locale.ROOT, "%.0f", maxHp)));
                         } else {
                             displayName += " §a" + breedTag + "§r"; 
                         }
@@ -305,20 +305,16 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
     private String buildPrioritizedSubInfo(CompoundTag tag, DragonType type) {
         if (tag == null) return Component.translatable("dragoncolonies.gui.module.dragon_storage.no_data").getString();
 
-        int hunger = 100;
-        if (tag.contains("dragonNeeds")) {
-            hunger = tag.getCompound("dragonNeeds").getInt("foodLevel");
-        }
-
-        float health = tag.contains("Health") ? tag.getFloat("Health") : 0f;
-        float maxHp = extractMaxHealth(tag);
+        int hunger = DragonStatusHelper.getFoodLevel(tag);
+        float health = DragonStatusHelper.getHealth(tag);
+        float maxHp = DragonStatusHelper.getMaxHealth(tag);
 
         String species = (type != null) ? type.getDisplayName() : Component.translatable("dragoncolonies.gui.module.dragon_storage.unknown").getString();
 
         String hpFormatted = String.format(Locale.ROOT, "%.0f", health);
         String maxHpFormatted = String.format(Locale.ROOT, "%.0f", maxHp);
 
-        boolean saddled = AbstractEntityAIDragonRider.isDragonSaddledInNbt(tag);
+        boolean saddled = DragonStatusHelper.isSaddled(tag);
         String saddleTag = saddled ? " §6[Saddle]§r" : "";
 
         return Component.translatable("dragoncolonies.gui.module.dragon_storage.subinfo", hunger, hpFormatted, maxHpFormatted, species).getString() + saddleTag;
@@ -361,7 +357,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             this.detailSpecies.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.species", speciesStr));
         }
 
-        int currentStage = 2; // Default Adult
+        int currentStage = 2;
         if (this.detailStage != null) {
             String stageStr = Component.translatable("dragoncolonies.gui.module.dragon_storage.stage.adult").getString();
             if (isEgg) {
@@ -382,13 +378,9 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             mode = DragonStorageModule.MODE_AUTO;
         }
 
-        this.hungerPercent = 100;
-        if (dragonNbt.contains("dragonNeeds")) {
-            this.hungerPercent = dragonNbt.getCompound("dragonNeeds").getInt("foodLevel");
-        }
-
-        this.currentHealth = dragonNbt.contains("Health") ? dragonNbt.getFloat("Health") : 0f;
-        this.maxHealth = extractMaxHealth(dragonNbt);
+        this.hungerPercent = DragonStatusHelper.getFoodLevel(dragonNbt);
+        this.currentHealth = DragonStatusHelper.getHealth(dragonNbt);
+        this.maxHealth = DragonStatusHelper.getMaxHealth(dragonNbt);
 
         if (this.detailStatusBadge != null) {
             if (isDead) {
@@ -401,9 +393,9 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                 int cd = dragonNbt.getInt("DragonColonies_BreedingCooldown");
                 if (cd > 0) {
                     this.detailStatusBadge.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_cd_detail", cd / 20));
-                } else if (this.hungerPercent < 80) {
+                } else if (this.hungerPercent < DragonStatusHelper.HUNGER_THRESHOLD_FEEDING) {
                     this.detailStatusBadge.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_hungry_detail", this.hungerPercent));
-                } else if (this.currentHealth < (this.maxHealth - 5.0f)) {
+                } else if (DragonStatusHelper.isInjured(dragonNbt)) {
                     this.detailStatusBadge.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_injured_detail", String.format(Locale.ROOT, "%.0f", this.currentHealth), String.format(Locale.ROOT, "%.0f", this.maxHealth)));
                 } else {
                     this.detailStatusBadge.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.status.breed_ready"));
@@ -451,7 +443,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             this.detailStatsGrid2.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.stats2", prw, pot, vig));
         }
 
-        boolean hasSaddle = AbstractEntityAIDragonRider.isDragonSaddledInNbt(dragonNbt);
+        boolean hasSaddle = DragonStatusHelper.isSaddled(dragonNbt);
         boolean hasChest = dragonNbt.getBoolean("Chest") || dragonNbt.getBoolean("HasChest");
 
         this.saddleItem = hasSaddle ? new ItemStack(Items.SADDLE) : ItemStack.EMPTY;
@@ -459,7 +451,6 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         this.favoriteDietItem = getPrimaryDiet(type);
         this.specialDietItem = getSpecialDiet(type);
 
-        // Zucht erfordert Reife (Adult), Lebendigkeit, kein Ei und mindestens 800 Zuneigung
         boolean canBreed = !isEgg && !isDead && currentStage >= 2 && this.affectionValue >= 800;
         populateAssignmentOptions(dragonNbt, mode, canBreed);
 
@@ -472,7 +463,6 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         this.isUpdatingDropdown = true;
         this.currentOptions.clear();
 
-        // Standard-Optionen voll lokalisiert
         this.currentOptions.add(new AssignmentOption(
                 DragonStorageModule.MODE_AUTO, -1, 
                 Component.translatable("dragoncolonies.gui.dragon_storage.mode.auto")
@@ -482,7 +472,6 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                 Component.translatable("dragoncolonies.gui.dragon_storage.mode.locked")
         ));
 
-        // Zucht nur anbieten, wenn der Drache wirklich zuchtfähig ist (oder bereits in diesem Modus steht)
         if (canBreed || DragonStorageModule.MODE_BREEDING.equals(currentMode)) {
             this.currentOptions.add(new AssignmentOption(
                     DragonStorageModule.MODE_BREEDING, -1, 
@@ -501,7 +490,6 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                     String guardName = citizen != null ? citizen.getName() : Component.translatable("dragoncolonies.gui.dragon_storage.mode.guard_fallback", guardId).getString();
                     String jobStr = citizen != null ? citizen.getJob() : "";
 
-                    // Beastmaster aussortieren – nur echte Drachenreiter dürfen zugewiesen werden
                     if (jobStr.toLowerCase(Locale.ROOT).contains("beastmaster")) {
                         continue;
                     }
@@ -514,7 +502,6 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             }
         }
 
-        // Ausgewählten Index dynamisch ermitteln (verhindert Array-Überläufe, wenn Zucht fehlt)
         int selectedIdx = 0;
         for (int i = 0; i < this.currentOptions.size(); i++) {
             AssignmentOption opt = this.currentOptions.get(i);
@@ -529,7 +516,6 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             }
         }
 
-        // DataProvider frisch registrieren, damit BlockUI die Zeilen exakt aufbaut
         this.dropdownAssignment.setDataProvider(new DropDownList.DataProvider() {
             @Override
             public int getElementCount() {
@@ -659,12 +645,32 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             int containerX = this.window.getX() + detailContainer.getX();
             int containerY = this.window.getY() + detailContainer.getY();
 
-            if (this.previewEntity != null) {
-                int renderX = containerX + 94;
-                int renderY = containerY + 48;
+            // Symmetrisches Sichtfenster für das 3D-Modell (Breite: 78px, Höhe: 48px)
+            // Rechts endet es vor dem Dropdown (bei X=86, Dropdown sitzt bei X=92)
+            int winX = containerX + 8;
+            int winY = containerY + 6;
+            int winW = 78;
+            int winH = 48;
+            int winMaxX = winX + winW;
+            int winMaxY = winY + winH;
 
-                float bbWidth = Math.max(0.8f, this.previewEntity.getBbWidth());
-                int scale = (int) (16.0f / bbWidth);
+            // 1. Fenster-Hintergrund leicht abdunkeln (Pergament-Gravur-Effekt)
+            guiGraphics.fill(winX, winY, winMaxX, winMaxY, 0x2A1A0F00);
+
+            // 2. Rahmen um das Sichtfenster im abgestimmten Pergament-Dunkelbraun
+            guiGraphics.fill(winX - 1, winY - 1, winMaxX + 1, winY, 0xFF3B220C);       // Oben
+            guiGraphics.fill(winX - 1, winMaxY, winMaxX + 1, winMaxY + 1, 0xFF3B220C); // Unten
+            guiGraphics.fill(winX - 1, winY, winX, winMaxY, 0xFF3B220C);               // Links
+            guiGraphics.fill(winMaxX, winY, winMaxX + 1, winMaxY, 0xFF3B220C);         // Rechts
+
+            // Drache rendert exakt zentriert im Fenster
+            if (this.previewEntity != null) {
+                // Symmetrische Mitte: genau 39px nach links und 39px nach rechts
+                int renderX = winX + (winW / 2);
+                int renderY = winY + winH - 2;
+
+                float bbWidth = Math.max(0.9f, this.previewEntity.getBbWidth());
+                int scale = Math.min(22, Math.max(14, (int) (20.0f / bbWidth)));
 
                 org.joml.Quaternionf pose = new org.joml.Quaternionf().rotationZ((float) Math.PI);
 
@@ -676,10 +682,18 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                 this.previewEntity.setXRot(0.0F);
                 this.previewEntity.xRotO = 0.0F;
 
+                guiGraphics.flush();
+                guiGraphics.enableScissor(winX, winY, winMaxX+7, winMaxY+11);
+                com.mojang.blaze3d.systems.RenderSystem.enableDepthTest();
+
                 InventoryScreen.renderEntityInInventory(guiGraphics, renderX, renderY, scale, pose, null, this.previewEntity);
+
+                guiGraphics.flush();
+                com.mojang.blaze3d.systems.RenderSystem.disableDepthTest();
+                guiGraphics.disableScissor();
             }
 
-            int slotY = containerY + 150;
+            int slotY = containerY + 158;
 
             renderItemSlot(guiGraphics, this.saddleItem, containerX + 6, slotY, mouseX, mouseY);
             renderItemSlot(guiGraphics, this.chestItem, containerX + 26, slotY, mouseX, mouseY);
