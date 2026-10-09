@@ -8,21 +8,22 @@ import java.util.EnumSet;
 
 public class SurvivorInteractGoal extends Goal {
     private final SurvivorEntity survivor;
+    
+    // Verhindert ein Einfrieren des NPCs, wenn der Spieler das Menue schliesst, aber im Nahbereich stehen bleibt
+    private static final double MAX_INTERACTION_DIST_SQ = 12.25D;
 
     public SurvivorInteractGoal(SurvivorEntity survivor) {
         this.survivor = survivor;
-        // Blockiert Bewegung, Blickrichtung und Springen vollständig während des Gesprächs!
         this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK, Goal.Flag.JUMP));
     }
 
     @Override
     public boolean canUse() {
         Player player = this.survivor.getTradingPlayer();
-        if (player == null || !player.isAlive()) {
+        if (player == null || !player.isAlive() || player.isSpectator()) {
             return false;
         }
-        // Bricht ab, wenn der Spieler wegläuft (> 8 Blöcke Distanz)
-        return this.survivor.distanceToSqr(player) <= 64.0D;
+        return this.survivor.distanceToSqr(player) <= MAX_INTERACTION_DIST_SQ;
     }
 
     @Override
@@ -35,7 +36,6 @@ public class SurvivorInteractGoal extends Goal {
         Player player = this.survivor.getTradingPlayer();
         if (player != null) {
             this.survivor.getNavigation().stop();
-            // Dreht den Kopf & Körper sanft zum Spieler
             this.survivor.getLookControl().setLookAt(player, 30.0F, 30.0F);
         }
     }

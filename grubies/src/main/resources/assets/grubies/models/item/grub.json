@@ -1,0 +1,7 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "grubies:item/grub_base",   
+    "layer1": "grubies:item/grub_details"
+  }
+}

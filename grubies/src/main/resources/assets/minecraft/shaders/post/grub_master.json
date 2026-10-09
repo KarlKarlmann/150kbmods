@@ -1,0 +1,100 @@
+{
+  "targets": [ "temp", "swap", "bloom", {
+      "name": "worlddepth",
+      "use_depth": true
+    }],
+  "passes": [
+    {
+      "name": "grub_color_grade",
+      "intarget": "minecraft:main",
+      "outtarget": "temp",
+      "uniforms": [
+        { "name": "saturation", "values": [ 0.0 ] },
+        { "name": "hueRotation", "values": [ 0.0 ] },
+        { "name": "inversion", "values": [ 0.0 ] }
+      ]
+    },
+    {
+      "name": "grub_prism_melt",
+      "intarget": "temp",
+      "outtarget": "swap",
+      "uniforms": [
+        { "name": "totalAlpha", "values": [ 0.0 ] },
+        { "name": "distance", "values": [ 0.0 ] },
+        { "name": "verticalDistance", "values": [ 0.0 ] },
+        { "name": "stretch", "values": [ 0.0 ] },
+        { "name": "targetHue", "values": [ 0.0 ] },
+        { "name": "hueTolerance", "values": [ 0.0 ] }
+      ]
+    },
+	{
+      "name": "grub_depth_harmonize",
+      "intarget": "swap",
+      "outtarget": "temp",
+      "auxtargets": [
+        { "name": "DepthSampler", "id": "worlddepth:depth" }
+      ],
+      "uniforms": [
+        { "name": "harmonizeHue", "values": [ 0.0 ] },
+        { "name": "harmonizeAlpha", "values": [ 0.0 ] },
+        { "name": "waveFrequency", "values": [ 0.0 ] },
+        { "name": "wavePhase", "values": [ 0.0 ] },
+        { "name": "colorSafeMode", "values": [ 0.0 ] }
+      ]
+    },
+    {
+      "name": "grub_distortion",
+      "intarget": "temp",
+      "outtarget": "swap",
+      "auxtargets": [
+        { "name": "DepthSampler", "id": "minecraft:main:depth" }
+      ],
+      "uniforms": [
+        { "name": "totalAlpha", "values": [ 0.0 ] },
+        { "name": "strength", "values": [ 0.0 ] },
+        { "name": "depthCutoff", "values": [ 0.0 ] }
+      ]
+    },
+    {
+      "name": "grub_bloom_h",
+      "intarget": "swap",
+      "outtarget": "bloom",
+      "uniforms": [
+        { "name": "pixelSize", "values": [ 1.0, 1.0 ] },
+        { "name": "totalAlpha", "values": [ 0.0 ] },
+        { "name": "bloomThreshold", "values": [ 0.0 ] }
+      ]
+    },
+    {
+      "name": "grub_bloom_v",
+      "intarget": "bloom",
+      "outtarget": "temp",
+      "auxtargets": [
+        { "name": "OriginalSampler", "id": "swap" }
+      ],
+      "uniforms": [
+        { "name": "pixelSize", "values": [ 1.0, 1.0 ] },
+        { "name": "totalAlpha", "values": [ 0.0 ] },
+        { "name": "bloomIntensity", "values": [ 0.0 ] }
+      ]
+    },
+	{
+      "name": "grub_radial_blur",
+      "intarget": "temp",
+      "outtarget": "swap",
+      "auxtargets": [
+        { "name": "DepthSampler", "id": "worlddepth:depth" }
+      ],
+      "uniforms": [
+        { "name": "blurStrength", "values": [ 0.0 ] },
+        { "name": "focusRadius", "values": [ 0.0 ] },
+        { "name": "totalAlpha", "values": [ 0.0 ] }
+      ]
+    },
+    {
+      "name": "blit",
+      "intarget": "swap",
+      "outtarget": "minecraft:main"
+    }
+  ]
+}

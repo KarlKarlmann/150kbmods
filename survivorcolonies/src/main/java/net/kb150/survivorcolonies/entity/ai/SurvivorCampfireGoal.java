@@ -1,28 +1,32 @@
 package net.kb150.survivorcolonies.entity.ai;
 
 import com.minecolonies.core.entity.other.SittingEntity;
+import net.kb150.survivorcolonies.SurvivorColonies;
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.tags.BlockTags;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.crafting.CampfireCookingRecipe;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.CampfireBlockEntity;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
- * Platziert und nutzt ein Lagerfeuer direkt beim Zelt des Überlebenden.
- * Dient als Ort zum Kochen, Regenerieren und Sitzen in der Nacht.
+ * Platziert und nutzt ein Lagerfeuer direkt beim Zelt des Ueberlebenden.
+ * Dient als Ort zum Kochen, Regenerieren und chaotischen Umcraften via Reverse-Recipe-Cache.
  */
 public class SurvivorCampfireGoal extends Goal {
     private final SurvivorEntity survivor;
@@ -30,10 +34,16 @@ public class SurvivorCampfireGoal extends Goal {
     private BlockPos sitTargetPos; 
     private boolean isGoalRunning = false;
     private int cookCooldown = 0;
+    private int craftCooldown = 0;
     private int sitLatchTicks = 0;
 
     private int idleSitTicks = 0;
     private static final int MAX_IDLE_SIT_TICKS = 200;
+
+    // Statische O(1) Caches: Verhindern Lag-Spikes bei vielen Entities durch Vorab-Indizierung aller Rezepte
+    private static final Map<Item, List<Item>> REVERSE_RECIPE_CACHE = new HashMap<>();
+    private static final Map<Item, Integer> CAMPFIRE_COOKING_CACHE = new HashMap<>();
+    private static boolean cacheInitialized = false;
 
     public SurvivorCampfireGoal(SurvivorEntity survivor) {
         this.survivor = survivor;
@@ -55,20 +65,16 @@ public class SurvivorCampfireGoal extends Goal {
             return false;
         }
 
-        // 1. Bekanntes Lagerfeuer prüfen
+        // 1. Bekanntes Lagerfeuer pruefen
         BlockPos memoryPos = this.survivor.getKnownCampfirePos();
         if (memoryPos != null) {
             if (this.survivor.level().getBlockState(memoryPos).is(Blocks.CAMPFIRE)) {
                 this.campfirePos = memoryPos.immutable();
                 this.sitTargetPos = findSafeAdjacentPos(this.campfirePos);
                 if (this.sitTargetPos != null) {
-                    net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] canUse == TRUE (bekanntes Feuer bei {}, SitPos: {})", this.campfirePos, this.sitTargetPos);
                     return true;
-                } else {
-                    net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] canUse == FALSE: Kein sicherer Sitzplatz um bekanntes Feuer {}", this.campfirePos);
                 }
             } else {
-                net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] Bekanntes Feuer bei {} existiert nicht mehr als Block -> gelöscht", memoryPos);
                 this.survivor.setKnownCampfirePos(null);
             }
         }
@@ -82,7 +88,6 @@ public class SurvivorCampfireGoal extends Goal {
                 this.sitTargetPos = findSafeAdjacentPos(this.campfirePos);
                 if (this.sitTargetPos != null) {
                     this.survivor.setKnownCampfirePos(this.campfirePos);
-                    net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] canUse == TRUE (Feuer in Umgebung gefunden bei {}, SitPos: {})", this.campfirePos, this.sitTargetPos);
                     return true;
                 }
             }
@@ -97,7 +102,6 @@ public class SurvivorCampfireGoal extends Goal {
                 this.sitTargetPos = tentAnchor;
             }
             this.survivor.setKnownCampfirePos(this.campfirePos);
-            net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] canUse == TRUE (Neuer Platz gefunden bei {}, SitPos: {})", this.campfirePos, this.sitTargetPos);
             return true;
         }
 
@@ -115,19 +119,14 @@ public class SurvivorCampfireGoal extends Goal {
         return survivor.blockPosition();
     }
 
-    /**
-     * Sucht im Abstand von 2 bis 3 Blöcken um den Zelteingang nach einem ebenen Bauplatz für das Feuer.
-     */
     private BlockPos findCampfireSpotNearTent(BlockPos tentApproach) {
-        // Sammle alle Blockpositionen des Zeltes, um Überschneidungen auszuschließen
         Set<BlockPos> forbiddenPositions = Collections.emptySet();
         SurvivorTentGoal tentGoal = survivor.getTentGoal();
         if (tentGoal != null) {
             forbiddenPositions = tentGoal.getTentLayout(tentApproach, survivor).keySet();
         }
 
-        // Ermittle alle X/Z-Grundflächen-Koordinaten des Zeltes
-        Set<Long> tentFootprintXZ = new java.util.HashSet<>();
+        Set<Long> tentFootprintXZ = new HashSet<>();
         for (BlockPos tentBlock : forbiddenPositions) {
             tentFootprintXZ.add(BlockPos.asLong(tentBlock.getX(), 0, tentBlock.getZ()));
         }
@@ -137,17 +136,11 @@ public class SurvivorCampfireGoal extends Goal {
         }
 
         for (BlockPos pos : BlockPos.betweenClosed(tentApproach.offset(-3, -1, -3), tentApproach.offset(3, 0, 3))) {
-            // Nicht direkt im Zelteingang bauen
             if (pos.equals(tentApproach)) continue;
 
-            // ABSOLUTES VERBOT: Weder AUF dem Zelt, noch ÜBER dem Zelt, noch IM Zelt!
-            // Sobald die X/Z-Koordinate mit IRGENDEINEM Zeltblock übereinstimmt -> SKIPPEN!
             long xzKey = BlockPos.asLong(pos.getX(), 0, pos.getZ());
-            if (tentFootprintXZ.contains(xzKey)) {
-                continue;
-            }
+            if (tentFootprintXZ.contains(xzKey)) continue;
 
-            // Sicherstellen, dass auch der Boden darunter oder die Luft darüber kein Zelt berührt
             if (forbiddenPositions.contains(pos) 
                     || forbiddenPositions.contains(pos.below()) 
                     || forbiddenPositions.contains(pos.above())
@@ -156,7 +149,6 @@ public class SurvivorCampfireGoal extends Goal {
             }
 
             double distSq = pos.distSqr(tentApproach);
-            // Idealabstand: 2 bis 3.5 Blöcke vom Eingang entfernt
             if (distSq >= 3.0D && distSq <= 12.0D) {
                 var floorState = survivor.level().getBlockState(pos.below());
 
@@ -175,16 +167,16 @@ public class SurvivorCampfireGoal extends Goal {
 
     @Override
     public void start() {
-        net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] START aufgerufen! Feuer: {}, SitPos: {}", this.campfirePos, this.sitTargetPos);
         this.isGoalRunning = true;
         this.sitLatchTicks = 0;
         this.idleSitTicks = 0;
+        this.cookCooldown = 20; // Kurze Pause nach dem Hinsetzen vor dem ersten Auflegen
+        this.craftCooldown = 60; // 3 Sekunden Wartezeit vor dem ersten Basteln
         
         if (this.campfirePos != null && !this.survivor.level().isClientSide 
                 && !this.survivor.level().getBlockState(this.campfirePos).is(Blocks.CAMPFIRE)) {
             this.survivor.level().setBlockAndUpdate(this.campfirePos, Blocks.CAMPFIRE.defaultBlockState());
             this.survivor.playSound(SoundEvents.WOOD_PLACE, 1.0F, 1.0F);
-            net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] Neuer Campfire-Block platziert bei {}", this.campfirePos);
         }
     }
 
@@ -210,7 +202,6 @@ public class SurvivorCampfireGoal extends Goal {
                 this.survivor.setPos(this.sitTargetPos.getX() + 0.5D, this.survivor.getY(), this.sitTargetPos.getZ() + 0.5D);
 
                 boolean satDown = SittingEntity.sitDown(this.sitTargetPos, this.survivor, 12000);
-                net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] SittingEntity.sitDown() aufgerufen bei {}: Erfolg = {}", this.sitTargetPos, satDown);
                 if (satDown) {
                     this.sitLatchTicks = 20;
                 }
@@ -229,21 +220,150 @@ public class SurvivorCampfireGoal extends Goal {
         }
 
         if (this.survivor.isPassenger() && !this.survivor.level().isClientSide) {
+            // 1. Rohkost und Fleisch aus dem Inventar auf das Lagerfeuer legen
             if (this.cookCooldown > 0) {
                 this.cookCooldown--;
-            } else if (this.survivor.getInventory().hasAnyOf(Set.of(Items.ROTTEN_FLESH))) {
-                if (this.survivor.level().getBlockEntity(this.campfirePos) instanceof CampfireBlockEntity campfire) {
-                    ItemStack fleshStack = new ItemStack(Items.ROTTEN_FLESH, 1);
-                    
-                    if (campfire.placeFood(this.survivor, fleshStack, 600)) {
-                        this.survivor.getInventory().removeItemType(Items.ROTTEN_FLESH, 1);
-                        this.survivor.swing(InteractionHand.MAIN_HAND);
-                        this.cookCooldown = 100;
-                        net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] Rotten Flesh auf das Feuer gelegt!");
+            } else {
+                int foodSlot = findCookableFoodSlot();
+                if (foodSlot != -1) {
+                    if (this.survivor.level().getBlockEntity(this.campfirePos) instanceof CampfireBlockEntity campfire) {
+                        ItemStack foodStack = this.survivor.getInventory().getItem(foodSlot);
+                        int cookTime = CAMPFIRE_COOKING_CACHE.getOrDefault(foodStack.getItem(), 600);
+
+                        // Exakt 1 Item auf das Feuer legen
+                        ItemStack singleToCook = foodStack.copy();
+                        singleToCook.setCount(1);
+
+                        if (campfire.placeFood(this.survivor, singleToCook, cookTime)) {
+                            this.survivor.getInventory().removeItem(foodSlot, 1);
+                            this.survivor.swing(InteractionHand.MAIN_HAND);
+                            this.cookCooldown = 60; // 3 Sekunden warten bis zum naechsten Auflegen
+                            this.survivor.level().playSound(null, this.campfirePos, SoundEvents.CAMPFIRE_CRACKLE, SoundSource.BLOCKS, 0.8F, 1.0F);
+                        } else {
+                            // Campfire ist voll belegt (4/4 Slots) -> Verhindert CPU-Tick-Spamming waehrend des Garens
+                            this.cookCooldown = 160;
+                        }
+                    }
+                }
+            }
+
+            // 2. Chaotisches Handwerk am Feuer (Reverse-Recipe-Crafting)
+            if (this.craftCooldown > 0) {
+                this.craftCooldown--;
+            } else {
+                this.craftCooldown = 120 + this.survivor.getRandom().nextInt(100);
+                attemptCampfireCrafting();
+            }
+        }
+    }
+
+    /**
+     * Initialisiert den Recipe-Cache ein einziges Mal statisch fuer den Server.
+     * Mappt jede Zutat auf alle moeglichen Ergebnisse sowie alle campfire-cookable Items samt Gardauer.
+     */
+    private static synchronized void ensureRecipeCacheBuilt(Level level) {
+        if (cacheInitialized) return;
+        long start = System.currentTimeMillis();
+
+        var recipeManager = level.getRecipeManager();
+
+        // 1. Alle im Spiel registrierten Campfire-Rezepte vorfiltern
+        for (CampfireCookingRecipe recipe : recipeManager.getAllRecipesFor(RecipeType.CAMPFIRE_COOKING)) {
+            int cookTime = recipe.getCookingTime();
+            for (Ingredient ingredient : recipe.getIngredients()) {
+                for (ItemStack inputStack : ingredient.getItems()) {
+                    if (!inputStack.isEmpty()) {
+                        CAMPFIRE_COOKING_CACHE.putIfAbsent(inputStack.getItem(), cookTime);
                     }
                 }
             }
         }
+
+        // Rotten Flesh als zähe Notration fuer Ueberlebende immer erlauben
+        CAMPFIRE_COOKING_CACHE.putIfAbsent(Items.ROTTEN_FLESH, 600);
+
+        // 2. Reverse-Recipe-Cache fuer das chaotische Handwerk
+        for (Recipe<?> recipe : recipeManager.getRecipes()) {
+            ItemStack result = recipe.getResultItem(level.registryAccess());
+            if (result.isEmpty()) continue;
+
+            Item resultItem = result.getItem();
+
+            for (Ingredient ingredient : recipe.getIngredients()) {
+                for (ItemStack inputStack : ingredient.getItems()) {
+                    if (inputStack.isEmpty()) continue;
+                    Item inputItem = inputStack.getItem();
+
+                    REVERSE_RECIPE_CACHE.computeIfAbsent(inputItem, k -> new ArrayList<>()).add(resultItem);
+                }
+            }
+        }
+
+        cacheInitialized = true;
+        SurvivorColonies.LOGGER.info("[SurvivorColonies] Recipe-Cache initialisiert in {} ms. Bratbare Items: {}, Zutat-Mappings: {}", 
+                System.currentTimeMillis() - start, CAMPFIRE_COOKING_CACHE.size(), REVERSE_RECIPE_CACHE.size());
+    }
+
+    /**
+     * Zieht ein Material aus dem Rucksack und verwandelt es per Zufall
+     * in ein Rezept-Ergebnis, das diese Zutat verwendet.
+     */
+    private void attemptCampfireCrafting() {
+        Level level = this.survivor.level();
+        ensureRecipeCacheBuilt(level);
+
+        int focusSkill = this.survivor.getSkills().getOrDefault("Focus", 1);
+        float successChance = 0.30F + (focusSkill * 0.05F);
+        if (this.survivor.getRandom().nextFloat() > successChance) {
+            return;
+        }
+
+        var inv = this.survivor.getInventory();
+        List<Integer> craftableSlots = new ArrayList<>();
+
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (!stack.isEmpty() && !stack.isEdible() && REVERSE_RECIPE_CACHE.containsKey(stack.getItem())) {
+                craftableSlots.add(i);
+            }
+        }
+
+        if (craftableSlots.isEmpty()) return;
+
+        int chosenSlot = craftableSlots.get(this.survivor.getRandom().nextInt(craftableSlots.size()));
+        ItemStack ingredientStack = inv.getItem(chosenSlot);
+        Item ingredientItem = ingredientStack.getItem();
+
+        List<Item> possibleResults = REVERSE_RECIPE_CACHE.get(ingredientItem);
+        if (possibleResults == null || possibleResults.isEmpty()) return;
+
+        Item craftedItem = possibleResults.get(this.survivor.getRandom().nextInt(possibleResults.size()));
+        ItemStack craftedStack = new ItemStack(craftedItem, 1);
+
+        ingredientStack.shrink(1);
+        if (ingredientStack.isEmpty()) {
+            inv.setItem(chosenSlot, ItemStack.EMPTY);
+        }
+
+        ItemStack remainder = inv.addItem(craftedStack);
+        if (!remainder.isEmpty()) {
+            this.survivor.spawnAtLocation(remainder);
+        }
+
+        this.survivor.tryEquipBetterItem(craftedStack);
+
+        this.survivor.swing(InteractionHand.MAIN_HAND);
+        level.playSound(null, this.campfirePos, SoundEvents.ANVIL_USE, SoundSource.BLOCKS, 0.6F, 1.2F);
+        level.playSound(null, this.campfirePos, SoundEvents.FIRECHARGE_USE, SoundSource.BLOCKS, 0.5F, 0.9F);
+
+        if (level instanceof ServerLevel serverLevel) {
+            serverLevel.sendParticles(ParticleTypes.CRIT,
+                    this.campfirePos.getX() + 0.5D, this.campfirePos.getY() + 0.8D, this.campfirePos.getZ() + 0.5D,
+                    8, 0.2D, 0.2D, 0.2D, 0.1D);
+        }
+
+        SurvivorColonies.LOGGER.info("[CAMPFIRE-CRAFT] {} hat am Feuer 1x {} in 1x {} umgehandwerkt (Focus: {})!",
+                this.survivor.getSurvivorName(), ingredientItem.getDescriptionId(), craftedItem.getDescriptionId(), focusSkill);
     }
 
     @Override
@@ -253,7 +373,6 @@ public class SurvivorCampfireGoal extends Goal {
             && this.campfirePos != null;
 
         if (!isSafeCondition) {
-            net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] canContinueToUse == FALSE (Gefahr/Target/Feuer null). sitLatch: {}", this.sitLatchTicks);
             return this.sitLatchTicks > 0;
         }
 
@@ -263,15 +382,23 @@ public class SurvivorCampfireGoal extends Goal {
         }
 
         this.idleSitTicks++;
-        boolean continueSitting = this.idleSitTicks < MAX_IDLE_SIT_TICKS || this.sitLatchTicks > 0;
-        if (!continueSitting) {
-            net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] canContinueToUse == FALSE (idleSitTicks abgelaufen: {}/{})", this.idleSitTicks, MAX_IDLE_SIT_TICKS);
+        return this.idleSitTicks < MAX_IDLE_SIT_TICKS || this.sitLatchTicks > 0;
+    }
+
+    private int findCookableFoodSlot() {
+        ensureRecipeCacheBuilt(this.survivor.level());
+        var inv = this.survivor.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (!stack.isEmpty() && CAMPFIRE_COOKING_CACHE.containsKey(stack.getItem())) {
+                return i;
+            }
         }
-        return continueSitting;
+        return -1;
     }
 
     private boolean hasCookableFood() {
-        return this.survivor.getInventory().hasAnyOf(Set.of(Items.ROTTEN_FLESH));
+        return findCookableFoodSlot() != -1;
     }
 
     private boolean wantsToHealAndEat() {
@@ -281,7 +408,6 @@ public class SurvivorCampfireGoal extends Goal {
 
     @Override
     public void stop() {
-        net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[CAMPFIRE-DEBUG] STOP aufgerufen. War Passenger: {}", this.survivor.isPassenger());
         this.isGoalRunning = false;
         this.sitLatchTicks = 0;
         this.idleSitTicks = 0;
@@ -297,10 +423,7 @@ public class SurvivorCampfireGoal extends Goal {
     }
 
     private BlockPos findSafeAdjacentPos(BlockPos firePos) {
-        List<Direction> directions = new ArrayList<>();
-        for (Direction d : Direction.Plane.HORIZONTAL) {
-            directions.add(d);
-        }
+        List<Direction> directions = new ArrayList<>(List.of(Direction.Plane.HORIZONTAL.stream().toArray(Direction[]::new)));
         Collections.shuffle(directions);
 
         for (Direction dir : directions) {

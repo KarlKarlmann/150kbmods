@@ -1,0 +1,24 @@
+{
+    "blend": {
+        "func": "add",
+        "srcrgb": "srcalpha",
+        "dstrgb": "1-srcalpha"
+    },
+    "vertex": "blit",
+    "fragment": "grub_prism_melt",
+    "attributes": [ "Position" ],
+    "samplers": [
+        { "name": "DiffuseSampler" }
+    ],
+    "uniforms": [
+        { "name": "totalAlpha", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "distance", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "verticalDistance", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "stretch", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "targetHue", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "hueTolerance", "type": "float", "count": 1, "values": [ 0.15 ] },
+
+        { "name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+        { "name": "OutSize", "type": "float",     "count": 2,  "values": [ 1.0, 1.0 ] }
+    ]
+}

@@ -397,11 +397,14 @@ public class SurvivorDialogScreen extends Screen {
         );
     }
 
-    private void choosePlayerReaction(int playerReactionId, Button clickedButton) {
-        DialogManager.NpcReaction next = DialogManager.resolvePlayerReaction(this.survivor, playerReactionId);
-        if (next == null) {
+	private void choosePlayerReaction(int playerReactionId, Button clickedButton) {
+        DialogManager.EdgeResolution resolution = DialogManager.resolvePlayerReaction(this.survivor, playerReactionId);
+        if (resolution == null) {
             return;
         }
+
+        DialogManager.NpcReaction next = resolution.npcReaction();
+        int trustDelta = resolution.trustDelta();
 
         ModMessages.sendToServer(new C2SDialogOptionPacket(
                 this.survivor.getId(),
@@ -415,13 +418,14 @@ public class SurvivorDialogScreen extends Screen {
             this.survivor.setDialogState(this.minecraft.player.getUUID(), next.id());
         }
 
-        if (next.trustDelta() != 0) {
+        // Visuelles Feedback fuer den Spieler ueber die Edge-Aenderung
+        if (trustDelta != 0) {
             spawnTrustPopup(
                     clickedButton.getX() + clickedButton.getWidth() / 2.0F,
                     clickedButton.getY(),
-                    next.trustDelta()
+                    trustDelta
             );
-            this.survivor.addTrust(next.trustDelta());
+            this.survivor.addTrust(trustDelta);
         }
 
         showNpcReaction(next.id());

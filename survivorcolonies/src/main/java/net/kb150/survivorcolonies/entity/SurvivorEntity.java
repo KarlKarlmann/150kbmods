@@ -165,7 +165,8 @@ public class SurvivorEntity extends PathfinderMob {
             }
         ));
 
-        this.goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.2D, true));
+        // Ersetzt das alte starre MeleeAttackGoal durch adaptiven Nah- und Fernkampf
+        this.goalSelector.addGoal(3, new SurvivorCombatGoal(this));
         this.goalSelector.addGoal(4, new SurvivorInteractGoal(this));
 
         this.tentGoal = new SurvivorTentGoal(this);

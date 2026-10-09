@@ -1,0 +1,34 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="CC BY-NC 4.0"
+
+[[mods]]
+modId="grubies"
+version="${version}"
+displayName="Grubies"
+displayURL="https://www.n3g.de"
+authors="Karl Karlmann"
+logoFile="grubies.png"
+description='''
+Spawn Grubs while digging
+'''
+
+# -------------------------------------------------------------------------
+# ABHÄNGIGKEITEN (DEPENDENCIES)
+# -------------------------------------------------------------------------
+
+# 1. Forge API
+[[dependencies.grubies]]
+modId="forge"
+mandatory=true
+versionRange="[47.2.0,)"
+ordering="NONE"
+side="BOTH"
+
+# 2. Minecraft Core
+[[dependencies.grubies]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="BOTH"

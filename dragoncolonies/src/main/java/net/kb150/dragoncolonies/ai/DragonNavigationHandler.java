@@ -16,11 +16,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
-// Bridge zwischen MineColonies und Book of Dragons (BoD).
-// Hält den Drachen bei Luftpatrouillen kontinuierlich in Bewegung:
-// Bei Delays von MineColonies kreist der Drache mit realem Schub im Loiter-Orbit,
-// statt in der asynchronen BoD-Pfadsuche einzufrieren oder auf 0 abzubremsen.
 public final class DragonNavigationHandler {
 
     private static final int MOUNT_DELAY_TICKS = 30;
@@ -28,7 +25,6 @@ public final class DragonNavigationHandler {
     private static final int MAX_NO_PROGRESS_TICKS = 20 * 5;
     private static final double MIN_PROGRESS_DISTANCE = 0.20D;
 
-    // Fly-Through Radius für Luftziele: Minecolonies erfährt frühzeitig von Ankunft
     private static final double AIR_PASS_BY_DISTANCE_SQ = 7.0D * 7.0D;
     private static final double LOITER_RADIUS = 20.0D;
 
@@ -37,9 +33,10 @@ public final class DragonNavigationHandler {
     private static final Map<UUID, BlockPos> MOUNT_DELAY_TARGET = new HashMap<>();
     private static final Map<UUID, ActiveTransport> ACTIVE = new HashMap<>();
     private static final Map<UUID, BlockPos> AIR_TARGET_ARRIVED = new HashMap<>();
-
-    // Speichert aktive Loiter-Zentren für flüssiges Kreisen bei Pausen
     private static final Map<UUID, LoiterState> ACTIVE_LOITERS = new HashMap<>();
+
+    // Liste verifizierter Flugziele zur Vermeidung wiederholter Heightmap-Scans auf Dedicated Servern
+    private static final Map<BlockPos, BlockPos> SAFE_AIR_CACHE = new ConcurrentHashMap<>();
 
     private record ActiveTransport(
             BlockPos target,
@@ -99,7 +96,6 @@ public final class DragonNavigationHandler {
 
         ActiveTransport active = ACTIVE.get(id);
         if (active != null) {
-            // Ignoriere minimale Wegpunktkorrekturen im Nahbereich, um Neuberechnungen zu verhindern
             if (!active.target().equals(target)) {
                 if (active.target().closerThan(target, 4.0D)) {
                     return false;
@@ -109,14 +105,12 @@ public final class DragonNavigationHandler {
             }
         }
 
-        // Wenn ein Luftziel gerade als erreicht markiert wurde: MineColonies quittieren
         BlockPos arrivedAir = AIR_TARGET_ARRIVED.get(id);
         if (airTarget && target.equals(arrivedAir)) {
             AIR_TARGET_ARRIVED.remove(id);
             return true;
         }
 
-        // Neues Ziel erhalten: Alten Loiter-Zustand sofort beenden
         if (active != null && !active.target().equals(target)) {
             ACTIVE_LOITERS.remove(id);
         }
@@ -154,7 +148,6 @@ public final class DragonNavigationHandler {
 
         citizen.getNavigation().stop();
         if (active == null) {
-            // Neues Ziel eingetroffen: Loiter beenden
             ACTIVE_LOITERS.remove(id);
 
             Vec3 dragonTarget = toDragonTarget(target);
@@ -163,25 +156,34 @@ public final class DragonNavigationHandler {
                 return null;
             }
 
-            BoDPathInfo.clear(dragon);
-            alignDragonToTarget(dragon, dragonTarget);
-            movement.setRecalculationInterval(120);
+			BoDPathInfo.clear(dragon);
+			alignDragonToTarget(dragon, dragonTarget);
+			movement.setRecalculationInterval(120);
 
-            ActiveTransport newActive = new ActiveTransport(
-                    target,
-                    dragonTarget,
-                    airTarget,
-                    dragon.position(),
-                    0,
-                    -1
-            );
-            ACTIVE.put(id, newActive);
+			// Bricht BoDs Trägheits-Overshoot bei Kurven >60° ab, damit sich smoothedVelocity nicht in Resonanz aufschaukelt.
+			Vec3 currentVel = dragon.getDeltaMovement();
+			Vec3 toNewTarget = dragonTarget.subtract(dragon.position()).normalize();
+			if (currentVel.lengthSqr() > 0.04D && currentVel.normalize().dot(toNewTarget) < 0.5D) {
+				DragonColonies.debug("NAVIGATION", "[DAMPEN] Dämpfe Trägheitsvektor für {} | Dot: {}", 
+						citizen.getName().getString(), currentVel.normalize().dot(toNewTarget));
+				dragon.setDeltaMovement(currentVel.scale(0.2D));
+			}
 
-            CitizenReasonResolver.ReasonInfo reason = CitizenReasonResolver.resolveReason(citizen);
-            DragonColonies.debug("NAVIGATION", "Flugauftrag gestartet | Buerger: {} | Ziel: {} | Air: {} | Grund: {}",
-                    citizen.getName().getString(), target.toShortString(), airTarget, reason);
+			ActiveTransport newActive = new ActiveTransport(
+					target,
+					dragonTarget,
+					airTarget,
+					dragon.position(),
+					0,
+					-1
+			);
+			ACTIVE.put(id, newActive);
 
-            movement.setWaypoint(dragonTarget, 1.0D, arrivedDragon -> {
+			CitizenReasonResolver.ReasonInfo reason = CitizenReasonResolver.resolveReason(citizen);
+			DragonColonies.debug("NAVIGATION", "Flugauftrag gestartet | Buerger: {} | Ziel: {} | Air: {} | Grund: {}",
+					citizen.getName().getString(), target.toShortString(), airTarget, reason);
+
+			movement.setWaypoint(dragonTarget, 1.0D, arrivedDragon -> {
                 ActiveTransport current = ACTIVE.get(id);
                 if (current == null || !current.target().equals(target)) {
                     return;
@@ -189,8 +191,11 @@ public final class DragonNavigationHandler {
 
                 CitizenReasonResolver.ReasonInfo arrivalReason = CitizenReasonResolver.resolveReason(citizen);
 
-                if (current.airTarget()) {
-                    DragonColonies.debug("NAVIGATION", "Luftziel erreicht (Callback) | Buerger: {} | Ziel: {} | Grund: {}",
+                // Verhindert unberechtigtes Absitzen während Patrouillenflügen selbst bei verfälschten Ground-Flags
+                boolean isGroundTask = !rider.hasAxe() || rider.isReturningDragon();
+
+                if (current.airTarget() || !isGroundTask) {
+                    DragonColonies.debug("NAVIGATION", "Luftziel/Patrouille erreicht (Callback) | Buerger: {} | Ziel: {} | Grund: {}",
                             citizen.getName().getString(), current.target().toShortString(), arrivalReason);
                     ACTIVE.remove(id);
                     AIR_TARGET_ARRIVED.put(id, current.target());
@@ -219,7 +224,6 @@ public final class DragonNavigationHandler {
         double dz = dragonPos.z - (center.getZ() + 0.5D);
         double initialAngle = Math.atan2(dz, dx);
 
-        // Reisegeschwindigkeit aus den Stats ermitteln (Fallback 0.55 Blöcke/Tick)
         double speed = 0.55D;
         if (dragon.getStatSheet() != null) {
             speed = Math.max(0.40D, dragon.getStatSheet().airMaxVelocity * 0.85D);
@@ -248,12 +252,10 @@ public final class DragonNavigationHandler {
             }
         }
 
-        // Autonomer physikalischer Loiter-Orbit während MineColonies-Delays
         for (Map.Entry<UUID, LoiterState> entry : new ArrayList<>(ACTIVE_LOITERS.entrySet())) {
             UUID id = entry.getKey();
             LoiterState loiter = entry.getValue();
 
-            // Falls MineColonies bereits ein neues aktives Ziel geschickt hat, Orbit beenden
             if (ACTIVE.containsKey(id)) {
                 ACTIVE_LOITERS.remove(id);
                 continue;
@@ -273,12 +275,9 @@ public final class DragonNavigationHandler {
                 continue;
             }
 
-            // Physikalischen Flugvektor tangential entlang der Kreisbahn berechnen
-            // dTheta = arc_length / radius
             double dTheta = loiter.speed / LOITER_RADIUS;
             loiter.currentAngle += dTheta;
 
-            // Punkt auf dem Kreisumfang
             double targetX = (loiter.center.getX() + 0.5D) + Math.cos(loiter.currentAngle) * LOITER_RADIUS;
             double targetZ = (loiter.center.getZ() + 0.5D) + Math.sin(loiter.currentAngle) * LOITER_RADIUS;
             double targetY = loiter.center.getY();
@@ -286,12 +285,10 @@ public final class DragonNavigationHandler {
             Vec3 desiredPos = new Vec3(targetX, targetY, targetZ);
             Vec3 toTangent = desiredPos.subtract(dragon.position());
 
-            // Vektor normalisieren und auf Air-Speed skalieren
             if (toTangent.lengthSqr() > 0.01D) {
                 Vec3 velocity = toTangent.normalize().scale(loiter.speed);
                 dragon.setDeltaMovement(velocity);
 
-                // Drachen-Ausrichtung kontinuierlich in Flugrichtung ziehen
                 float targetYaw = (float) (-Mth.atan2(velocity.x, velocity.z) * (180.0D / Math.PI));
                 dragon.setYRot(targetYaw);
                 dragon.yBodyRot = targetYaw;
@@ -346,20 +343,31 @@ public final class DragonNavigationHandler {
                 dragon.yHeadRot = dragon.getYRot();
             }
 
-            // Fly-Through Erkennung: Übergang in den Loiter-Orbit bereits im Vorbeiflug
-            if (active.airTarget()) {
-                double distSqToAirTarget = dragon.distanceToSqr(active.dragonTarget());
-                if (distSqToAirTarget <= AIR_PASS_BY_DISTANCE_SQ) {
-                    CitizenReasonResolver.ReasonInfo arrivalReason = CitizenReasonResolver.resolveReason(citizen);
-                    DragonColonies.debug("NAVIGATION", "Luftziel erreicht (Fly-Through) | Buerger: {} | Ziel: {} | Dist: {}m",
-                            citizen.getName().getString(), active.target().toShortString(), String.format("%.1f", Math.sqrt(distSqToAirTarget)));
+			if (active.airTarget()) {
+				double distSqToAirTarget = dragon.distanceToSqr(active.dragonTarget());
+				if (distSqToAirTarget <= AIR_PASS_BY_DISTANCE_SQ) {
+					
+					AIMovementComponent move = dragon.getAIMovement();
+					
+					DragonColonies.debug("NAVIGATION", "[SPIN-MEASURE] Citizen: {} | Pitch(XRot): {} | Yaw(YRot): {} | Vel: {} | BoDState: {} | BoDPathing: {}",
+							citizen.getName().getString(),
+							dragon.getXRot(),
+							dragon.getYRot(),
+							dragon.getDeltaMovement().toString(),
+							move != null ? move.getState().name() : "NULL",
+							move != null && move.isPathing()
+					);
 
-                    ACTIVE.remove(id);
-                    AIR_TARGET_ARRIVED.put(id, active.target());
-                    startLoitering(id, dragon, active.target());
-                    continue;
-                }
-            }
+					CitizenReasonResolver.ReasonInfo arrivalReason = CitizenReasonResolver.resolveReason(citizen);
+					DragonColonies.debug("NAVIGATION", "Luftziel erreicht (Fly-Through) | Buerger: {} | Ziel: {} | Dist: {}m",
+							citizen.getName().getString(), active.target().toShortString(), String.format("%.1f", Math.sqrt(distSqToAirTarget)));
+
+					ACTIVE.remove(id);
+					AIR_TARGET_ARRIVED.put(id, active.target());
+					startLoitering(id, dragon, active.target());
+					continue;
+				}
+			}
 
             if (active.noProgressTicks() >= MAX_NO_PROGRESS_TICKS) {
                 DragonColonies.debug("NAVIGATION", "Unstuck Watchdog ausgeloest fuer {} -> Teleport zu {}",
@@ -422,16 +430,57 @@ public final class DragonNavigationHandler {
     }
 
     public static BlockPos getHighAirPos(ServerLevel level, BlockPos pos) {
-        int surfaceY = level.getHeightmapPos(
-                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-                new BlockPos(pos.getX(), 0, pos.getZ())
-        ).getY();
+        if (pos == null || level == null) return pos;
 
-        return new BlockPos(
-                pos.getX(),
-                Math.max(pos.getY() + 12, surfaceY + 12),
-                pos.getZ()
-        );
+        // Abfrage aus der persistenten Verifizierungsliste
+        BlockPos cached = SAFE_AIR_CACHE.get(pos);
+        if (cached != null) {
+            // Bei geladenen Chunks Re-Validierung gegen eventuelle Bauwerke/Terrainveränderungen
+            if (level.hasChunk(cached.getX() >> 4, cached.getZ() >> 4)) {
+                if (isAirTarget(level, cached)) return cached;
+                SAFE_AIR_CACHE.remove(pos);
+            } else {
+                // Bei ungeladenen Chunks vertrauen wir dem historisch verifizierten Punkt
+                return cached;
+            }
+        }
+
+        int chunkX = pos.getX() >> 4;
+        int chunkZ = pos.getZ() >> 4;
+        boolean chunkLoaded = level.hasChunk(chunkX, chunkZ);
+
+        // Startwert-Messung: Bei ungeladenen Chunks Höhenabfrage-Bug (Y=0) durch Sicherheits-Offset verhindern
+        int startY;
+        if (chunkLoaded) {
+            int surfaceY = level.getHeightmapPos(
+                    net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                    pos
+            ).getY();
+            startY = Math.max(pos.getY() + 12, surfaceY + 12);
+        } else {
+            startY = pos.getY() + 25;
+        }
+
+        BlockPos candidate = new BlockPos(pos.getX(), startY, pos.getZ());
+        if (!chunkLoaded) return candidate;
+
+        // Höhen-Messschleife: Wandert bei Baumkronen/Steilhängen schrittweise nach oben, bis 2 Blöcke Freiraum garantiert sind
+        int maxY = level.getMaxBuildHeight() - 2;
+        while (!isAirTarget(level, candidate) && candidate.getY() < maxY) {
+            candidate = candidate.above();
+        }
+
+        // Erst nach erfolgreichem Messnachweis in die Liste aufnehmen
+        if (isAirTarget(level, candidate)) {
+            SAFE_AIR_CACHE.put(pos, candidate);
+            DragonColonies.debug("NAVIGATION", "[AIR-CACHE-SAVE] Neuer verifizierter Wegpunkt: {} -> {}", pos.toShortString(), candidate.toShortString());
+        }
+
+        return candidate;
+    }
+
+    public static void clearCache() {
+        SAFE_AIR_CACHE.clear();
     }
 
     private static boolean isAirTarget(ServerLevel level, BlockPos target) {

@@ -1,147 +1,187 @@
 package net.kb150.survivorcolonies.data;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
+import net.kb150.survivorcolonies.SurvivorColonies;
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
+import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
 import org.slf4j.Logger;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.zip.GZIPInputStream;
 
 /**
- * Laufzeit-Manager für den generierten Konversations-Graphen.
- * Lädt dialog_logic.json via Datapack-Reload und löst Optionen deterministisch auf.
+ * Laufzeit-Manager fuer den komprimierten binaeren Konversations-Graphen (v5 SCDG).
+ * Laedt 'dialog_logic.bin' aus dem Data-Asset-Pfad in wenigen Millisekunden ohne JSON-Overhead.
  */
-public class DialogManager extends SimpleJsonResourceReloadListener {
+public class DialogManager extends SimplePreparableReloadListener<byte[]> {
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final Gson GSON = new GsonBuilder().create();
+    private static final ResourceLocation BINARY_LOCATION =
+            new ResourceLocation(SurvivorColonies.MODID, "survivors/dialog_logic.bin");
+
+    // Condition Types (aus space_converter.py)
+    public static final int COND_NONE = 0;
+    public static final int COND_TONE = 1;
+    public static final int COND_BACKSTORY = 2;
+    public static final int COND_MOTIVATION = 3;
+    public static final int COND_TRUST = 4;
+    public static final int COND_SKILL = 5;
+
+    // Feste Standard-Mappings fuer numerische IDs
+    private static final String[] KNOWN_TONES = {
+            "grumpy", "panicked", "arrogant", "cheerful", "cynical", "mysterious"
+    };
+    private static final String[] KNOWN_BACKSTORIES = {
+            "mine_collapse", "bandit_raider", "monster_ambush", "exile", "lost_caravan"
+    };
+    private static final String[] KNOWN_MOTIVATIONS = {
+            "safety", "money", "purpose", "revenge", "food"
+    };
+    private static final String[] KNOWN_SKILLS = {
+            "Strength", "Stamina", "Athletics", "Agility", "Focus"
+    };
+
+    // Dynamisch geladene Style-Tabelle aus dem Datei-Header
+    private static String[] STYLE_TABLE = new String[0];
 
     private static final List<Integer> ROOTS = new ArrayList<>();
     private static final Map<Integer, NpcReaction> NPC_REACTIONS = new HashMap<>();
     private static final Map<Integer, PlayerReaction> PLAYER_REACTIONS = new HashMap<>();
 
     public DialogManager() {
-        super(GSON, "survivors");
     }
 
     @Override
-    protected void apply(
-            Map<ResourceLocation, JsonElement> objectMap,
-            ResourceManager resourceManager,
-            ProfilerFiller profiler
-    ) {
+    protected byte[] prepare(ResourceManager resourceManager, ProfilerFiller profiler) {
+        profiler.startTick();
+        profiler.push("read_dialog_logic_bin");
+
+        Optional<Resource> res = resourceManager.getResource(BINARY_LOCATION);
+        if (res.isEmpty()) {
+            LOGGER.warn("[SurvivorColonies] 'dialog_logic.bin' nicht unter '{}' gefunden!", BINARY_LOCATION);
+            profiler.pop();
+            profiler.endTick();
+            return null;
+        }
+
+        try (InputStream in = res.get().open()) {
+            byte[] bytes = in.readAllBytes();
+            profiler.pop();
+            profiler.endTick();
+            return bytes;
+        } catch (Exception e) {
+            LOGGER.error("[SurvivorColonies] Fehler beim Lesen von '{}': {}", BINARY_LOCATION, e.getMessage(), e);
+            profiler.pop();
+            profiler.endTick();
+            return null;
+        }
+    }
+
+    @Override
+    protected void apply(byte[] rawCompressedData, ResourceManager resourceManager, ProfilerFiller profiler) {
+        if (rawCompressedData == null || rawCompressedData.length == 0) {
+            return;
+        }
+
+        long startTime = System.currentTimeMillis();
+
         ROOTS.clear();
         NPC_REACTIONS.clear();
         PLAYER_REACTIONS.clear();
 
-        for (Map.Entry<ResourceLocation, JsonElement> entry : objectMap.entrySet()) {
-            try {
-                if (!entry.getValue().isJsonObject()) {
-                    continue;
-                }
-
-                JsonObject root = entry.getValue().getAsJsonObject();
-
-                if (!root.has("roots") && !root.has("npc_reactions") && !root.has("player_reactions")) {
-                    continue;
-                }
-
-                if (root.has("roots") && root.get("roots").isJsonArray()) {
-                    JsonArray roots = root.getAsJsonArray("roots");
-                    for (JsonElement element : roots) {
-                        ROOTS.add(element.getAsInt());
-                    }
-                }
-
-                if (root.has("npc_reactions") && root.get("npc_reactions").isJsonObject()) {
-                    JsonObject npcObject = root.getAsJsonObject("npc_reactions");
-                    for (String idString : npcObject.keySet()) {
-                        int id = Integer.parseInt(idString);
-                        JsonObject value = npcObject.getAsJsonObject(idString);
-
-                        Map<String, JsonElement> conditions = new HashMap<>();
-                        if (value.has("conditions") && value.get("conditions").isJsonObject()) {
-                            JsonObject conditionObject = value.getAsJsonObject("conditions");
-                            for (String key : conditionObject.keySet()) {
-                                conditions.put(key, conditionObject.get(key));
-                            }
-                        }
-
-                        List<Integer> optionIds = readIntArray(value, "options");
-
-                        String textOrKey = "";
-                        if (value.has("text_key")) {
-                            textOrKey = value.get("text_key").getAsString();
-                        } else if (value.has("text")) {
-                            textOrKey = value.get("text").getAsString();
-                        }
-
-                        int trustDelta = value.has("trust_delta") ? value.get("trust_delta").getAsInt() : 0;
-
-                        NPC_REACTIONS.put(id, new NpcReaction(
-                                id,
-                                textOrKey,
-                                conditions,
-                                trustDelta,
-                                optionIds
-                        ));
-                    }
-                }
-
-                if (root.has("player_reactions") && root.get("player_reactions").isJsonObject()) {
-                    JsonObject playerObject = root.getAsJsonObject("player_reactions");
-                    for (String idString : playerObject.keySet()) {
-                        int id = Integer.parseInt(idString);
-                        JsonObject value = playerObject.getAsJsonObject(idString);
-
-                        String textOrKey = "";
-                        if (value.has("text_key")) {
-                            textOrKey = value.get("text_key").getAsString();
-                        } else if (value.has("text")) {
-                            textOrKey = value.get("text").getAsString();
-                        }
-
-                        String style = value.has("style") ? value.get("style").getAsString() : "";
-                        List<Integer> optionIds = readIntArray(value, "options");
-
-                        PLAYER_REACTIONS.put(id, new PlayerReaction(
-                                id,
-                                textOrKey,
-                                style,
-                                optionIds
-                        ));
-                    }
-                }
-            } catch (Exception e) {
-                LOGGER.error("Fehler beim Laden der Dialog-Datei '{}': {}", entry.getKey(), e.getMessage());
+        try (DataInputStream in = new DataInputStream(new GZIPInputStream(new ByteArrayInputStream(rawCompressedData)))) {
+            // 1. Magic Bytes Check ('SCDG')
+            byte[] magic = new byte[4];
+            in.readFully(magic);
+            String magicStr = new String(magic, StandardCharsets.US_ASCII);
+            if (!"SCDG".equals(magicStr)) {
+                throw new IllegalStateException("Ungueltige Magic Bytes in dialog_logic.bin: " + magicStr);
             }
-        }
 
-        LOGGER.info("[SurvivorColonies] Erfolgreich geladen: {} NPC-Reaktionen, {} Spieler-Reaktionen, {} Roots.",
-                NPC_REACTIONS.size(), PLAYER_REACTIONS.size(), ROOTS.size());
+            // 2. Format Version
+            int version = in.readUnsignedShort();
+            if (version != 5) {
+                throw new IllegalStateException("Nicht unterstuetzte Dialog-Graph-Version: " + version + " (Erwartet: 5)");
+            }
+
+            // 3. Dynamische String-Tabelle fuer Dialog-Styles
+            int styleCount = in.readUnsignedShort();
+            STYLE_TABLE = new String[styleCount];
+            for (int i = 0; i < styleCount; i++) {
+                int strLen = in.readUnsignedShort();
+                byte[] strBytes = new byte[strLen];
+                in.readFully(strBytes);
+                STYLE_TABLE[i] = new String(strBytes, StandardCharsets.UTF_8);
+            }
+
+            // 4. Roots
+            int rootCount = in.readUnsignedShort();
+            for (int i = 0; i < rootCount; i++) {
+                ROOTS.add(in.readInt());
+            }
+
+            // 5. NPC Reactions
+            int npcCount = in.readInt();
+            for (int i = 0; i < npcCount; i++) {
+                int id = in.readInt();
+                int optCount = in.readUnsignedShort();
+                List<Integer> options = new ArrayList<>(optCount);
+                for (int j = 0; j < optCount; j++) {
+                    options.add(in.readInt());
+                }
+                String textKey = "survivor.npc." + id;
+                NPC_REACTIONS.put(id, new NpcReaction(id, textKey, options));
+            }
+
+            // 6. Player Reactions
+            int playerCount = in.readInt();
+            for (int i = 0; i < playerCount; i++) {
+                int id = in.readInt();
+                int styleId = in.readUnsignedShort();
+                String style = (styleId >= 0 && styleId < STYLE_TABLE.length) ? STYLE_TABLE[styleId] : "neutral";
+
+                int edgeCount = in.readUnsignedShort();
+                List<Edge> edges = new ArrayList<>(edgeCount);
+
+                for (int j = 0; j < edgeCount; j++) {
+                    int targetId = in.readInt();
+                    byte trustDelta = in.readByte();
+                    int condType = in.readUnsignedByte();
+
+                    Condition condition = parseCondition(condType, in);
+                    edges.add(new Edge(targetId, trustDelta, condition));
+                }
+
+                String textKey = "survivor.player." + id;
+                PLAYER_REACTIONS.put(id, new PlayerReaction(id, textKey, style, edges));
+            }
+
+            long elapsed = System.currentTimeMillis() - startTime;
+            LOGGER.info("[SurvivorColonies] dialog_logic.bin geladen in {} ms: {} NPCs, {} Player, {} Roots, {} Styles.",
+                    elapsed, NPC_REACTIONS.size(), PLAYER_REACTIONS.size(), ROOTS.size(), STYLE_TABLE.length);
+
+        } catch (Exception e) {
+            LOGGER.error("[SurvivorColonies] Kritischer Fehler beim Dekodieren der dialog_logic.bin: {}", e.getMessage(), e);
+        }
     }
 
-    private static List<Integer> readIntArray(JsonObject object, String key) {
-        List<Integer> result = new ArrayList<>();
-        if (!object.has(key) || !object.get(key).isJsonArray()) {
-            return result;
-        }
-
-        for (JsonElement element : object.getAsJsonArray(key)) {
-            result.add(element.getAsInt());
-        }
-        return result;
+    private static Condition parseCondition(int condType, DataInputStream in) throws Exception {
+        return switch (condType) {
+            case COND_NONE -> new NoneCondition();
+            case COND_TONE -> new ToneCondition(in.readUnsignedByte());
+            case COND_BACKSTORY -> new BackstoryCondition(in.readUnsignedByte());
+            case COND_MOTIVATION -> new MotivationCondition(in.readUnsignedByte());
+            case COND_TRUST -> new TrustCondition(in.readShort(), in.readShort());
+            case COND_SKILL -> new SkillCondition(in.readUnsignedByte(), in.readShort(), in.readShort());
+            default -> throw new IllegalArgumentException("Unbekannter Condition-Typ im Stream: " + condType);
+        };
     }
 
     public static List<Integer> getRoots() {
@@ -157,179 +197,133 @@ public class DialogManager extends SimpleJsonResourceReloadListener {
     }
 
     /**
-     * Wählt deterministisch die NPC-Reaktion aus, die auf eine Spieler-Antwort folgt.
-     * Prüft Bedingungen gegen das Persönlichkeits- und Werteprofil des Survivors.
+     * Loest eine Spieler-Antwort gegen die Survivor-Eigenschaften auf.
      */
-    public static NpcReaction resolvePlayerReaction(
-            SurvivorEntity survivor,
-            int playerReactionId
-    ) {
+    public static EdgeResolution resolvePlayerReaction(SurvivorEntity survivor, int playerReactionId) {
         PlayerReaction playerReaction = PLAYER_REACTIONS.get(playerReactionId);
-        if (playerReaction == null) {
+        if (playerReaction == null || playerReaction.edges().isEmpty()) {
+            LOGGER.warn("[SurvivorColonies] Keine Spieler-Reaktion fuer ID #{} gefunden!", playerReactionId);
             return null;
         }
 
-        List<NpcReaction> available = new ArrayList<>();
-        NpcReaction defaultReaction = null;
+        List<Edge> matchingEdges = new ArrayList<>();
+        Edge defaultEdge = null;
 
-        for (int npcReactionId : playerReaction.options()) {
-            NpcReaction reaction = NPC_REACTIONS.get(npcReactionId);
-            if (reaction == null) {
-                continue;
-            }
-
-            if (reaction.isDefault()) {
-                if (defaultReaction == null) {
-                    defaultReaction = reaction;
+        for (Edge edge : playerReaction.edges()) {
+            if (edge.condition() instanceof NoneCondition) {
+                if (defaultEdge == null) {
+                    defaultEdge = edge;
                 }
                 continue;
             }
 
-            if (conditionsMatch(survivor, reaction.conditions())) {
-                available.add(reaction);
+            if (edge.condition().matches(survivor)) {
+                matchingEdges.add(edge);
             }
         }
 
-        if (defaultReaction != null) {
-            available.add(defaultReaction);
-        } else if (available.isEmpty() && !playerReaction.options().isEmpty()) {
-            NpcReaction fallback = NPC_REACTIONS.get(playerReaction.options().get(0));
-            if (fallback != null) {
-                return fallback;
+        Edge chosenEdge;
+        if (!matchingEdges.isEmpty()) {
+            if (matchingEdges.size() == 1) {
+                chosenEdge = matchingEdges.get(0);
+            } else {
+                int selectedIdx = StableHash.variantPick(
+                        matchingEdges.size(),
+                        survivor.getUUID(),
+                        "edge_eval:" + playerReactionId,
+                        "selection"
+                );
+                chosenEdge = matchingEdges.get(selectedIdx);
             }
+        } else if (defaultEdge != null) {
+            chosenEdge = defaultEdge;
+        } else {
+            chosenEdge = playerReaction.edges().get(0);
         }
 
-        if (available.isEmpty()) {
-            for (int optId : playerReaction.options()) {
-                NpcReaction fallback = NPC_REACTIONS.get(optId);
-                if (fallback != null) return fallback;
-            }
+        NpcReaction targetNpc = NPC_REACTIONS.get(chosenEdge.targetId());
+        if (targetNpc == null) {
+            LOGGER.error("[SurvivorColonies] Kanten-Ziel NPC #{} nicht im Graph vorhanden!", chosenEdge.targetId());
             return null;
         }
 
-        if (available.size() == 1) {
-            return available.get(0);
-        }
-
-        int selectedIndex = StableHash.variantPick(
-                available.size(),
-                survivor.getUUID(),
-                "player_reaction:" + playerReactionId,
-                "npc_reaction_selection"
-        );
-
-        return available.get(selectedIndex);
+        return new EdgeResolution(targetNpc, chosenEdge.trustDelta());
     }
 
-    private static boolean conditionsMatch(
-            SurvivorEntity survivor,
-            Map<String, JsonElement> conditions
-    ) {
-        UUID uuid = survivor.getUUID();
+    // --- CONDITION-RECORDS & MATCHING-LOGIK ---
 
-        for (Map.Entry<String, JsonElement> entry : conditions.entrySet()) {
-            String type = entry.getKey();
-            JsonElement value = entry.getValue();
-
-            switch (type) {
-                case "tone" -> {
-                    if (!value.isJsonPrimitive()
-                            || !SurvivorPersonality.getTone(uuid).equalsIgnoreCase(value.getAsString())) {
-                        return false;
-                    }
-                }
-                case "backstory" -> {
-                    if (!value.isJsonPrimitive()
-                            || !SurvivorPersonality.getBackstory(uuid).equalsIgnoreCase(value.getAsString())) {
-                        return false;
-                    }
-                }
-                case "motivation" -> {
-                    if (!value.isJsonPrimitive()
-                            || !SurvivorPersonality.getMotivation(uuid).equalsIgnoreCase(value.getAsString())) {
-                        return false;
-                    }
-                }
-                case "trust" -> {
-                    if (!value.isJsonObject() || !trustConditionMatches(survivor.getTrust(), value.getAsJsonObject())) {
-                        return false;
-                    }
-                }
-                case "skill" -> {
-                    if (!value.isJsonObject() || !skillConditionMatches(survivor, value.getAsJsonObject())) {
-                        return false;
-                    }
-                }
-                default -> {
-                    return false;
-                }
-            }
-        }
-
-        return true;
+    public sealed interface Condition permits NoneCondition, ToneCondition, BackstoryCondition,
+            MotivationCondition, TrustCondition, SkillCondition {
+        boolean matches(SurvivorEntity survivor);
     }
 
-    private static boolean trustConditionMatches(int trust, JsonObject condition) {
-        if (condition.has("min") && trust < condition.get("min").getAsInt()) {
-            return false;
-        }
-        if (condition.has("max") && trust > condition.get("max").getAsInt()) {
-            return false;
-        }
-        return condition.has("min") || condition.has("max");
-    }
-
-    private static boolean skillConditionMatches(
-            SurvivorEntity survivor,
-            JsonObject condition
-    ) {
-        if (condition.size() == 0) {
-            return false;
-        }
-
-        String skillName = condition.keySet().iterator().next();
-        JsonElement skillRule = condition.get(skillName);
-        if (!skillRule.isJsonObject()) {
-            return false;
-        }
-
-        Map<String, Integer> skills = survivor.getSkills();
-        int actual = skills.getOrDefault(skillName, 1);
-
-        JsonObject rule = skillRule.getAsJsonObject();
-        if (rule.has("min") && actual < rule.get("min").getAsInt()) {
-            return false;
-        }
-        if (rule.has("max") && actual > rule.get("max").getAsInt()) {
-            return false;
-        }
-        return rule.has("min") || rule.has("max");
-    }
-
-    public record NpcReaction(
-            int id,
-            String text,
-            Map<String, JsonElement> conditions,
-            int trustDelta,
-            List<Integer> options
-    ) {
-        public String textKey() {
-            return text;
-        }
-
-        public boolean isDefault() {
-            return conditions.isEmpty();
+    public record NoneCondition() implements Condition {
+        @Override
+        public boolean matches(SurvivorEntity survivor) {
+            return true;
         }
     }
 
-    public record PlayerReaction(
-            int id,
-            String text,
-            String style,
-            List<Integer> options
-    ) {
-        public String textKey() {
-            return text;
+    public record ToneCondition(int toneId) implements Condition {
+        @Override
+        public boolean matches(SurvivorEntity survivor) {
+            if (toneId < 0 || toneId >= KNOWN_TONES.length) return false;
+            String expected = KNOWN_TONES[toneId];
+            return expected.equalsIgnoreCase(SurvivorPersonality.getTone(survivor.getUUID()));
         }
     }
+
+    public record BackstoryCondition(int backstoryId) implements Condition {
+        @Override
+        public boolean matches(SurvivorEntity survivor) {
+            if (backstoryId < 0 || backstoryId >= KNOWN_BACKSTORIES.length) return false;
+            String expected = KNOWN_BACKSTORIES[backstoryId];
+            return expected.equalsIgnoreCase(SurvivorPersonality.getBackstory(survivor.getUUID()));
+        }
+    }
+
+    public record MotivationCondition(int motivationId) implements Condition {
+        @Override
+        public boolean matches(SurvivorEntity survivor) {
+            if (motivationId < 0 || motivationId >= KNOWN_MOTIVATIONS.length) return false;
+            String expected = KNOWN_MOTIVATIONS[motivationId];
+            return expected.equalsIgnoreCase(SurvivorPersonality.getMotivation(survivor.getUUID()));
+        }
+    }
+
+    public record TrustCondition(short min, short max) implements Condition {
+        @Override
+        public boolean matches(SurvivorEntity survivor) {
+            int trust = survivor.getTrust();
+            return trust >= min && trust <= max;
+        }
+    }
+
+    public record SkillCondition(int skillId, short min, short max) implements Condition {
+        @Override
+        public boolean matches(SurvivorEntity survivor) {
+            if (skillId < 0 || skillId >= KNOWN_SKILLS.length) return false;
+            String skillName = KNOWN_SKILLS[skillId];
+            int currentLevel = survivor.getSkills().getOrDefault(skillName, 1);
+            return currentLevel >= min && currentLevel <= max;
+        }
+    }
+
+    // --- STRUKTUR-RECORDS ---
+
+    public record NpcReaction(int id, String textKey, List<Integer> options) {
+        public String text() {
+            return textKey;
+        }
+    }
+
+    public record Edge(int targetId, int trustDelta, Condition condition) {}
+
+    public record PlayerReaction(int id, String textKey, String style, List<Edge> edges) {
+        public String text() {
+            return textKey;
+        }
+    }
+
+    public record EdgeResolution(NpcReaction npcReaction, int trustDelta) {}
 }

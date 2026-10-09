@@ -7,6 +7,7 @@ import com.minecolonies.api.entity.citizen.Skill;
 import com.minecolonies.api.util.InventoryUtils;
 import com.minecolonies.api.util.Tuple;
 import com.minecolonies.core.entity.ai.workers.AbstractEntityAIBasic;
+import net.kb150.dragoncolonies.DragonColonies;
 import net.kb150.dragoncolonies.buildings.BuildingDragonRoost;
 import net.kb150.dragoncolonies.buildings.modules.DragonStorageModule;
 import net.kb150.dragoncolonies.jobs.JobBeastmaster;
@@ -16,6 +17,7 @@ import net.magister.bookofdragons.entity.stats.SpeciesStatRegistry;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -40,13 +42,13 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
     private BeastmasterTask currentTask = BeastmasterTask.NONE;
     private int cooldown = 0;
 
-    // Speicher für die gerade zu verpaarenden Drachen
     private UUID breedingParent1 = null;
     private UUID breedingParent2 = null;
 
     public EntityAIWorkBeastmaster(@NotNull JobBeastmaster job) {
         super(job);
         
+        // Prüft alle 10 MC-Ticks (0.5 Sekunden)
         this.registerTargets(new AITarget(AIWorkerState.IDLE, this::processWork, 10));
         this.registerTargets(new AITarget(AIWorkerState.START_WORKING, this::processWork, 10));
         this.registerTargets(new AITarget(AIWorkerState.GATHERING_REQUIRED_MATERIALS, this::processWork, 10));
@@ -63,6 +65,7 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
             return AIWorkerState.IDLE;
         }
 
+        // Taktbremse verarbeitet reine Systemverzögerungen ohne künstliche Multiplikatoren
         if (cooldown > 0) {
             cooldown--;
             this.walkToWorkPos(this.building.getPosition()); 
@@ -72,140 +75,28 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
         DragonStorageModule storageModule = this.building.getStorageModule();
         if (storageModule == null) return AIWorkerState.IDLE;
 
+        // Scans nur starten, wenn aktuell kein Task bearbeitet wird
         if (currentTask == BeastmasterTask.NONE) {
-            // Prioritaet 1: Akute Notfaelle (< 50% HP) heilen
-            if (scanForInjuredDragons(storageModule, true)) {
-                return AIWorkerState.GATHERING_REQUIRED_MATERIALS;
-            }
-            // Prioritaet 2: Fuettern (bringt auch passive HP-Regeneration)
-            else if (scanForHungryDragons(storageModule)) {
-                return AIWorkerState.GATHERING_REQUIRED_MATERIALS;
-            }
-            // Prioritaet 3: Regulaere Verletzungen behandeln (wenn es was bringt)
-            else if (scanForInjuredDragons(storageModule, false)) {
-                return AIWorkerState.GATHERING_REQUIRED_MATERIALS;
-            }
-            // Prioritaet 4: Satteln (Saettel anfordern & ausruesten)
-            else if (scanForUnsaddledDragons(storageModule)) {
-                return AIWorkerState.GATHERING_REQUIRED_MATERIALS;
-            }
-            // Prioritaet 5: Zuchtprogramm (Zuchtfutter)
-            else if (scanForBreedingPairs(storageModule)) {
-                return AIWorkerState.GATHERING_REQUIRED_MATERIALS;
-            }
-        } else if (currentTask == BeastmasterTask.HEALING_DRAGON) {
-            return processHealingTask(storageModule);
-        } else if (currentTask == BeastmasterTask.FEEDING_DRAGON) {
-            return processFeedingTask(storageModule);
-        } else if (currentTask == BeastmasterTask.SADDLING_DRAGON) {
-            return processSaddlingTask(storageModule);
-        } else if (currentTask == BeastmasterTask.BREEDING_DRAGONS) {
-            return processBreedingTask(storageModule);
+            if (scanForInjuredDragons(storageModule, true)) return AIWorkerState.GATHERING_REQUIRED_MATERIALS;
+            if (scanForHungryDragons(storageModule)) return AIWorkerState.GATHERING_REQUIRED_MATERIALS;
+            if (scanForInjuredDragons(storageModule, false)) return AIWorkerState.GATHERING_REQUIRED_MATERIALS;
+            if (scanForUnsaddledDragons(storageModule)) return AIWorkerState.GATHERING_REQUIRED_MATERIALS;
+            if (scanForBreedingPairs(storageModule)) return AIWorkerState.GATHERING_REQUIRED_MATERIALS;
         }
 
-        cooldown = 100;
-        return null;
-    }
-
-    // --- HEILUNGS-LOGIK (Kornblumen) ---
-
-    private boolean scanForInjuredDragons(DragonStorageModule storageModule, boolean emergencyOnly) {
-        for (CompoundTag dragonTag : storageModule.getAllDragons()) {
-            if (dragonTag.getBoolean("Deployed") || dragonTag.getBoolean("IsDead") || dragonTag.getBoolean("DragonColonies_IsEgg")) continue;
-
-            float maxHealth = DragonStatusHelper.getMaxHealth(dragonTag);
-            float healAmount = calculateHealAmount(maxHealth);
-
-            // Akuter Notfall (< 50% HP) hat absoluten Vorrang.
-            // Regulaere Behandlungen greifen nur, wenn es sich lohnt (keine Verschwendung fuer Mini-Kratzer).
-            boolean targetEligible = emergencyOnly 
-                ? DragonStatusHelper.isEmergencyInjured(dragonTag) 
-                : DragonStatusHelper.isWorthHealing(dragonTag, healAmount);
-
-            if (targetEligible) {
-                ItemStack healingHerb = new ItemStack(Items.CORNFLOWER, 2);
-
-                boolean hasItemOrTransferred = this.checkIfRequestForItemExistOrCreateAsync(healingHerb, 2, 1);
-
-                if (hasItemOrTransferred) {
-                    this.currentTask = BeastmasterTask.HEALING_DRAGON;
-                    return false;
-                } else {
-                    this.needsCurrently = new Tuple<>(stack -> stack.is(Items.CORNFLOWER), 1);
-                    this.currentTask = BeastmasterTask.HEALING_DRAGON;
-                    return true;
-                }
+        // Führt gesetzte Tasks im selben Durchlauf aus, um Fallthrough-Sperren im Leerlauf zu vermeiden
+        switch (currentTask) {
+            case HEALING_DRAGON -> { return processHealingTask(storageModule); }
+            case FEEDING_DRAGON -> { return processFeedingTask(storageModule); }
+            case SADDLING_DRAGON -> { return processSaddlingTask(storageModule); }
+            case BREEDING_DRAGONS -> { return processBreedingTask(storageModule); }
+            default -> {
+                // 2 AI-Ticks Pause (ca. 1 Sekunde) im echten Leerlauf
+                cooldown = 2;
+                return null;
             }
         }
-        return false;
     }
-
-    private float calculateHealAmount(float maxHealth) {
-        int adaptability = 1;
-        if (this.worker != null && this.worker.getCitizenData() != null) {
-            adaptability = Math.max(1, this.worker.getCitizenData().getCitizenSkillHandler().getLevel(Skill.Adaptability));
-        }
-
-        // Skaliert mit Drachen-Groesse (20% Max-HP) + Grundwert (40 HP).
-        // Jedes Level Adaptability erhoeht die Heilwirkung um zusaetzliche 3%.
-        float skillFactor = 1.0f + (adaptability * 0.03f);
-        return ((maxHealth * 0.20f) + 40.0f) * skillFactor;
-    }
-
-    private IAIState processHealingTask(DragonStorageModule storageModule) {
-        int herbSlot = InventoryUtils.findFirstSlotInItemHandlerWith(
-            this.worker.getInventoryCitizen(), 
-            stack -> stack.is(Items.CORNFLOWER)
-        );
-
-        if (herbSlot != -1) {
-            CompoundTag targetDragonTag = null;
-
-            // Priorisiere Notfaelle (< 50% HP) bei der Verabreichung
-            for (CompoundTag dragonTag : storageModule.getStoredDragons()) {
-                if (dragonTag.getBoolean("Deployed") || dragonTag.getBoolean("IsDead") || dragonTag.getBoolean("DragonColonies_IsEgg")) continue;
-
-                if (DragonStatusHelper.isEmergencyInjured(dragonTag)) {
-                    targetDragonTag = dragonTag;
-                    break;
-                }
-            }
-
-            // Falls kein Notfall vorliegt: Behandle Patienten, bei denen sich der Kornblumen-Einsatz rechnet
-            if (targetDragonTag == null) {
-                for (CompoundTag dragonTag : storageModule.getStoredDragons()) {
-                    if (dragonTag.getBoolean("Deployed") || dragonTag.getBoolean("IsDead") || dragonTag.getBoolean("DragonColonies_IsEgg")) continue;
-
-                    float maxHp = DragonStatusHelper.getMaxHealth(dragonTag);
-                    if (DragonStatusHelper.isWorthHealing(dragonTag, calculateHealAmount(maxHp))) {
-                        targetDragonTag = dragonTag;
-                        break;
-                    }
-                }
-            }
-
-            if (targetDragonTag != null) {
-                this.worker.getInventoryCitizen().extractItem(herbSlot, 1, false);
-
-                float hp = DragonStatusHelper.getHealth(targetDragonTag);
-                float maxHealth = DragonStatusHelper.getMaxHealth(targetDragonTag);
-                float healValue = calculateHealAmount(maxHealth);
-
-                targetDragonTag.putFloat("Health", Math.min(maxHealth, hp + healValue));
-
-                storageModule.markDirty();
-                this.worker.playSound(net.minecraft.sounds.SoundEvents.AMETHYST_BLOCK_CHIME, 1.0f, 1.0f);
-
-                this.currentTask = BeastmasterTask.NONE;
-                cooldown = 40;
-                return AIWorkerState.IDLE;
-            }
-        }
-        
-        return scanForInjuredDragons(storageModule, false) ? AIWorkerState.GATHERING_REQUIRED_MATERIALS : AIWorkerState.IDLE;
-    }
-
-    // --- FÜTTERUNGS-LOGIK (Nahrung) ---
 
     private boolean scanForHungryDragons(DragonStorageModule storageModule) {
         for (CompoundTag dragonTag : storageModule.getAllDragons()) {
@@ -216,15 +107,28 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
                 List<Item> validFoods = getValidFoodsForDragon(type);
                 if (validFoods.isEmpty()) continue;
 
+                // Prüfen, ob irgendein passendes Futter bereits im Inventar getragen wird
+                int existingSlot = InventoryUtils.findFirstSlotInItemHandlerWith(
+                    this.worker.getInventoryCitizen(), 
+                    stack -> validFoods.contains(stack.getItem())
+                );
+
+                this.currentTask = BeastmasterTask.FEEDING_DRAGON;
+
+                if (existingSlot != -1) {
+                    DragonColonies.debug("AI", "[BEASTMASTER] Futter für %s in Slot %d gefunden. Starte direkte Fütterung.", type, existingSlot);
+                    return false; // Kein Materialtransport aus dem Lager erforderlich
+                }
+
+                // Erst wenn gar kein Futter getragen wird, Lieferauftrag beim Lager erstellen
                 ItemStack foodToRequest = new ItemStack(validFoods.get(0), 5);
                 boolean hasItemOrTransferred = this.checkIfRequestForItemExistOrCreateAsync(foodToRequest, 5, 1);
 
                 if (hasItemOrTransferred) {
-                    this.currentTask = BeastmasterTask.FEEDING_DRAGON;
                     return false;
                 } else {
                     this.needsCurrently = new Tuple<>(stack -> validFoods.contains(stack.getItem()), 1);
-                    this.currentTask = BeastmasterTask.FEEDING_DRAGON;
+                    DragonColonies.debug("AI", "[BEASTMASTER] Futter fehlt für %s. Bestelle %s beim Lager.", type, foodToRequest.getItem());
                     return true;
                 }
             }
@@ -259,7 +163,9 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
         if (foodSlot != -1 && targetDragonTag != null) {
             this.worker.getInventoryCitizen().extractItem(foodSlot, 1, false);
 
-            // Nahrung regeneriert kleinere Wunden (10% Max-HP, mind. 15 HP), um Kornblumen zu schonen
+            // Synchronisiert die Arm-Schwing-Animation für den Server und umstehende Client-Spieler
+            this.worker.swing(InteractionHand.MAIN_HAND);
+
             float hp = DragonStatusHelper.getHealth(targetDragonTag);
             float maxHp = DragonStatusHelper.getMaxHealth(targetDragonTag);
             if (hp < maxHp) {
@@ -268,22 +174,111 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
             }
 
             CompoundTag needsTag = targetDragonTag.contains("dragonNeeds") ? targetDragonTag.getCompound("dragonNeeds") : new CompoundTag();
-            int hunger = DragonStatusHelper.getFoodLevel(targetDragonTag);
-            needsTag.putInt("foodLevel", Math.min(100, hunger + 25));
+            int currentHunger = DragonStatusHelper.getFoodLevel(targetDragonTag);
+            int newHunger = Math.min(100, currentHunger + 25);
+            needsTag.putInt("foodLevel", newHunger);
             targetDragonTag.put("dragonNeeds", needsTag);
 
             storageModule.markDirty();
             this.worker.playSound(net.minecraft.sounds.SoundEvents.GENERIC_EAT, 1.0f, 1.0f);
 
+            DragonColonies.debug("AI", "[BEASTMASTER] Drache gefüttert. Hunger erhöht von %d auf %d/100", currentHunger, newHunger);
+
             this.currentTask = BeastmasterTask.NONE;
-            cooldown = 40;
+            cooldown = 1;
             return AIWorkerState.IDLE;
         } else {
+            DragonColonies.debug("AI", "[BEASTMASTER] Fütterung fehlgeschlagen: Kein passendes Futter-Item im Bürger-Inventar.");
             return scanForHungryDragons(storageModule) ? AIWorkerState.GATHERING_REQUIRED_MATERIALS : AIWorkerState.IDLE;
         }
     }
 
-    // --- SATTEL-LOGIK ---
+    private boolean scanForInjuredDragons(DragonStorageModule storageModule, boolean emergencyOnly) {
+        for (CompoundTag dragonTag : storageModule.getAllDragons()) {
+            if (dragonTag.getBoolean("Deployed") || dragonTag.getBoolean("IsDead") || dragonTag.getBoolean("DragonColonies_IsEgg")) continue;
+
+            float maxHealth = DragonStatusHelper.getMaxHealth(dragonTag);
+            float healAmount = calculateHealAmount(maxHealth);
+
+            boolean targetEligible = emergencyOnly 
+                ? DragonStatusHelper.isEmergencyInjured(dragonTag) 
+                : DragonStatusHelper.isWorthHealing(dragonTag, healAmount);
+
+            if (targetEligible) {
+                ItemStack healingHerb = new ItemStack(Items.CORNFLOWER, 2);
+                boolean hasItemOrTransferred = this.checkIfRequestForItemExistOrCreateAsync(healingHerb, 2, 1);
+
+                this.currentTask = BeastmasterTask.HEALING_DRAGON;
+                if (hasItemOrTransferred) {
+                    return false;
+                } else {
+                    this.needsCurrently = new Tuple<>(stack -> stack.is(Items.CORNFLOWER), 1);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private float calculateHealAmount(float maxHealth) {
+        int adaptability = 1;
+        if (this.worker != null && this.worker.getCitizenData() != null) {
+            adaptability = Math.max(1, this.worker.getCitizenData().getCitizenSkillHandler().getLevel(Skill.Adaptability));
+        }
+        return ((maxHealth * 0.20f) + 40.0f) * (1.0f + (adaptability * 0.03f));
+    }
+
+    private IAIState processHealingTask(DragonStorageModule storageModule) {
+        int herbSlot = InventoryUtils.findFirstSlotInItemHandlerWith(
+            this.worker.getInventoryCitizen(), 
+            stack -> stack.is(Items.CORNFLOWER)
+        );
+
+        if (herbSlot != -1) {
+            CompoundTag targetDragonTag = null;
+
+            for (CompoundTag dragonTag : storageModule.getStoredDragons()) {
+                if (dragonTag.getBoolean("Deployed") || dragonTag.getBoolean("IsDead") || dragonTag.getBoolean("DragonColonies_IsEgg")) continue;
+                if (DragonStatusHelper.isEmergencyInjured(dragonTag)) {
+                    targetDragonTag = dragonTag;
+                    break;
+                }
+            }
+
+            if (targetDragonTag == null) {
+                for (CompoundTag dragonTag : storageModule.getStoredDragons()) {
+                    if (dragonTag.getBoolean("Deployed") || dragonTag.getBoolean("IsDead") || dragonTag.getBoolean("DragonColonies_IsEgg")) continue;
+                    if (DragonStatusHelper.isWorthHealing(dragonTag, calculateHealAmount(DragonStatusHelper.getMaxHealth(dragonTag)))) {
+                        targetDragonTag = dragonTag;
+                        break;
+                    }
+                }
+            }
+
+            if (targetDragonTag != null) {
+                this.worker.getInventoryCitizen().extractItem(herbSlot, 1, false);
+
+                this.worker.swing(InteractionHand.MAIN_HAND);
+
+                float hp = DragonStatusHelper.getHealth(targetDragonTag);
+                float maxHealth = DragonStatusHelper.getMaxHealth(targetDragonTag);
+                float healValue = calculateHealAmount(maxHealth);
+
+                targetDragonTag.putFloat("Health", Math.min(maxHealth, hp + healValue));
+
+                storageModule.markDirty();
+                this.worker.playSound(net.minecraft.sounds.SoundEvents.AMETHYST_BLOCK_CHIME, 1.0f, 1.0f);
+
+                DragonColonies.debug("AI", "[BEASTMASTER] Drache geheilt auf %.1f HP", targetDragonTag.getFloat("Health"));
+
+                this.currentTask = BeastmasterTask.NONE;
+                cooldown = 1;
+                return AIWorkerState.IDLE;
+            }
+        }
+        
+        return scanForInjuredDragons(storageModule, false) ? AIWorkerState.GATHERING_REQUIRED_MATERIALS : AIWorkerState.IDLE;
+    }
 
     private boolean scanForUnsaddledDragons(DragonStorageModule storageModule) {
         for (CompoundTag dragonTag : storageModule.getAllDragons()) {
@@ -293,12 +288,11 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
                 ItemStack saddleReq = new ItemStack(Items.SADDLE, 1);
                 boolean hasItemOrTransferred = this.checkIfRequestForItemExistOrCreateAsync(saddleReq, 1, 1);
 
+                this.currentTask = BeastmasterTask.SADDLING_DRAGON;
                 if (hasItemOrTransferred) {
-                    this.currentTask = BeastmasterTask.SADDLING_DRAGON;
                     return false;
                 } else {
                     this.needsCurrently = new Tuple<>(stack -> stack.is(Items.SADDLE), 1);
-                    this.currentTask = BeastmasterTask.SADDLING_DRAGON;
                     return true;
                 }
             }
@@ -327,12 +321,13 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
             if (targetDragonTag != null) {
                 this.worker.getInventoryCitizen().extractItem(saddleSlot, 1, false);
 
-                // BoD Inventory-NBT abfragen oder neu erstellen
+                this.worker.swing(InteractionHand.MAIN_HAND);
+
                 ListTag invList = targetDragonTag.contains("Inventory", Tag.TAG_LIST) 
                     ? targetDragonTag.getList("Inventory", Tag.TAG_COMPOUND) 
                     : new ListTag();
 
-                // Vorhandenen Slot 0 bereinigen
+                // Vorhandenen Slot 0 leeren und echten Sattel-Eintrag setzen
                 for (int i = 0; i < invList.size(); i++) {
                     if (invList.getCompound(i).getByte("Slot") == 0) {
                         invList.remove(i);
@@ -340,7 +335,6 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
                     }
                 }
 
-                // Sattel-Item in Slot 0 eintragen
                 CompoundTag saddleNbt = new CompoundTag();
                 saddleNbt.putByte("Slot", (byte) 0);
                 saddleNbt.putString("id", "minecraft:saddle");
@@ -348,8 +342,6 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
                 invList.add(saddleNbt);
 
                 targetDragonTag.put("Inventory", invList);
-
-                // Flags fuer BoD-Kompatibilitaet setzen
                 targetDragonTag.putBoolean("Saddle", true);
                 targetDragonTag.putBoolean("HasSaddle", true);
                 targetDragonTag.putBoolean("isSaddled", true);
@@ -357,16 +349,16 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
                 storageModule.markDirty();
                 this.worker.playSound(net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_LEATHER, 1.0f, 1.0f);
 
+                DragonColonies.debug("AI", "[BEASTMASTER] Sattel in NBT Slot 0 eingetragen.");
+
                 this.currentTask = BeastmasterTask.NONE;
-                cooldown = 40;
+                cooldown = 1;
                 return AIWorkerState.IDLE;
             }
         }
         
         return scanForUnsaddledDragons(storageModule) ? AIWorkerState.GATHERING_REQUIRED_MATERIALS : AIWorkerState.IDLE;
     }
-
-    // --- ZUCHT-LOGIK ---
 
     private boolean scanForBreedingPairs(DragonStorageModule storageModule) {
         if (!storageModule.canStoreMore()) return false;
@@ -431,6 +423,8 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
         if (slot != -1) {
             this.worker.getInventoryCitizen().extractItem(slot, 1, false);
 
+            this.worker.swing(InteractionHand.MAIN_HAND);
+
             parent1.putInt("DragonColonies_BreedingCooldown", 168000);
             parent2.putInt("DragonColonies_BreedingCooldown", 168000);
 
@@ -459,31 +453,17 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
             storageModule.addDragon(egg);
             this.worker.playSound(net.minecraft.sounds.SoundEvents.EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
 
+            DragonColonies.debug("AI", "[BEASTMASTER] Zucht ausgeführt. Ei im Hort registriert.");
+
             this.currentTask = BeastmasterTask.NONE;
-            cooldown = 200;
+            cooldown = 10;
             return AIWorkerState.IDLE;
         } else {
             return scanForBreedingPairs(storageModule) ? AIWorkerState.GATHERING_REQUIRED_MATERIALS : AIWorkerState.IDLE;
         }
     }
 
-    // --- HILFSMETHODEN ---
-
-    private float extractMaxHealth(CompoundTag tag) {
-        if (tag.contains("Attributes", Tag.TAG_LIST)) {
-            ListTag attributes = tag.getList("Attributes", Tag.TAG_COMPOUND);
-            for (int i = 0; i < attributes.size(); i++) {
-                CompoundTag attr = attributes.getCompound(i);
-                if (attr.getString("Name").equals("minecraft:generic.max_health")) {
-                    return (float) attr.getDouble("Base");
-                }
-            }
-        }
-        return tag.contains("Health") ? tag.getFloat("Health") : 20.0f;
-    }
-
     private boolean isReadyToBreed(CompoundTag tag) {
-        // Zucht ist ausschließlich aktiv, wenn der Spieler diesen Modus explizit im Dropdown gesetzt hat
         if (!DragonStorageModule.MODE_BREEDING.equals(tag.getString(DragonStorageModule.TAG_ASSIGNMENT_MODE))) {
             return false;
         }
@@ -514,35 +494,26 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
         return tag.getUUID(DragonStorageModule.TAG_ROOST_DRAGON_ID);
     }
 
-    private List<Item> getValidFoodsForDragon(DragonType type) {
-        List<Item> validFoods = new ArrayList<>();
-        if (type == null) {
-            validFoods.add(Items.COD);
-            return validFoods;
-        }
-
-        try {
-            var profile = SpeciesStatRegistry.getProfile(type.getSerializedName());
-            if (profile != null) {
-                for (var loc : profile.favoriteFoods()) {
-                    Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(loc);
-                    if (item != null && !validFoods.contains(item)) validFoods.add(item);
-                }
-                for (var loc : profile.generalFoods()) {
-                    Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(loc);
-                    if (item != null && !validFoods.contains(item)) validFoods.add(item);
-                }
-            }
-        } catch (Exception ignored) {}
-
-        if (validFoods.isEmpty()) {
-            validFoods.add(Items.COD);
-            validFoods.add(Items.SALMON);
-        }
-
-        return validFoods;
-    }
-
+    // Liest sowohl Lieblingsfutter als auch Allgemeinfutter aus der BoD-Profil-Registry
+	private List<Item> getValidFoodsForDragon(DragonType type) {
+		List<Item> foods = new ArrayList<>();
+		if (type != null) {
+			var profile = SpeciesStatRegistry.getProfile(type.getSerializedName());
+			if (profile != null) {
+				for (var loc : profile.favoriteFoods()) addFoodIfValid(foods, loc);
+				for (var loc : profile.generalFoods()) addFoodIfValid(foods, loc);
+			}
+		}
+		return foods.isEmpty() ? List.of(Items.COD) : foods;
+	}
+	
+	private void addFoodIfValid(List<Item> list, net.minecraft.resources.ResourceLocation loc) {
+		Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(loc);
+		if (item != null && !list.contains(item)) {
+			list.add(item);
+		}
+	}
+	
     private DragonType parseDragonType(CompoundTag tag) {
         if (tag == null) return null;
         String entityIdStr = tag.contains("id") ? tag.getString("id") : tag.getString("DragonType");

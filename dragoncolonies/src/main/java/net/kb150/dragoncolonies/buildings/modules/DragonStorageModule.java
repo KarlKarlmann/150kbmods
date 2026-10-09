@@ -1,3 +1,4 @@
+// DragonStorageModule.java
 package net.kb150.dragoncolonies.buildings.modules;
 
 import com.minecolonies.api.colony.IColony;
@@ -5,6 +6,7 @@ import com.minecolonies.api.colony.buildings.modules.AbstractBuildingModule;
 import com.minecolonies.api.colony.buildings.modules.IPersistentModule;
 import com.minecolonies.api.colony.buildings.modules.ITickingModule;
 import net.kb150.dragoncolonies.config.DragonColoniesConfig;
+import net.kb150.dragoncolonies.DragonColonies;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -26,8 +28,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
-// Verwaltet die gelagerten Drachen-Datensätze im Hort als zentrale Quelle.
 public class DragonStorageModule extends AbstractBuildingModule implements IPersistentModule, ITickingModule {
 
     public static final String TAG_DEPLOYED = "Deployed";
@@ -46,7 +49,52 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
 
     private final List<CompoundTag> storedDragons = new ArrayList<>();
 
+    // LRU-Cache fuer verifizierte Flugziele (Limit 150), schuetzt vor Chunk-Lags und RAM-Leaks.
+    private final Map<BlockPos, BlockPos> airTargetCache = new LinkedHashMap<>(150, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<BlockPos, BlockPos> eldest) {
+            return size() > 150;
+        }
+    };
+
     public DragonStorageModule() {
+    }
+
+    public BlockPos getSafeAirTarget(ServerLevel level, BlockPos rawTarget) {
+        if (this.airTargetCache.containsKey(rawTarget)) {
+            BlockPos cached = this.airTargetCache.get(rawTarget);
+            
+            // Wenn Chunk geladen ist, sicherstellen, dass nicht zwischenzeitlich gebaut wurde.
+            if (level.hasChunk(cached.getX() >> 4, cached.getZ() >> 4)) {
+                int surfaceY = level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cached).getY();
+                if (cached.getY() >= surfaceY + 12) {
+                    return cached;
+                } else {
+                    DragonColonies.debug("NAVIGATION", "[CACHE-INVALIDATED] Ziel {} nicht mehr sicher, Oberfläche ist jetzt bei Y={}", cached.toShortString(), surfaceY);
+                    this.airTargetCache.remove(rawTarget);
+                    // Fallthrough für Neuberechnung
+                }
+            } else {
+                // Chunk ungeladen, aber wir kennen das sichere Ziel von frueher -> Nutzen!
+                return cached;
+            }
+        }
+
+        // Chunk ist geladen und Ziel noch unbekannt -> Sicher berechnen und speichern.
+        if (level.hasChunk(rawTarget.getX() >> 4, rawTarget.getZ() >> 4)) {
+            int surfaceY = level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, rawTarget).getY();
+            BlockPos safePos = new BlockPos(rawTarget.getX(), Math.max(rawTarget.getY(), surfaceY) + 12, rawTarget.getZ());
+            
+            this.airTargetCache.put(rawTarget, safePos);
+            this.markDirty();
+            DragonColonies.debug("NAVIGATION", "[CACHE-ADD] Neues sicheres Flugziel gespeichert: {} -> {}", rawTarget.toShortString(), safePos.toShortString());
+            return safePos;
+        }
+
+        // Failsafe: Chunk ungeladen UND wir haben kein gespeichertes Ziel. 
+        // Sturzflug in Klippe verhindern, hoch anfliegen und NICHT speichern (wird beim Naehern ueberschrieben).
+        DragonColonies.debug("NAVIGATION", "[CACHE-MISS] Unbekanntes Ziel in ungeladenem Chunk: {} -> Ausweichen nach oben.", rawTarget.toShortString());
+        return new BlockPos(rawTarget.getX(), rawTarget.getY() + 40, rawTarget.getZ());
     }
 
     @Override
@@ -421,6 +469,17 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
             dragonList.add(dragonTag);
         }
         compound.put("StoredDragons", dragonList);
+
+        long[] raw = new long[this.airTargetCache.size()];
+        long[] safe = new long[this.airTargetCache.size()];
+        int idx = 0;
+        for (Map.Entry<BlockPos, BlockPos> entry : this.airTargetCache.entrySet()) {
+            raw[idx] = entry.getKey().asLong();
+            safe[idx] = entry.getValue().asLong();
+            idx++;
+        }
+        compound.putLongArray("AirTargetRaw", raw);
+        compound.putLongArray("AirTargetSafe", safe);
     }
 
     @Override
@@ -430,6 +489,15 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
             ListTag dragonList = compound.getList("StoredDragons", Tag.TAG_COMPOUND);
             for (int i = 0; i < dragonList.size(); i++) {
                 storedDragons.add(dragonList.getCompound(i));
+            }
+        }
+
+        this.airTargetCache.clear();
+        if (compound != null && compound.contains("AirTargetRaw") && compound.contains("AirTargetSafe")) {
+            long[] raw = compound.getLongArray("AirTargetRaw");
+            long[] safe = compound.getLongArray("AirTargetSafe");
+            for (int i = 0; i < Math.min(raw.length, safe.length); i++) {
+                this.airTargetCache.put(BlockPos.of(raw[i]), BlockPos.of(safe[i]));
             }
         }
     }

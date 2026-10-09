@@ -22,6 +22,7 @@ import net.kb150.dragoncolonies.util.DragonStatusHelper;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
 import net.magister.bookofdragons.entity.component.ranged.OmniAttackHandler;
 import net.magister.bookofdragons.entity.state.GroundStance;
+import net.magister.bookofdragons.entity.ai.movement.AIMovementComponent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
@@ -269,21 +270,21 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
 
         boolean dragonNeedsReturn = currentDragon != null && currentDragon.isAlive() && !DragonStatusHelper.isFitToFly(currentDragon);
 
-        if ((!workerHasAxe || dragonNeedsReturn) && currentDragon != null) {
-            if (!isReturningDragon) {
-                isReturningDragon = true;
-                currentDragon.setTarget(null);
-                DragonColonies.debug("NAVIGATION", "[RETURN-TRIGGER] Rueckruf eingeleitet | WacheAxt: {} | FitToFly: {}",
-                        workerHasAxe, !dragonNeedsReturn);
-            }
-            handleReturnDragonToRoost(level);
-            return super.decide();
-        }
+		if (currentDragon != null && (!workerHasAxe || dragonNeedsReturn)) {
+			if (!this.isReturningDragon) {
+				this.isReturningDragon = true;
+				currentDragon.setTarget(null);
+				DragonColonies.debug("NAVIGATION", "[RETURN-TRIGGER] Rueckruf eingeleitet | WacheAxt: {} | FitToFly: {}",
+						workerHasAxe, !dragonNeedsReturn);
+			}
+		}
 
-        if (isReturningDragon && currentDragon != null) {
-            handleReturnDragonToRoost(level);
-            return super.decide();
-        }
+		// 2. Solange der Drache auf dem Heimweg ist, füttern wir nur die Hort-Navigation.
+		// super.decide() darf NICHT aufgerufen werden, damit MineColonies keine Patrouillenbefehle abfeuert.
+		if (this.isReturningDragon && currentDragon != null) {
+			handleReturnDragonToRoost(level);
+			return null;
+		}
 
         return super.decide();
     }
@@ -365,29 +366,28 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         return null;
     }
 
-    private BlockPos calculateKinematicOrbitPoint(DragonBase dragon, BlockPos center, ServerLevel level) {
-        Vec3 dragonPos = dragon.position();
-        double dx = dragonPos.x - (center.getX() + 0.5D);
-        double dz = dragonPos.z - (center.getZ() + 0.5D);
-        double distFromCenter = Math.sqrt(dx * dx + dz * dz);
+	private BlockPos calculateKinematicOrbitPoint(DragonBase dragon, BlockPos center, ServerLevel level) {
+		Vec3 dragonPos = dragon.position();
+		double dx = dragonPos.x - (center.getX() + 0.5D);
+		double dz = dragonPos.z - (center.getZ() + 0.5D);
+		double distFromCenter = Math.sqrt(dx * dx + dz * dz);
 
-        float yaw = dragon.getYRot();
+		float yaw = dragon.getYRot();
+		yaw = (distFromCenter > 45.0D) 
+			? Mth.rotLerp(0.35F, yaw, (float) (Mth.atan2(-dz, -dx) * (180.0D / Math.PI)) - 90.0F) 
+			: yaw + 25.0F;
 
-        if (distFromCenter > 45.0D) {
-            float toCenterYaw = (float) (Mth.atan2(-dz, -dx) * (180.0D / Math.PI)) - 90.0F;
-            yaw = Mth.rotLerp(0.35F, yaw, toCenterYaw);
-        } else {
-            yaw += 25.0F;
-        }
+		double rad = Math.toRadians(yaw + 90.0F);
+		BlockPos rawOrbitPos = new BlockPos(
+			Mth.floor(dragonPos.x + Math.cos(rad) * 18.0D),
+			center.getY(),
+			Mth.floor(dragonPos.z + Math.sin(rad) * 18.0D)
+		);
 
-        double rad = Math.toRadians(yaw + 90.0F);
-        double forwardDist = 18.0D;
-        double targetX = dragonPos.x + Math.cos(rad) * forwardDist;
-        double targetZ = dragonPos.z + Math.sin(rad) * forwardDist;
-        int safeY = this.cachedLoiterAltitude != -1 ? this.cachedLoiterAltitude : DragonNavigationHandler.getHighAirPos(level, center).getY();
-
-        return new BlockPos(Mth.floor(targetX), safeY, Mth.floor(targetZ));
-    }
+		// Zwingt das projizierte Tangenten-Ziel durch die Terrain-Pruefung an SEINER EIGENEN Koordinate,
+		// damit ansteigende Berghaenge im Orbit nicht blind angesteuert werden.
+		return DragonNavigationHandler.getHighAirPos(level, rawOrbitPos);
+	}
 
     public void handleMountingPhase(AbstractEntityCitizen citizen) {
         DragonBase currentDragon = getAssignedDragon();
@@ -404,38 +404,41 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             return;
         }
 
-        if (!citizen.isPassenger()) {
-            this.mountingTicks++;
-            double distSqr = citizen.distanceToSqr(currentDragon);
-            boolean navInProgress = currentDragon.getNavigation() != null && currentDragon.getNavigation().isInProgress();
+	if (!citizen.isPassenger()) {
+		this.mountingTicks++;
+		double distSqr = citizen.distanceToSqr(currentDragon);
 
-            if (this.mountingTicks % 10 == 0 || this.mountingTicks == 1) {
-                DragonColonies.debug("NAVIGATION", "[MOUNT-PHASE] Tick: {} | DistSqr: {} | DragonNavInProgress: {} | CitizenPos: {} | DragonPos: {}",
-                        this.mountingTicks, String.format("%.2f", distSqr), navInProgress, citizen.blockPosition().toShortString(), currentDragon.blockPosition().toShortString());
-            }
+		AIMovementComponent move = currentDragon.getAIMovement();
+		boolean navInProgress = move != null && move.isPathing();
 
-            if (currentDragon.getNavigation() != null && !navInProgress) {
-                boolean navMoved = currentDragon.getNavigation().moveTo(citizen, 1.35D);
-                DragonColonies.debug("NAVIGATION", "[MOUNT-NAV] Drache moveTo(citizen) aufgerufen -> Ergebnis: {}", navMoved);
-            }
+		if (this.mountingTicks % 10 == 0 || this.mountingTicks == 1) {
+			DragonColonies.debug("NAVIGATION", "[MOUNT-PHASE] Tick: {} | DistSqr: {} | DragonNavInProgress: {} | CitizenPos: {} | DragonPos: {}",
+					this.mountingTicks, String.format("%.2f", distSqr), navInProgress, citizen.blockPosition().toShortString(), currentDragon.blockPosition().toShortString());
+		}
 
-            if (distSqr <= 16.0D) {
-                Vec3 startPos = citizen.position();
-                Vec3 targetPos = new Vec3(currentDragon.getX(), currentDragon.getY() + 0.5D, currentDragon.getZ());
+		// BoD-Drachen benoetigen AIMovementComponent fuer synchrone Rumpfausrichtung; Vanilla-moveTo laesst den Body-Yaw einfrieren.
+		if (move != null && !navInProgress) {
+			move.setWaypoint(citizen.position(), 1.35D);
+			DragonColonies.debug("NAVIGATION", "[MOUNT-NAV] BoD-Waypoint gesetzt fuer Heranrufen -> Ziel: {}", citizen.blockPosition().toShortString());
+		}
 
-                triggerMountLeapEffect(citizen, startPos, targetPos);
+		if (distSqr <= 16.0D) {
+			Vec3 startPos = citizen.position();
+			Vec3 targetPos = new Vec3(currentDragon.getX(), currentDragon.getY() + 0.5D, currentDragon.getZ());
 
-                boolean mounted = citizen.startRiding(currentDragon, true);
-                DragonColonies.debug("NAVIGATION", "[MOUNT-TRY] startRiding(standard) ausgefuehrt -> Erfolg: {}", mounted);
-                if (mounted) {
-                    this.isMountingDragon = false;
-                    this.mountingTicks = 0;
-                    currentDragon.setCommand(0);
-                    currentDragon.setGroundStance(GroundStance.IDLE);
-                    currentDragon.getPersistentData().putUUID("DragonColonies_GuardUUID", citizen.getUUID());
-                    return;
-                }
-            }
+			triggerMountLeapEffect(citizen, startPos, targetPos);
+
+			boolean mounted = citizen.startRiding(currentDragon, true);
+			if (mounted) {
+				this.isMountingDragon = false;
+				this.mountingTicks = 0;
+				if (move != null) move.clearAllWaypoints();
+				currentDragon.setCommand(0);
+				currentDragon.setGroundStance(GroundStance.IDLE);
+				currentDragon.getPersistentData().putUUID("DragonColonies_GuardUUID", citizen.getUUID());
+				return;
+			}
+		}
 
             if (this.mountingTicks >= MAX_MOUNT_TICKS || citizen.getNavigation().isStuck()) {
                 Vec3 startPos = citizen.position();

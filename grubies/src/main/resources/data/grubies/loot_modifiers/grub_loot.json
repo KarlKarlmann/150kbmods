@@ -1,0 +1,5 @@
+{
+  "type": "grubies:grub_loot",
+  "conditions": [],
+  "drop_chance": 0.20
+}
