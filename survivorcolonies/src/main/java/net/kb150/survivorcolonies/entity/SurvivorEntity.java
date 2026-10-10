@@ -1,6 +1,16 @@
 package net.kb150.survivorcolonies.entity;
 
+import com.minecolonies.api.blocks.ModBlocks;
+import com.minecolonies.api.colony.GraveData;
+import com.minecolonies.api.colony.IColony;
+import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.entity.citizen.Skill;
+import com.minecolonies.api.sounds.EventType;
+import com.minecolonies.api.sounds.ModSoundEvents;
+import com.minecolonies.api.util.BlockPosUtil;
+import com.minecolonies.api.util.InventoryUtils;
+import com.minecolonies.core.blocks.BlockMinecoloniesGrave;
+import com.minecolonies.core.tileentities.TileEntityGrave;
 import net.kb150.survivorcolonies.SurvivorColonies;
 import net.kb150.survivorcolonies.data.SurvivorDataLoader;
 import net.kb150.survivorcolonies.data.SurvivorPersonality;
@@ -13,11 +23,14 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -29,7 +42,6 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.AvoidEntityGoal;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
-import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.Creeper;
@@ -41,6 +53,9 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SwordItem;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.tags.BlockTags;
 import net.minecraftforge.fml.ModList;
@@ -104,14 +119,14 @@ public class SurvivorEntity extends PathfinderMob {
     private static final long EVENING_SETUP_START = 12000L;
     private static final long EVENING_SETUP_END = 13000L;
 
-    // Zentraler AI-Selector Debugger
     private String lastRunningGoalsSummary = "";
     private int selectorHeartbeatTimer = 0;
+    private int proximityChatterCooldown = 0;
 
     public SurvivorEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
 
-        // FEUER & LAGERFEUER ALS ABSOLUT UNPASS㨁BAR DEFINIEREN (-1.0F = NIEMALS DURCHLAUFEN)
+        // Verhindert Selbstzerstörung bei Lagerfeuer-Gebrauch
         this.setPathfindingMalus(BlockPathTypes.DAMAGE_FIRE, -1.0F);
         this.setPathfindingMalus(BlockPathTypes.DANGER_FIRE, -1.0F);
 
@@ -165,7 +180,6 @@ public class SurvivorEntity extends PathfinderMob {
             }
         ));
 
-        // Ersetzt das alte starre MeleeAttackGoal durch adaptiven Nah- und Fernkampf
         this.goalSelector.addGoal(3, new SurvivorCombatGoal(this));
         this.goalSelector.addGoal(4, new SurvivorInteractGoal(this));
 
@@ -186,11 +200,7 @@ public class SurvivorEntity extends PathfinderMob {
         this.goalSelector.addGoal(10, new SurvivorSeekShelterGoal(this));
         this.goalSelector.addGoal(11, new SurvivorSentryGoal(this));
 
-        // 1. HurtByTargetGoal: Wer mich angreift, IST mein Ziel (egal wie stark er ist!)
-        // Ob gekämpft oder geflohen wird, entscheidet Prio 1 (Flee) vs Prio 3 (Attack)
         this.targetSelector.addGoal(1, new HurtByTargetGoal(this));
-
-        // 2. NearestAttackableTargetGoal: Nur schwächere Monster aktiv jagen
         this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(
             this, 
             Monster.class, 
@@ -213,17 +223,15 @@ public class SurvivorEntity extends PathfinderMob {
         super.tick();
 
         if (!this.level().isClientSide) {
-            // --- ZENTRALER GOAL-SELECTOR DEBUGGER ---
             debugInspectGoalSelector();
+            tickProximityChatter();
 
-            // NOTFALL-REFLEX: Wenn er IM Lagerfeuer steht -> Sofort mit Satz zur Seite wegspringen!
             if (this.level().getBlockState(this.blockPosition()).is(BlockTags.CAMPFIRES)) {
                 net.minecraft.core.Direction escapeDir = net.minecraft.core.Direction.Plane.HORIZONTAL.getRandomDirection(this.random);
                 this.setDeltaMovement(escapeDir.getStepX() * 0.35D, 0.25D, escapeDir.getStepZ() * 0.35D);
                 this.hurtMarked = true;
             }
 
-            // Bei Gefahr oder wenn kein Goal läuft: Sofort aufspringen!
             boolean inDanger = this.getTarget() != null || this.getLastHurtByMob() != null;
             if (this.isPassenger() && (inDanger || this.campfireGoal == null || !this.campfireGoal.isRunning())) {
                 this.stopRiding();
@@ -270,8 +278,96 @@ public class SurvivorEntity extends PathfinderMob {
         }
     }
 
+    private void tickProximityChatter() {
+        if (this.proximityChatterCooldown > 0) {
+            this.proximityChatterCooldown--;
+            return;
+        }
+
+        if (this.tickCount % 20 != 0 || this.getTradingPlayer() != null || this.isInvisible() || this.getTarget() != null) return;
+
+        Player nearestPlayer = this.level().getNearestPlayer(this, 5.0D);
+        if (nearestPlayer != null && nearestPlayer.isAlive() && !nearestPlayer.isSpectator()) {
+            playRandomOneliner();
+            this.proximityChatterCooldown = 300 + this.random.nextInt(300);
+        }
+    }
+
+    // Bindet MineColonies-Soundsystem direkt ein ohne CitizenData zu faken
+    private void playRandomOneliner() {
+        try {
+            var unemployedSounds = ModSoundEvents.CITIZEN_SOUND_EVENTS.get("unemployed");
+            if (unemployedSounds == null) return;
+
+            EventType[] types = { EventType.GREETING, EventType.GENERAL, EventType.NOISE, EventType.HAPPY };
+            EventType chosenType = types[this.random.nextInt(types.length)];
+
+            var soundList = unemployedSounds.get(chosenType);
+            if (soundList == null || soundList.isEmpty()) return;
+
+            int voiceProfile = Math.abs(this.getUUID().hashCode() % soundList.size());
+            var tuple = soundList.get(voiceProfile);
+
+            SoundEvent sound = this.isFemale() ? tuple.getB() : tuple.getA();
+            if (sound != null) {
+                this.level().playSound(null, this.blockPosition(), sound, SoundSource.NEUTRAL, 0.6F, 1.0F);
+            }
+        } catch (Exception e) {
+            SurvivorColonies.LOGGER.debug("[SurvivorColonies] Fehler beim Proximity-Oneliner: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public void die(DamageSource damageSource) {
+        if (!this.level().isClientSide) {
+            spawnGraveOnDeath();
+        }
+        super.die(damageSource);
+    }
+
+	private void spawnGraveOnDeath() {
+		BlockPos pos = this.blockPosition();
+		Level level = this.level();
+
+		if (!level.getBlockState(pos).canBeReplaced() || level.getBlockState(pos).is(Blocks.LAVA)) {
+			pos = BlockPosUtil.findAround(level, pos, 2, 2, (l, p) -> l.getBlockState(p).canBeReplaced() && !l.getBlockState(p).is(Blocks.LAVA));
+			if (pos == null) pos = this.blockPosition();
+		}
+
+		// ModBlocks.blockGrave direkt als Block-Instanz ansprechen
+		BlockState graveState = BlockMinecoloniesGrave.getPlacementState(ModBlocks.blockGrave.defaultBlockState(), pos);
+		if (level.setBlock(pos, graveState, 3)) {
+			BlockEntity te = level.getBlockEntity(pos);
+			if (te instanceof TileEntityGrave grave) {
+				
+				for (int i = 0; i < this.getInventory().getContainerSize(); i++) {
+					ItemStack stack = this.getInventory().getItem(i);
+					if (!stack.isEmpty()) InventoryUtils.addItemStackToItemHandler(grave.getInventory(), stack.copy());
+				}
+				
+				for (EquipmentSlot slot : EquipmentSlot.values()) {
+					ItemStack stack = this.getItemBySlot(slot);
+					if (!stack.isEmpty()) {
+						InventoryUtils.addItemStackToItemHandler(grave.getInventory(), stack.copy());
+						this.setItemSlot(slot, ItemStack.EMPTY);
+					}
+				}
+				this.getInventory().clearContent();
+
+				GraveData graveData = new GraveData();
+				graveData.setCitizenName(this.getSurvivorName());
+				grave.setGraveData(graveData);
+
+				IColony colony = IColonyManager.getInstance().getClosestIColony(level, pos);
+				if (colony != null) {
+					colony.getGraveManager().addNewGrave(pos);
+				}
+				SurvivorColonies.LOGGER.debug("[SurvivorColonies] Grabstein für {} an {} gespawnt.", getSurvivorName(), pos);
+			}
+		}
+	}
+
     private void debugInspectGoalSelector() {
-        // Sammelt alle Goals mit vollem Package-Namen, um fremde Mod-Injektionen sofort zu identifizieren
         String currentRunningGoals = this.goalSelector.getRunningGoals()
                 .map(wg -> "[P" + wg.getPriority() + ":" + wg.getGoal().getClass().getName() + "]")
                 .collect(Collectors.joining(", "));
@@ -280,7 +376,6 @@ public class SurvivorEntity extends PathfinderMob {
             currentRunningGoals = "[NONE]";
         }
 
-        // 1. Sofortiges Logging bei JEDER Änderung der aktiven Goals
         if (!currentRunningGoals.equals(this.lastRunningGoalsSummary)) {
             SurvivorColonies.LOGGER.info("[AI-CHANGE] {}: {} -> {} | Act: {} | Pass: {} | Target: {}",
                     this.getSurvivorName(),
@@ -293,7 +388,6 @@ public class SurvivorEntity extends PathfinderMob {
             this.selectorHeartbeatTimer = 0;
         }
 
-        // 2. Regelmäßiger Heartbeat alle 60 Ticks (3 Sekunden), falls sich nichts ändert
         this.selectorHeartbeatTimer++;
         if (this.selectorHeartbeatTimer >= 60) {
             this.selectorHeartbeatTimer = 0;
@@ -627,8 +721,6 @@ public class SurvivorEntity extends PathfinderMob {
         }
         if (target == null) return false;
 
-        // Wenn der Feind übermächtig ist (mehr HP oder mehr Max-HP als der Survivor, z.B. Enderman mit 40 HP):
-        // SOFORT DIE FLUCHT ERGREIFEN!
         if (target.getMaxHealth() > this.getMaxHealth() || target.getHealth() > this.getHealth()) {
             return true;
         }

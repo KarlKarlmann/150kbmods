@@ -1,0 +1,22 @@
+{
+    "targets": [
+        "worlddepth"
+    ],
+    "passes": [
+        {
+            "name": "woerp_depth_melt",
+            "intarget": "minecraft:main",
+            "outtarget": "minecraft:main",
+            "auxtargets": [
+                {
+                    "name": "DepthSampler",
+                    "id": "worlddepth"
+                }
+            ],
+            "uniforms": [
+                { "name": "RadiationDose", "type": "float", "count": 1, "values": [ 0.0 ] },
+                { "name": "Time", "type": "float", "count": 1, "values": [ 0.0 ] }
+            ]
+        }
+    ]
+}

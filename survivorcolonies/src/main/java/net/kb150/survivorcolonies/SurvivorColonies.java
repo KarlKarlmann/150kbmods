@@ -6,6 +6,9 @@ import net.kb150.survivorcolonies.data.SurvivorDataLoader;
 import net.kb150.survivorcolonies.entity.ModEntities;
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
 import net.kb150.survivorcolonies.network.ModMessages;
+import net.kb150.survivorcolonies.config.SurvivorConfig;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.config.ModConfig;
 import net.minecraft.world.entity.SpawnPlacements;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraftforge.common.MinecraftForge;
@@ -36,6 +39,7 @@ public class SurvivorColonies {
         modEventBus.addListener(this::registerSpawnPlacements);
 
         MinecraftForge.EVENT_BUS.register(this);
+		ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SurvivorConfig.SPEC);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

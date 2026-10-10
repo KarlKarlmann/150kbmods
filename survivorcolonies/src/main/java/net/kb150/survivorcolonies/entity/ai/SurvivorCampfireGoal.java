@@ -24,10 +24,6 @@ import net.minecraft.world.level.block.entity.CampfireBlockEntity;
 
 import java.util.*;
 
-/**
- * Platziert und nutzt ein Lagerfeuer direkt beim Zelt des Ueberlebenden.
- * Dient als Ort zum Kochen, Regenerieren und chaotischen Umcraften via Reverse-Recipe-Cache.
- */
 public class SurvivorCampfireGoal extends Goal {
     private final SurvivorEntity survivor;
     private BlockPos campfirePos;
@@ -40,8 +36,9 @@ public class SurvivorCampfireGoal extends Goal {
     private int idleSitTicks = 0;
     private static final int MAX_IDLE_SIT_TICKS = 200;
 
-    // Statische O(1) Caches: Verhindern Lag-Spikes bei vielen Entities durch Vorab-Indizierung aller Rezepte
-    private static final Map<Item, List<Item>> REVERSE_RECIPE_CACHE = new HashMap<>();
+    private record CampfireRecipeOption(Item result, int ingredientCount) {}
+
+    private static final Map<Item, List<CampfireRecipeOption>> REVERSE_RECIPE_CACHE = new HashMap<>();
     private static final Map<Item, Integer> CAMPFIRE_COOKING_CACHE = new HashMap<>();
     private static boolean cacheInitialized = false;
 
@@ -52,28 +49,21 @@ public class SurvivorCampfireGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (this.survivor.getTarget() != null || this.survivor.hurtTime > 0) {
-            return false;
-        }
+        if (this.survivor.getTarget() != null || this.survivor.hurtTime > 0) return false;
 
         boolean hasCampfire = this.survivor.getKnownCampfirePos() != null;
         boolean isNight = this.survivor.level().isNight();
         boolean wantsHeal = wantsToHealAndEat();
         boolean hasFood = hasCookableFood();
 
-        if (hasCampfire && !isNight && !wantsHeal && !hasFood) {
-            return false;
-        }
+        if (hasCampfire && !isNight && !wantsHeal && !hasFood) return false;
 
-        // 1. Bekanntes Lagerfeuer pruefen
         BlockPos memoryPos = this.survivor.getKnownCampfirePos();
         if (memoryPos != null) {
             if (this.survivor.level().getBlockState(memoryPos).is(Blocks.CAMPFIRE)) {
                 this.campfirePos = memoryPos.immutable();
                 this.sitTargetPos = findSafeAdjacentPos(this.campfirePos);
-                if (this.sitTargetPos != null) {
-                    return true;
-                }
+                if (this.sitTargetPos != null) return true;
             } else {
                 this.survivor.setKnownCampfirePos(null);
             }
@@ -81,7 +71,6 @@ public class SurvivorCampfireGoal extends Goal {
 
         BlockPos tentAnchor = getTentAnchorPos();
 
-        // 2. Suche um Zeltanker
         for (BlockPos pos : BlockPos.betweenClosed(tentAnchor.offset(-8, -2, -8), tentAnchor.offset(8, 2, 8))) {
             if (this.survivor.level().getBlockState(pos).is(Blocks.CAMPFIRE)) {
                 this.campfirePos = pos.immutable();
@@ -93,14 +82,11 @@ public class SurvivorCampfireGoal extends Goal {
             }
         }
 
-        // 3. Kein Feuer da -> Neues Lagerfeuer bauen
         BlockPos newFirePos = findCampfireSpotNearTent(tentAnchor);
         if (newFirePos != null) {
             this.campfirePos = newFirePos;
             this.sitTargetPos = findSafeAdjacentPos(this.campfirePos);
-            if (this.sitTargetPos == null) {
-                this.sitTargetPos = tentAnchor;
-            }
+            if (this.sitTargetPos == null) this.sitTargetPos = tentAnchor;
             this.survivor.setKnownCampfirePos(this.campfirePos);
             return true;
         }
@@ -110,12 +96,8 @@ public class SurvivorCampfireGoal extends Goal {
 
     private BlockPos getTentAnchorPos() {
         SurvivorTentGoal tentGoal = survivor.getTentGoal();
-        if (tentGoal != null && tentGoal.getTentApproachPos() != null) {
-            return tentGoal.getTentApproachPos();
-        }
-        if (survivor.getKnownTentPos() != null) {
-            return survivor.getKnownTentPos();
-        }
+        if (tentGoal != null && tentGoal.getTentApproachPos() != null) return tentGoal.getTentApproachPos();
+        if (survivor.getKnownTentPos() != null) return survivor.getKnownTentPos();
         return survivor.blockPosition();
     }
 
@@ -170,8 +152,8 @@ public class SurvivorCampfireGoal extends Goal {
         this.isGoalRunning = true;
         this.sitLatchTicks = 0;
         this.idleSitTicks = 0;
-        this.cookCooldown = 20; // Kurze Pause nach dem Hinsetzen vor dem ersten Auflegen
-        this.craftCooldown = 60; // 3 Sekunden Wartezeit vor dem ersten Basteln
+        this.cookCooldown = 20;
+        this.craftCooldown = 60;
         
         if (this.campfirePos != null && !this.survivor.level().isClientSide 
                 && !this.survivor.level().getBlockState(this.campfirePos).is(Blocks.CAMPFIRE)) {
@@ -215,12 +197,9 @@ public class SurvivorCampfireGoal extends Goal {
             }
         }
 
-        if (this.sitLatchTicks > 0) {
-            this.sitLatchTicks--;
-        }
+        if (this.sitLatchTicks > 0) this.sitLatchTicks--;
 
         if (this.survivor.isPassenger() && !this.survivor.level().isClientSide) {
-            // 1. Rohkost und Fleisch aus dem Inventar auf das Lagerfeuer legen
             if (this.cookCooldown > 0) {
                 this.cookCooldown--;
             } else {
@@ -230,24 +209,21 @@ public class SurvivorCampfireGoal extends Goal {
                         ItemStack foodStack = this.survivor.getInventory().getItem(foodSlot);
                         int cookTime = CAMPFIRE_COOKING_CACHE.getOrDefault(foodStack.getItem(), 600);
 
-                        // Exakt 1 Item auf das Feuer legen
                         ItemStack singleToCook = foodStack.copy();
                         singleToCook.setCount(1);
 
                         if (campfire.placeFood(this.survivor, singleToCook, cookTime)) {
                             this.survivor.getInventory().removeItem(foodSlot, 1);
                             this.survivor.swing(InteractionHand.MAIN_HAND);
-                            this.cookCooldown = 60; // 3 Sekunden warten bis zum naechsten Auflegen
+                            this.cookCooldown = 60;
                             this.survivor.level().playSound(null, this.campfirePos, SoundEvents.CAMPFIRE_CRACKLE, SoundSource.BLOCKS, 0.8F, 1.0F);
                         } else {
-                            // Campfire ist voll belegt (4/4 Slots) -> Verhindert CPU-Tick-Spamming waehrend des Garens
                             this.cookCooldown = 160;
                         }
                     }
                 }
             }
 
-            // 2. Chaotisches Handwerk am Feuer (Reverse-Recipe-Crafting)
             if (this.craftCooldown > 0) {
                 this.craftCooldown--;
             } else {
@@ -257,17 +233,12 @@ public class SurvivorCampfireGoal extends Goal {
         }
     }
 
-    /**
-     * Initialisiert den Recipe-Cache ein einziges Mal statisch fuer den Server.
-     * Mappt jede Zutat auf alle moeglichen Ergebnisse sowie alle campfire-cookable Items samt Gardauer.
-     */
     private static synchronized void ensureRecipeCacheBuilt(Level level) {
         if (cacheInitialized) return;
         long start = System.currentTimeMillis();
 
         var recipeManager = level.getRecipeManager();
 
-        // 1. Alle im Spiel registrierten Campfire-Rezepte vorfiltern
         for (CampfireCookingRecipe recipe : recipeManager.getAllRecipesFor(RecipeType.CAMPFIRE_COOKING)) {
             int cookTime = recipe.getCookingTime();
             for (Ingredient ingredient : recipe.getIngredients()) {
@@ -279,44 +250,49 @@ public class SurvivorCampfireGoal extends Goal {
             }
         }
 
-        // Rotten Flesh als zähe Notration fuer Ueberlebende immer erlauben
         CAMPFIRE_COOKING_CACHE.putIfAbsent(Items.ROTTEN_FLESH, 600);
 
-        // 2. Reverse-Recipe-Cache fuer das chaotische Handwerk
+        // Erlaubt Crafting, Schmelzen, Räuchern und Lagerfeuer-Garen über das Rucksack-Handwerk
         for (Recipe<?> recipe : recipeManager.getRecipes()) {
+            boolean isSupported = recipe.getType() == RecipeType.CRAFTING 
+                    || recipe.getType() == RecipeType.SMELTING 
+                    || recipe.getType() == RecipeType.SMOKING 
+                    || recipe.getType() == RecipeType.CAMPFIRE_COOKING 
+                    || recipe.getType() == RecipeType.BLASTING;
+
+            if (!isSupported) continue;
+
             ItemStack result = recipe.getResultItem(level.registryAccess());
-            if (result.isEmpty()) continue;
+            if (result.isEmpty() || result.getItem() == Items.AIR) continue;
 
-            Item resultItem = result.getItem();
+            var ingredients = recipe.getIngredients();
+            if (ingredients.isEmpty()) continue;
 
-            for (Ingredient ingredient : recipe.getIngredients()) {
+            CampfireRecipeOption option = new CampfireRecipeOption(result.getItem(), ingredients.size());
+
+            for (Ingredient ingredient : ingredients) {
                 for (ItemStack inputStack : ingredient.getItems()) {
                     if (inputStack.isEmpty()) continue;
-                    Item inputItem = inputStack.getItem();
-
-                    REVERSE_RECIPE_CACHE.computeIfAbsent(inputItem, k -> new ArrayList<>()).add(resultItem);
+                    REVERSE_RECIPE_CACHE.computeIfAbsent(inputStack.getItem(), k -> new ArrayList<>()).add(option);
                 }
             }
         }
 
         cacheInitialized = true;
-        SurvivorColonies.LOGGER.info("[SurvivorColonies] Recipe-Cache initialisiert in {} ms. Bratbare Items: {}, Zutat-Mappings: {}", 
+        SurvivorColonies.LOGGER.info("[SurvivorColonies] Recipe-Cache initialisiert in {} ms. Bratbar: {}, Zutat-Mappings: {}", 
                 System.currentTimeMillis() - start, CAMPFIRE_COOKING_CACHE.size(), REVERSE_RECIPE_CACHE.size());
     }
 
-    /**
-     * Zieht ein Material aus dem Rucksack und verwandelt es per Zufall
-     * in ein Rezept-Ergebnis, das diese Zutat verwendet.
-     */
     private void attemptCampfireCrafting() {
         Level level = this.survivor.level();
         ensureRecipeCacheBuilt(level);
 
         int focusSkill = this.survivor.getSkills().getOrDefault("Focus", 1);
         float successChance = 0.30F + (focusSkill * 0.05F);
-        if (this.survivor.getRandom().nextFloat() > successChance) {
-            return;
-        }
+        if (this.survivor.getRandom().nextFloat() > successChance) return;
+
+        // Skaliert erlaubte Rezept-Zutaten dynamisch mit dem Focus-Skill (Level 1-2 = max 2 Zutaten, Level 10 = max 9 Zutaten)
+        int maxAllowedIngredients = Math.min(9, 1 + (focusSkill * 4 / 5));
 
         var inv = this.survivor.getInventory();
         List<Integer> craftableSlots = new ArrayList<>();
@@ -324,7 +300,11 @@ public class SurvivorCampfireGoal extends Goal {
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
             if (!stack.isEmpty() && !stack.isEdible() && REVERSE_RECIPE_CACHE.containsKey(stack.getItem())) {
-                craftableSlots.add(i);
+                boolean hasValidOption = REVERSE_RECIPE_CACHE.get(stack.getItem()).stream()
+                        .anyMatch(opt -> opt.ingredientCount() <= maxAllowedIngredients);
+                if (hasValidOption) {
+                    craftableSlots.add(i);
+                }
             }
         }
 
@@ -334,10 +314,13 @@ public class SurvivorCampfireGoal extends Goal {
         ItemStack ingredientStack = inv.getItem(chosenSlot);
         Item ingredientItem = ingredientStack.getItem();
 
-        List<Item> possibleResults = REVERSE_RECIPE_CACHE.get(ingredientItem);
-        if (possibleResults == null || possibleResults.isEmpty()) return;
+        List<CampfireRecipeOption> validOptions = REVERSE_RECIPE_CACHE.get(ingredientItem).stream()
+                .filter(opt -> opt.ingredientCount() <= maxAllowedIngredients)
+                .toList();
 
-        Item craftedItem = possibleResults.get(this.survivor.getRandom().nextInt(possibleResults.size()));
+        if (validOptions.isEmpty()) return;
+
+        Item craftedItem = validOptions.get(this.survivor.getRandom().nextInt(validOptions.size())).result();
         ItemStack craftedStack = new ItemStack(craftedItem, 1);
 
         ingredientStack.shrink(1);
@@ -362,8 +345,8 @@ public class SurvivorCampfireGoal extends Goal {
                     8, 0.2D, 0.2D, 0.2D, 0.1D);
         }
 
-        SurvivorColonies.LOGGER.info("[CAMPFIRE-CRAFT] {} hat am Feuer 1x {} in 1x {} umgehandwerkt (Focus: {})!",
-                this.survivor.getSurvivorName(), ingredientItem.getDescriptionId(), craftedItem.getDescriptionId(), focusSkill);
+        SurvivorColonies.LOGGER.info("[CAMPFIRE-CRAFT] {} (Focus {}) hat 1x {} in 1x {} umgehandwerkt (Max Zutaten: {})!",
+                this.survivor.getSurvivorName(), focusSkill, ingredientItem.getDescriptionId(), craftedItem.getDescriptionId(), maxAllowedIngredients);
     }
 
     @Override
@@ -372,9 +355,7 @@ public class SurvivorCampfireGoal extends Goal {
             && this.survivor.hurtTime == 0 
             && this.campfirePos != null;
 
-        if (!isSafeCondition) {
-            return this.sitLatchTicks > 0;
-        }
+        if (!isSafeCondition) return this.sitLatchTicks > 0;
 
         if (hasCookableFood() || wantsToHealAndEat()) {
             this.idleSitTicks = 0;
@@ -444,9 +425,7 @@ public class SurvivorCampfireGoal extends Goal {
                     }
                 }
                 
-                if (!isOccupied) {
-                    return adj.immutable();
-                }
+                if (!isOccupied) return adj.immutable();
             }
         }
         

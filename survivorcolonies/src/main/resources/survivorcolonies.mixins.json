@@ -5,6 +5,8 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "survivorcolonies.refmap.json", 
   "mixins": [
+  "MixinReproductionManager",
+  "MixinTavernBuildingModule"
   ],
   "client": [],
   "injectors": {

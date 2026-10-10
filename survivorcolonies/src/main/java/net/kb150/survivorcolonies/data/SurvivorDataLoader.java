@@ -5,6 +5,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.minecolonies.api.colony.CitizenNameFile;
+import com.minecolonies.core.datalistener.CitizenNameListener;
 import com.mojang.logging.LogUtils;
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -30,8 +32,6 @@ public class SurvivorDataLoader extends SimpleJsonResourceReloadListener {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
-    private static final List<String> MALE_NAMES = new ArrayList<>();
-    private static final List<String> FEMALE_NAMES = new ArrayList<>();
     private static final List<Item> WEAPONS = new ArrayList<>();
     private static final List<Item> OFFHAND = new ArrayList<>();
     private static final List<Item> HELMETS = new ArrayList<>();
@@ -47,8 +47,6 @@ public class SurvivorDataLoader extends SimpleJsonResourceReloadListener {
 
     @Override
     protected void apply(Map<ResourceLocation, JsonElement> jsonMap, ResourceManager resourceManager, ProfilerFiller profiler) {
-        MALE_NAMES.clear();
-        FEMALE_NAMES.clear();
         WEAPONS.clear();
         OFFHAND.clear();
         HELMETS.clear();
@@ -62,10 +60,6 @@ public class SurvivorDataLoader extends SimpleJsonResourceReloadListener {
             try {
                 JsonObject json = GsonHelper.convertToJsonObject(entry.getValue(), "survivor data file");
 
-                // Generische Listenverarbeitung mit Replace-Support
-                parseList(json, "male_names", MALE_NAMES, elem -> elem.getAsString());
-                parseList(json, "female_names", FEMALE_NAMES, elem -> elem.getAsString());
-                
                 parseList(json, "weapons", WEAPONS, elem -> getItem(elem.getAsString()));
                 parseList(json, "offhand", OFFHAND, elem -> getItem(elem.getAsString()));
                 parseList(json, "helmets", HELMETS, elem -> getItem(elem.getAsString()));
@@ -80,12 +74,9 @@ public class SurvivorDataLoader extends SimpleJsonResourceReloadListener {
                 LOGGER.error("Fehler beim Lesen der Survivor-Datei: {}", entry.getKey(), e);
             }
         }
-        LOGGER.info("Survivor-Pools geladen: {} M-Namen, {} W-Namen, {} Waffen.", MALE_NAMES.size(), FEMALE_NAMES.size(), WEAPONS.size());
+        LOGGER.info("Survivor-Ausrüstungspools geladen: {} Waffen, {} Rekrutierungskosten.", WEAPONS.size(), RECRUIT_COSTS.size());
     }
 
-    /**
-     * Parst eine Liste und unterstützt sowohl einfaches Anfügen als auch Replace (global oder lokal).
-     */
     private <T> void parseList(JsonObject rootJson, String key, List<T> targetList, Function<JsonElement, T> parser) {
         if (!rootJson.has(key)) return;
 
@@ -103,7 +94,6 @@ public class SurvivorDataLoader extends SimpleJsonResourceReloadListener {
             array = element.getAsJsonArray();
         }
 
-        // Falls "replace": true, wird der bisherige Pool für diese Kategorie geleert
         if (shouldReplace) {
             targetList.clear();
         }
@@ -128,17 +118,47 @@ public class SurvivorDataLoader extends SimpleJsonResourceReloadListener {
         return BuiltInRegistries.ITEM.get(new ResourceLocation(id));
     }
 
+    /**
+     * Greift direkt auf das geladene Namensregister von MineColonies zu,
+     * um ohne eigene Duplikate echte Kolonie-Namen zu erzeugen.
+     */
+    public static String generateMinecoloniesName(boolean isFemale, RandomSource random) {
+        if (CitizenNameListener.nameFileMap == null || CitizenNameListener.nameFileMap.isEmpty()) {
+            return isFemale ? "Überlebende" : "Überlebender";
+        }
+
+        // Wählt ein beliebiges geladenes Namens-Preset aus MineColonies (z.B. default, nordic, etc.)
+        List<CitizenNameFile> nameFiles = new ArrayList<>(CitizenNameListener.nameFileMap.values());
+        CitizenNameFile nameFile = nameFiles.get(random.nextInt(nameFiles.size()));
+
+        List<String> firstNames = isFemale ? nameFile.femalefirstNames : nameFile.maleFirstNames;
+        if (firstNames == null || firstNames.isEmpty()) {
+            return isFemale ? "Überlebende" : "Überlebender";
+        }
+
+        String firstName = firstNames.get(random.nextInt(firstNames.size()));
+        if (nameFile.parts <= 1 || nameFile.surnames == null || nameFile.surnames.isEmpty()) {
+            return firstName;
+        }
+
+        String lastName = nameFile.surnames.get(random.nextInt(nameFile.surnames.size()));
+
+        if (nameFile.order == CitizenNameFile.NameOrder.EASTERN) {
+            return lastName + " " + firstName;
+        } else if (nameFile.parts == 3) {
+            char middle = (char) ('A' + random.nextInt(26));
+            return firstName + " " + middle + ". " + lastName;
+        } else {
+            return firstName + " " + lastName;
+        }
+    }
+
     public static void equipRandomly(SurvivorEntity survivor, RandomSource random) {
         boolean isFemale = random.nextBoolean();
         survivor.setFemale(isFemale);
 
-        if (isFemale && !FEMALE_NAMES.isEmpty()) {
-            survivor.setSurvivorName(FEMALE_NAMES.get(random.nextInt(FEMALE_NAMES.size())));
-        } else if (!isFemale && !MALE_NAMES.isEmpty()) {
-            survivor.setSurvivorName(MALE_NAMES.get(random.nextInt(MALE_NAMES.size())));
-        } else {
-            survivor.setSurvivorName("Überlebender");
-        }
+        // Name aus MineColonies Namenspools generieren
+        survivor.setSurvivorName(generateMinecoloniesName(isFemale, random));
 
         if (!WEAPONS.isEmpty()) survivor.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(WEAPONS.get(random.nextInt(WEAPONS.size()))));
         if (!OFFHAND.isEmpty()) survivor.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(OFFHAND.get(random.nextInt(OFFHAND.size()))));

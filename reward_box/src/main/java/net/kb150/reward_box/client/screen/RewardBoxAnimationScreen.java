@@ -138,79 +138,67 @@ public class RewardBoxAnimationScreen extends AbstractContainerScreen<RewardBoxM
         this.sequenceInitialized = true;
     }
 
-    private void renderFlyingItems(GuiGraphics graphics, float revealTime) {
-        if (!this.sequenceInitialized) {
-            initAnimationSequence();
-            // Wenn der Server immer noch nicht geantwortet hat, abbrechen und warten
-            if (!this.sequenceInitialized) return; 
-        }
+	private void renderFlyingItems(GuiGraphics graphics, float revealTime) {
+		if (!this.sequenceInitialized) {
+			initAnimationSequence();
+			if (!this.sequenceInitialized) return; 
+		}
 
-        int centerX = this.width / 2;
-        int centerY = this.height / 2;
+		int centerX = this.width / 2;
+		int centerY = this.height / 2;
 
-        // ZEICHNEN: Wir animieren die fliegenden Items strikt in der Reihenfolge
-        for (int seqIndex = 0; seqIndex < this.animationSequence.size(); seqIndex++) {
-            int slotIndex = this.animationSequence.get(seqIndex);
-            
-            // WICHTIG: Wir holen uns das Item aus UNSEREM Versteck, nicht aus dem Slot!
-            ItemStack stack = this.hiddenItems.get(slotIndex);
+		for (int seqIndex = 0; seqIndex < this.animationSequence.size(); seqIndex++) {
+			int slotIndex = this.animationSequence.get(seqIndex);
+			ItemStack stack = this.hiddenItems.get(slotIndex);
 
-            float itemLocalTime = revealTime - (seqIndex * 0.3f);
+			float itemLocalTime = revealTime - (seqIndex * 0.3f);
+			if (itemLocalTime < 0) continue;
 
-            // Item ist noch gar nicht dran (wartet auf seinen Einsatz)
-            if (itemLocalTime < 0) continue;
+			if (itemLocalTime >= 1.0f) {
+				if (!itemsLanded.contains(slotIndex)) {
+					// Item nach der Flugphase wieder im echten GUI-Slot platzieren
+					this.menu.getSlot(slotIndex).set(stack.copy());
+					itemsLanded.add(slotIndex);
+				}
+				continue;
+			}
 
-            // Item ist gelandet -> Wir legen es WIEDER ZURÜCK in den Vanilla Slot!
-            if (itemLocalTime >= 1.0f) {
-                if (!itemsLanded.contains(slotIndex)) {
-                    // Item dem echten Inventar zurückgeben, damit man es ab jetzt anklicken kann
-                    this.menu.getSlot(slotIndex).set(stack.copy());
-                    
-                    float pitch = 1.0f + (seqIndex * 0.05f); 
-                    playLocalSound(RewardBoxSounds.ITEM_LAND.get(), 0.8f, Math.min(pitch, 2.0f));
-                    itemsLanded.add(slotIndex);
-                }
-                continue;
-            }
+			float t = itemLocalTime; 
+			float scale = (t < 0.2f) ? (0.5f + t * 2.5f) : (1.0f + Mth.sin((t - 0.2f) * (float)Math.PI / 0.2f) * 0.5f);
 
-            // Swoosh-Sound beim Startflug
-            if (itemLocalTime < 0.1f && !soundsPlayed.contains(slotIndex)) {
-                playLocalSound(RewardBoxSounds.ITEM_SWOOSH.get(), 0.6f, 1.0f);
-                soundsPlayed.add(slotIndex);
-            }
+			int targetX = this.leftPos + 8 + (slotIndex % 9) * 18;
+			int targetY = this.topPos + 18 + (slotIndex / 9) * 18;
+			int controlX = centerX + (targetX - centerX) / 2;
+			int controlY = centerY - 150; 
 
-            float t = itemLocalTime; 
-            
-            float scale = 1.0f;
-            if (t < 0.2f) {
-                scale = 0.5f + (t * 2.5f); 
-            } else if (t < 0.4f) {
-                scale = 1.0f + Mth.sin((t - 0.2f) * (float)Math.PI / 0.2f) * 0.5f; 
-            }
+			float u = 1 - t;
+			float currentX = (u * u * centerX) + (2 * u * t * controlX) + (t * t * targetX);
+			float currentY = (u * u * centerY) + (2 * u * t * controlY) + (t * t * targetY);
 
-            int targetX = this.leftPos + 8 + (slotIndex % 9) * 18;
-            int targetY = this.topPos + 18 + (slotIndex / 9) * 18;
+			graphics.pose().pushPose();
+			graphics.pose().translate(currentX, currentY, 250); 
+			graphics.pose().scale(scale, scale, 1.0f);
 
-            int controlX = centerX + (targetX - centerX) / 2;
-            int controlY = centerY - 150; 
-
-            float u = 1 - t;
-            float currentX = (u * u * centerX) + (2 * u * t * controlX) + (t * t * targetX);
-            float currentY = (u * u * centerY) + (2 * u * t * controlY) + (t * t * targetY);
-
-            graphics.pose().pushPose();
-            graphics.pose().translate(currentX, currentY, 250); 
-            graphics.pose().scale(scale, scale, 1.0f);
-
-            renderRarityGlow(graphics, stack, t);
-
-            graphics.renderItem(stack, -8, -8);
-            graphics.renderItemDecorations(this.font, stack, -8, -8);
-            
-            graphics.pose().popPose();
-        }
-    }
-
+			renderRarityGlow(graphics, stack, t);
+			graphics.renderItem(stack, -8, -8);
+			graphics.renderItemDecorations(this.font, stack, -8, -8);
+			graphics.pose().popPose();
+		}
+	}
+	
+	@Override
+	public void onClose() {
+		if (this.sequenceInitialized) {
+			for (int i = 0; i < 27; i++) {
+				ItemStack hidden = this.hiddenItems.get(i);
+				if (!hidden.isEmpty() && this.menu.getSlot(i).getItem().isEmpty()) {
+					this.menu.getSlot(i).set(hidden);
+				}
+			}
+		}
+		super.onClose();
+	}
+	
     private void renderRarityGlow(GuiGraphics graphics, ItemStack stack, float localTime) {
         ResourceLocation glowTex = GLOW_COMMON;
         Rarity rarity = stack.getRarity();

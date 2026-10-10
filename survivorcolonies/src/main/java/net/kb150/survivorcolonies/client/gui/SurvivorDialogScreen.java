@@ -25,6 +25,7 @@ import java.util.UUID;
 /**
  * Pergament-Screen für Dialoge mit Typemachine-Effekt, Tonfall-Resume-Präfix,
  * Beziehungsstatus-Header und Vertrauens-Popup-Partikeln.
+ * Vergrößertes Raster (230x280) für lange Texte ohne Überlappungen.
  */
 public class SurvivorDialogScreen extends Screen {
 
@@ -34,8 +35,9 @@ public class SurvivorDialogScreen extends Screen {
     private final SurvivorEntity survivor;
     private final Screen parentScreen;
 
-    private final int imageWidth = 190;
-    private final int imageHeight = 244;
+    // Erweitertes Fensterformat: Vermeidet Matrix-Scaling, um UI-Klickboxen synchron zu halten
+    private final int imageWidth = 230;
+    private final int imageHeight = 280;
     private int leftPos;
     private int topPos;
 
@@ -198,7 +200,7 @@ public class SurvivorDialogScreen extends Screen {
             return;
         }
 
-        // 2. Erstes Treffen: Deterministischen Root ansteuern
+        // 2. Erstes Treffen: Deterministischen Root über FNV-1a Hash ansteuern
         List<Integer> roots = DialogManager.getRoots();
         if (roots == null || roots.isEmpty()) {
             showEmptyDialog();
@@ -298,12 +300,12 @@ public class SurvivorDialogScreen extends Screen {
         this.clearWidgets();
 
         int innerX = this.leftPos + 18;
-        int usableWidth = 154;
+        int usableWidth = 194;
 
         if (this.currentNpcReactionId == -1) {
             addBottomButton(
                     innerX,
-                    this.topPos + 220,
+                    this.topPos + 252,
                     usableWidth,
                     Component.translatable("gui.survivorcolonies.btn.back"),
                     b -> returnToParent()
@@ -316,7 +318,7 @@ public class SurvivorDialogScreen extends Screen {
         if (npcReaction == null || npcReaction.options().isEmpty()) {
             addBottomButton(
                     innerX,
-                    this.topPos + 220,
+                    this.topPos + 252,
                     usableWidth,
                     Component.translatable("gui.survivorcolonies.btn.goodbye"),
                     b -> returnToParent()
@@ -336,8 +338,8 @@ public class SurvivorDialogScreen extends Screen {
         int arrowWidth = 14;
         int spacing = 3;
         int cardWidth = usableWidth - (arrowWidth * 2) - (spacing * 2);
-        int cardHeight = 96;
-        int startY = this.topPos + 118;
+        int cardHeight = 84;
+        int startY = this.topPos + 162;
 
         if (totalOptions > 1) {
             this.addRenderableWidget(new CarouselArrowButton(
@@ -390,14 +392,14 @@ public class SurvivorDialogScreen extends Screen {
 
         addBottomButton(
                 innerX,
-                this.topPos + 220,
+                this.topPos + 252,
                 usableWidth,
                 Component.translatable("gui.survivorcolonies.btn.goodbye"),
                 b -> returnToParent()
         );
     }
 
-	private void choosePlayerReaction(int playerReactionId, Button clickedButton) {
+    private void choosePlayerReaction(int playerReactionId, Button clickedButton) {
         DialogManager.EdgeResolution resolution = DialogManager.resolvePlayerReaction(this.survivor, playerReactionId);
         if (resolution == null) {
             return;
@@ -418,7 +420,7 @@ public class SurvivorDialogScreen extends Screen {
             this.survivor.setDialogState(this.minecraft.player.getUUID(), next.id());
         }
 
-        // Visuelles Feedback fuer den Spieler ueber die Edge-Aenderung
+        // Visuelles Feedback für den Spieler über die Edge-Änderung
         if (trustDelta != 0) {
             spawnTrustPopup(
                     clickedButton.getX() + clickedButton.getWidth() / 2.0F,
@@ -528,15 +530,17 @@ public class SurvivorDialogScreen extends Screen {
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         this.renderBackground(guiGraphics);
 
-        // Pergament-Hintergrund
+        // Skalierte Pergament-Darstellung (190x244 Quelltextur -> 230x280 Zielgröße)
         guiGraphics.blit(
                 PAPER_BG,
                 this.leftPos,
                 this.topPos,
-                0,
-                0,
                 this.imageWidth,
                 this.imageHeight,
+                0,
+                0,
+                190,
+                244,
                 256,
                 256
         );
@@ -545,7 +549,7 @@ public class SurvivorDialogScreen extends Screen {
         guiGraphics.blit(
                 getPortraitLocation(),
                 this.leftPos + 18,
-                this.topPos + 16,
+                this.topPos + 14,
                 0,
                 0,
                 32,
@@ -559,7 +563,7 @@ public class SurvivorDialogScreen extends Screen {
                 this.font,
                 this.survivor.getSurvivorName(),
                 this.leftPos + 56,
-                this.topPos + 18,
+                this.topPos + 16,
                 0x281608,
                 false
         );
@@ -577,7 +581,7 @@ public class SurvivorDialogScreen extends Screen {
                 this.font,
                 statusDisplay,
                 this.leftPos + 56,
-                this.topPos + 30,
+                this.topPos + 28,
                 relationColor,
                 false
         );
@@ -599,12 +603,13 @@ public class SurvivorDialogScreen extends Screen {
 
         String textToDraw = activeFullText.substring(0, Math.min(visibleChars, activeFullText.length()));
 
+        // Erweiterter Text-Box-Radius (Y: 50 bis 158 = 108px Höhe für bis zu 11 Zeilen Text)
         guiGraphics.drawWordWrap(
                 this.font,
                 Component.literal("\"" + textToDraw + "\""),
                 this.leftPos + 18,
-                this.topPos + 52,
-                154,
+                this.topPos + 50,
+                194,
                 0x2E1C10
         );
 

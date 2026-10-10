@@ -1,0 +1,16 @@
+{
+    "blend": { "func": "add", "srcrgb": "srcalpha", "dstrgb": "1-srcalpha" },
+    "vertex": "blit",
+    "fragment": "woerp_depth_melt",
+    "attributes": [ "Position" ],
+    "samplers": [
+        { "name": "DiffuseSampler" },
+        { "name": "DepthSampler" }
+    ],
+    "uniforms": [
+        { "name": "RadiationDose", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "Time", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "EmitterCount", "type": "int", "count": 1, "values": [ 0 ] },
+        { "name": "EmitterUVs", "type": "float", "count": 8, "values": [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ] }
+    ]
+}
