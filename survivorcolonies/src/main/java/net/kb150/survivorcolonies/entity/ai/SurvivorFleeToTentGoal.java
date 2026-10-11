@@ -1,5 +1,6 @@
 package net.kb150.survivorcolonies.entity.ai;
 
+import net.kb150.survivorcolonies.SurvivorColonies;
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -9,174 +10,167 @@ import java.util.EnumSet;
 
 public class SurvivorFleeToTentGoal extends Goal {
     private final SurvivorEntity survivor;
+    private State state = State.FLEEING;
 
-    private boolean isHiding = false;
     private int safeTicks = 0;
     private int hiddenSafetyTimer = 0;
     private int sleepParticleTimer = 0;
+    private int navigateTimer = 0;
     private boolean tentWasDestroyed = false;
 
     private static final int SAFE_TICKS_BEFORE_EXIT = 60;
     private static final int MAX_HIDDEN_TICKS = 6000;
     private static final int SLEEP_PARTICLE_INTERVAL = 60;
+    private static final int MAX_NAVIGATE_TICKS = 200;
+
+    private enum State { FLEEING, SLEEPING }
 
     public SurvivorFleeToTentGoal(SurvivorEntity survivor) {
         this.survivor = survivor;
         this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK, Goal.Flag.JUMP));
     }
 
-    @Override
-    public boolean canUse() {
-        if (this.isHiding) return false;
-
-        BlockPos approach = getTentApproach();
-        if (approach == null) return false;
-
-        SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
-        if (tentGoal != null && !tentGoal.isTentIntact()) {
-            return false;
-        }
-
-        boolean danger = isInDanger();
-        if (danger) {
-            net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[FLEE-GOAL] canUse == TRUE! Target: {}, Health: {}/{}", 
-                survivor.getTarget(), survivor.getHealth(), survivor.getMaxHealth());
-        }
-        return danger;
+    private BlockPos getTentApproach() { 
+        return survivor.getKnownTentPos(); 
     }
 
-    /**
-     * Prüft anhand der individuellen Lebensschwelle, ob sich der Survivor in Gefahr befindet.
-     */
-    private boolean isInDanger() {
+    private BlockPos getTentInside() {
+        BlockPos approach = getTentApproach();
+        SurvivorTentGoal tentGoal = survivor.getTentGoal();
+        return (approach != null && tentGoal != null) ? tentGoal.getTentInside(approach) : null;
+    }
+
+    @Override
+    public boolean canUse() {
+        if (this.state == State.SLEEPING) return false;
+
+        BlockPos approach = getTentApproach();
+        SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
+        
+        if (approach == null || (tentGoal != null && !tentGoal.isTentIntact())) return false;
+
         return this.survivor.wantsToFleeFromTarget();
     }
 
     @Override
     public void start() {
-        net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[FLEE-GOAL] START called!");
-        this.isHiding = false;
-        this.safeTicks = 0;
-        this.hiddenSafetyTimer = 0;
-        this.sleepParticleTimer = 0;
-        this.tentWasDestroyed = false;
+        BlockPos inside = getTentInside();
+        
+        if (inside != null && isAtPos(inside)) {
+            enterTent(inside, inside);
+        } else {
+            this.state = State.FLEEING;
+            this.safeTicks = 0;
+            this.hiddenSafetyTimer = 0;
+            this.sleepParticleTimer = 0;
+            this.navigateTimer = 0;
+            this.tentWasDestroyed = false;
+        }
+
+        SurvivorColonies.debug("FLEE", "%s START -> State: %s (HP: %.1f/%.1f)", survivor.getSurvivorName(), this.state, survivor.getHealth(), survivor.getMaxHealth());
     }
 
     @Override
     public void tick() {
         BlockPos approach = getTentApproach();
+        BlockPos inside = getTentInside();
         if (approach == null) return;
 
-        if (!this.isHiding) {
-            // Er navigiert AUSSCHLIESSLICH zum freien Platz vor dem Zelt
-            this.survivor.getNavigation().moveTo(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D, 1.2D);
+        switch (this.state) {
+            case FLEEING -> {
+                this.navigateTimer++;
+                
+                boolean reachedApproach = survivor.distanceToSqr(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D) < 2.25D 
+                                          || survivor.getNavigation().isDone() 
+                                          || this.navigateTimer >= MAX_NAVIGATE_TICKS;
 
-            double dx = this.survivor.getX() - (approach.getX() + 0.5D);
-            double dz = this.survivor.getZ() - (approach.getZ() + 0.5D);
-
-            // Ankunft vor dem Zelt: Stoppen und direkt ins Innere teleportieren
-            if (dx * dx + dz * dz < 1.5D) {
-                this.survivor.getNavigation().stop();
-
-                BlockPos inside = getTentInside();
-                BlockPos hideTarget = inside != null ? inside : approach;
-                this.survivor.setPos(hideTarget.getX() + 0.5D, hideTarget.getY(), hideTarget.getZ() + 0.5D);
-                this.survivor.setHiddenInTent(true);
-
-                this.isHiding = true;
-                this.safeTicks = 0;
-                this.hiddenSafetyTimer = 0;
-            }
-        } else {
-            // Position im Zelt festhalten
-            BlockPos inside = getTentInside();
-            if (inside != null) {
-                this.survivor.setPos(inside.getX() + 0.5D, inside.getY(), inside.getZ() + 0.5D);
-            }
-
-            this.hiddenSafetyTimer++;
-
-            this.sleepParticleTimer++;
-            if (this.sleepParticleTimer >= SLEEP_PARTICLE_INTERVAL) {
-                this.sleepParticleTimer = 0;
-                if (inside != null) {
-                    this.survivor.spawnSleepParticles(inside);
+                if ((inside != null && isAtPos(inside)) || reachedApproach) {
+                    enterTent(approach, inside);
+                    SurvivorColonies.debug("FLEE", "%s wechselt FLEE -> SLEEPING (Pos: %s)", survivor.getSurvivorName(), survivor.blockPosition());
+                } else {
+                    survivor.getNavigation().moveTo(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D, 1.2D);
                 }
             }
+            case SLEEPING -> {
+                if (inside != null) survivor.setPos(inside.getX() + 0.5D, inside.getY(), inside.getZ() + 0.5D);
 
-            SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
-            if (tentGoal != null && !tentGoal.isTentIntact()) {
-                this.tentWasDestroyed = true;
+                if (survivor.tickCount % 20 == 0 && survivor.getHealth() < survivor.getMaxHealth()) survivor.heal(1.0F);
+
+                this.hiddenSafetyTimer++;
+                this.sleepParticleTimer++;
+                
+                if (this.sleepParticleTimer >= SLEEP_PARTICLE_INTERVAL) {
+                    this.sleepParticleTimer = 0;
+                    if (inside != null) survivor.spawnSleepParticles(inside);
+                }
+
+                SurvivorTentGoal tentGoal = survivor.getTentGoal();
+                if (tentGoal != null && !tentGoal.isTentIntact()) this.tentWasDestroyed = true;
+
+                boolean monstersNearby = !survivor.level().getEntitiesOfClass(Monster.class, survivor.getBoundingBox().inflate(10.0D)).isEmpty();
+                this.safeTicks = (survivor.wantsToFleeFromTarget() || monstersNearby) ? 0 : this.safeTicks + 1;
             }
-
-            // Nicht rauskommen, solange Monster noch in der Nähe des Zeltes lauern!
-            boolean monstersNearby = !this.survivor.level().getEntitiesOfClass(
-                Monster.class, 
-                this.survivor.getBoundingBox().inflate(10.0D)
-            ).isEmpty();
-
-            boolean stillInDanger = isInDanger() || monstersNearby;
-            this.safeTicks = stillInDanger ? 0 : this.safeTicks + 1;
         }
     }
 
     @Override
     public boolean canContinueToUse() {
-        BlockPos approach = getTentApproach();
-        if (approach == null) return false;
+        if (getTentApproach() == null) return false;
+        if (this.state == State.FLEEING) return this.navigateTimer < MAX_NAVIGATE_TICKS;
 
-        if (!this.isHiding) return true;
-
-        boolean cont = !this.tentWasDestroyed
-                && this.safeTicks < SAFE_TICKS_BEFORE_EXIT
-                && this.hiddenSafetyTimer < MAX_HIDDEN_TICKS;
-
-        if (!cont) {
-            net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[FLEE-GOAL] STOPPING! SafeTicks: {}, HiddenTimer: {}, Destroyed: {}", 
-                safeTicks, hiddenSafetyTimer, tentWasDestroyed);
+        if (!survivor.level().isNight() && survivor.getHealth() >= survivor.getMaxHealth()) {
+            SurvivorColonies.debug("FLEE", "%s verlässt SLEEPING (Tag & Volle HP)", survivor.getSurvivorName());
+            return false;
         }
-        return cont;
+
+        return !this.tentWasDestroyed && this.safeTicks < SAFE_TICKS_BEFORE_EXIT && this.hiddenSafetyTimer < MAX_HIDDEN_TICKS;
     }
 
     @Override
     public void stop() {
-        net.kb150.survivorcolonies.SurvivorColonies.LOGGER.info("[FLEE-GOAL] STOP called! WasHiding: {}", this.isHiding);
-        if (this.isHiding) {
-            BlockPos approach = getTentApproach();
-            if (approach != null) {
-                // Vor dem Aufdecken erst sicher nach draußen vor das Zelt teleportieren
-                this.survivor.setPos(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D);
-            }
-            this.survivor.setHiddenInTent(false);
-        }
+        SurvivorColonies.debug("FLEE", "%s STOP -> Beende State %s", survivor.getSurvivorName(), this.state);
+        exitTent();
 
-        if (this.tentWasDestroyed) {
-            SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
-            if (tentGoal != null) {
-                tentGoal.notifyDestroyed();
-            }
-        }
+        SurvivorTentGoal tentGoal = survivor.getTentGoal();
+        if (this.tentWasDestroyed && tentGoal != null) tentGoal.notifyDestroyed();
 
-        this.survivor.getNavigation().stop();
-        this.isHiding = false;
+        this.state = State.FLEEING;
         this.safeTicks = 0;
         this.hiddenSafetyTimer = 0;
+        this.navigateTimer = 0;
         this.tentWasDestroyed = false;
     }
 
-    private BlockPos getTentApproach() {
-        SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
-        if (tentGoal != null && tentGoal.getTentApproachPos() != null) {
-            return tentGoal.getTentApproachPos();
-        }
-        return this.survivor.getKnownTentPos();
+    private void enterTent(BlockPos approach, BlockPos inside) {
+        survivor.getNavigation().stop();
+        BlockPos target = inside != null ? inside : approach;
+        if (target == null) return;
+
+        survivor.setPos(target.getX() + 0.5D, target.getY(), target.getZ() + 0.5D);
+        survivor.setHiddenInTent(true);
+        
+        this.state = State.SLEEPING;
+        this.safeTicks = 0;
+        this.hiddenSafetyTimer = 0;
     }
 
-    private BlockPos getTentInside() {
-        SurvivorTentGoal tentGoal = this.survivor.getTentGoal();
-        if (tentGoal != null && tentGoal.getTentAnchorPos() != null) {
-            return tentGoal.getTentAnchorPos();
-        }
-        return this.survivor.getKnownTentPos();
+    private void exitTent() {
+        if (this.state != State.SLEEPING && !survivor.isInvisible()) return;
+
+        BlockPos approach = getTentApproach();
+        if (approach == null) return;
+
+        survivor.getNavigation().stop();
+        survivor.setPos(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D);
+        survivor.setHiddenInTent(false);
+    }
+
+    private boolean isAtPos(BlockPos target) {
+        return survivor.blockPosition().distSqr(target) <= 2;
+    }
+
+    @Override
+    public boolean isInterruptable() {
+        return this.state != State.SLEEPING || survivor.getHealth() >= survivor.getMaxHealth();
     }
 }

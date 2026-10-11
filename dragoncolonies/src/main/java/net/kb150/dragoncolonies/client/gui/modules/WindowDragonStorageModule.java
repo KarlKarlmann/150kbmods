@@ -736,8 +736,19 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
     }
 
     private void setButtonsEnabled(boolean enabled, boolean isDeployed, boolean isDead, boolean isEgg, int stage, int affection) {
+		var player = Minecraft.getInstance().player;
+		boolean isAdmin = player != null && (player.isCreative() || player.hasPermissions(2));
+		
         if (this.btnRetrieve != null) this.btnRetrieve.setEnabled(enabled && !isDeployed && !isDead && !isEgg);
-        if (this.btnEmergency != null) this.btnEmergency.setEnabled(enabled && isDeployed && !isDead && !isEgg);
+		if (this.btnEmergency != null) {
+			boolean canEmergency = enabled && !isEgg && ((isDeployed && !isDead) || (isDead && isAdmin));
+			this.btnEmergency.setEnabled(canEmergency);
+
+			// Nutzt i18n-Translation-Keys zur sauberen Umschaltung ohne hartgecodete Text-Literale im Code
+			this.btnEmergency.setText(isDead 
+				? Component.translatable("dragoncolonies.gui.dragon_storage.btn_revive") 
+				: Component.translatable("dragoncolonies.gui.dragon_storage.btn_emergency"));
+		}
         if (this.btnSell != null) this.btnSell.setEnabled(enabled && !isDeployed && !isDead && !isEgg);
         if (this.btnRelease != null) this.btnRelease.setEnabled(enabled && (!isDeployed || isDead));
 

@@ -53,6 +53,7 @@
 	"dragoncolonies.gui.dragon_storage.favorite_food": "Favorite Food:",
 	"dragoncolonies.gui.dragon_storage.btn_retrieve": "Retrieve",
 	"dragoncolonies.gui.dragon_storage.btn_emergency": "! Emergency Recall",
+	"dragoncolonies.gui.dragon_storage.btn_revive": "Revive",
 	"dragoncolonies.gui.dragon_storage.btn_export": "Export",
 	"dragoncolonies.gui.dragon_storage.btn_release": "Release",
 	"dragoncolonies.gui.dragon_export.title": "Dragon Export Offers",

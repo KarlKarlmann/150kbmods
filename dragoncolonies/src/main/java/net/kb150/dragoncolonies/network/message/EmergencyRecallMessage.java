@@ -36,26 +36,26 @@ public class EmergencyRecallMessage {
         return new EmergencyRecallMessage(buffer.readBlockPos(), buffer.readUUID());
     }
 
-    public static void handle(EmergencyRecallMessage message, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
-        context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
-            if (player == null) return;
+	public static void handle(EmergencyRecallMessage message, Supplier<NetworkEvent.Context> contextSupplier) {
+		NetworkEvent.Context context = contextSupplier.get();
+		context.enqueueWork(() -> {
+			ServerPlayer player = context.getSender();
+			if (player == null) return;
 
-            IColony colony = IMinecoloniesAPI.getInstance().getColonyManager().getColonyByPosFromWorld(player.serverLevel(), message.roostPos);
-            if (colony == null) return;
+			IColony colony = IMinecoloniesAPI.getInstance().getColonyManager().getColonyByPosFromWorld(player.serverLevel(), message.roostPos);
+			if (colony == null) return;
+			IBuilding building = colony.getServerBuildingManager().getBuilding(message.roostPos);
+			if (!(building instanceof BuildingDragonRoost roost)) return;
+			DragonStorageModule storage = roost.getStorageModule();
+			if (storage == null) return;
 
-            IBuilding building = colony.getServerBuildingManager().getBuilding(message.roostPos);
-            if (!(building instanceof BuildingDragonRoost roost)) return;
+			// Prüft, ob der Spieler befugt ist, tote Drachen per NBT zu heilen
+			boolean canRevive = player.isCreative() || player.hasPermissions(2);
 
-            DragonStorageModule storage = roost.getStorageModule();
-            if (storage == null) return;
-
-            // Zentraler Notfall-Rückruf: Entität sichern/verwerfen & Hort-Status bereinigen
-            if (storage.emergencyRecall(message.dragonId, player.server)) {
-                player.sendSystemMessage(Component.literal("§a[DragonColonies] §fDer Drache wurde per Notfall-Rückruf in den Hort zurückgeholt."));
-            }
-        });
-        context.setPacketHandled(true);
-    }
+			if (storage.emergencyRecall(message.dragonId, player.server, canRevive)) {
+				player.sendSystemMessage(Component.literal("§a[DragonColonies] §fDrache gesichert / wiederbelebt."));
+			}
+		});
+		context.setPacketHandled(true);
+	}
 }

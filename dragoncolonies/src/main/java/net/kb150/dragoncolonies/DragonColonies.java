@@ -48,11 +48,12 @@ public class DragonColonies {
         return DragonColoniesConfig.isLogging(channel);
     }
 
-    public static void debug(String channel, String message, Object... args) {
-        if (isLogging(channel)) {
-            LOGGER.warn("[" + channel + "] " + message, args);
-        }
-    }
+	public static void debug(String channel, String message, Object... args) {
+		if (isLogging(channel)) {
+			String formattedMessage = args.length > 0 ? String.format(java.util.Locale.ROOT, message, args) : message;
+			LOGGER.warn("[" + channel + "] " + formattedMessage);
+		}
+	}
 
     public static void debugStack(String channel, String message) {
         if (isLogging(channel)) {

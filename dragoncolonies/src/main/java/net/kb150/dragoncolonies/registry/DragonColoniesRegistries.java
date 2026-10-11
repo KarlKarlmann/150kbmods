@@ -93,21 +93,22 @@ public class DragonColoniesRegistries {
                     () -> DragonStorageModuleView::new
             );
 
-    public static final RegistryObject<BuildingEntry> DRAGON_ROOST_BUILDING = BUILDINGS.register("dragonroost",
-            () -> new BuildingEntry.Builder()
-                    .setBuildingBlock(BLOCK_HUT_DRAGON_ROOST.get())
-                    .setBuildingProducer(BuildingDragonRoost::new)
-                    .setBuildingViewProducer(() -> BuildingDragonRoost.View::new)
-                    .setRegistryName(new ResourceLocation(DragonColonies.MOD_ID, "dragonroost"))
-                    .addBuildingModuleProducer(BEASTMASTER_WORK)
-                    .addBuildingModuleProducer(DRAGONRIDER_WORK)
-                    .addBuildingModuleProducer(DRAGON_STORAGE)
-                    .addBuildingModuleProducer(BuildingModules.GUARD_ENTITY_LIST)
-                    .addBuildingModuleProducer(BuildingModules.GUARD_SETTINGS)
-                    .addBuildingModuleProducer(BuildingModules.MIN_STOCK)
-                    .addBuildingModuleProducer(BuildingModules.STATS_MODULE)
-                    .createBuildingEntry()
-    );
+	public static final RegistryObject<BuildingEntry> DRAGON_ROOST_BUILDING = BUILDINGS.register("dragonroost",
+			() -> new BuildingEntry.Builder()
+					.setBuildingBlock(BLOCK_HUT_DRAGON_ROOST.get())
+					.setBuildingProducer(BuildingDragonRoost::new)
+					.setBuildingViewProducer(() -> BuildingDragonRoost.View::new)
+					.setRegistryName(new ResourceLocation(DragonColonies.MOD_ID, "dragonroost"))
+					.addBuildingModuleProducer(BEASTMASTER_WORK)
+					.addBuildingModuleProducer(DRAGONRIDER_WORK)
+					.addBuildingModuleProducer(DRAGON_STORAGE)
+					.addBuildingModuleProducer(BuildingModules.GUARD_ENTITY_LIST)
+					.addBuildingModuleProducer(BuildingModules.GUARD_SETTINGS)
+					.addBuildingModuleProducer(BuildingModules.GUARD_TOOL)
+					.addBuildingModuleProducer(BuildingModules.MIN_STOCK)
+					.addBuildingModuleProducer(BuildingModules.STATS_MODULE)
+					.createBuildingEntry()
+	);
 
     public static final RegistryObject<GuardType> DRAGONRIDER_GUARD = GUARD_TYPES.register("dragonrider",
             () -> new GuardType.Builder()

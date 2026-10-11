@@ -13,6 +13,7 @@ import net.magister.bookofdragons.entity.component.CombatComponent;
 import net.magister.bookofdragons.entity.component.ranged.OmniAttackHandler;
 import net.magister.bookofdragons.entity.state.GroundStance;
 import net.magister.bookofdragons.entity.state.TransportMode;
+import net.kb150.dragoncolonies.DragonColonies;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
@@ -169,62 +170,65 @@ private LivingEntity findSmartTarget(AbstractEntityCitizen worker, DragonBase dr
         return level.clip(context).getType() == HitResult.Type.MISS;
     }
 
-    private void handleCombatPhase(AbstractEntityCitizen worker, DragonBase dragon, LivingEntity target, boolean doLog, long internalTickCounter) {
-        combatTickCounter++;
-        double distToTarget = dragon.distanceTo(target);
+	private void handleCombatPhase(AbstractEntityCitizen worker, DragonBase dragon, LivingEntity target, boolean doLog, long internalTickCounter) {
+		combatTickCounter++;
+		double distToTarget = dragon.distanceTo(target);
 
-        try {
-            if (dragon.getTarget() != target) {
-                dragon.setTarget(target);
-            }
+		if (doLog && DragonColonies.isLogging("COMBAT")) {
+			var handler = (OmniAttackHandler) dragon.componentRegistry.get(OmniAttackHandler.class);
+			var combat = (CombatComponent) dragon.componentRegistry.get(CombatComponent.class);
 
-            // Schild ausrüsten (sofern erforscht)
-            if (internalTickCounter % 20 == 0) {
-                double shieldResearch = worker.getCitizenColonyHandler().getColonyOrRegister().getResearchManager().getResearchEffects().getEffectStrength(ResearchConstants.SHIELD_USAGE);
-                if (shieldResearch > 0.0D && worker.getItemInHand(InteractionHand.OFF_HAND).getItem() != Items.SHIELD) {
-                    int shieldSlot = InventoryUtils.findFirstSlotInItemHandlerWith(worker.getInventoryCitizen(), Items.SHIELD);
-                    if (shieldSlot != -1) {
-                        CitizenItemUtils.setHeldItem(worker, InteractionHand.OFF_HAND, shieldSlot);
-                    }
-                }
-            }
+			// Ermittelt, welche BoD-Voraussetzung für den Luftangriff aktuell sperrt
+			boolean canFly = dragon.canFly();
+			boolean canFire = handler != null && handler.canFire();
+			int fuel = handler != null ? handler.getCurrentFuel() : -1;
+			int cd = handler != null ? handler.getBreathCooldownTicks() : -1;
+			boolean needsOk = dragon.getNeedsSystem() == null || dragon.getNeedsSystem().canUseRangedAttack();
 
-            // Blickrichtung von Drache und Wache auf den Gegner fixieren
-            if (dragon.getLookControl() != null) dragon.getLookControl().setLookAt(target, 30.0F, 30.0F);
-            if (worker.getLookControl() != null) worker.getLookControl().setLookAt(target, 30.0F, 30.0F);
+			DragonColonies.debug("COMBAT", "[AERIAL-DIAG] CanFly: " + canFly
+					+ " | CanFire: " + canFire
+					+ " | Fuel: " + fuel
+					+ " | BreathCD: " + cd
+					+ " | NeedsOK: " + needsOk
+					+ " | ShouldAerial: " + dragon.shouldDoAerialAttack()
+					+ " | DoingAerial: " + (combat != null && combat.isDoingAerialAttack())
+			);
+		}
 
-            OmniAttackHandler attackHandler = (OmniAttackHandler) dragon.componentRegistry.get(OmniAttackHandler.class);
-            CombatComponent combat = (CombatComponent) dragon.componentRegistry.get(CombatComponent.class);
-            boolean isDoingAerial = combat != null && combat.isDoingAerialAttack();
+		try {
+			// Uebergibt das Ziel an BoD; BoDs eigene AI-Goals steuern Bewegung, Nah- und Fernkampf autonom
+			if (dragon.getTarget() != target) {
+				dragon.setTarget(target);
+			}
 
-            // BoD Luftangriffe auslösen
-            if (attackHandler != null && dragon.canFly() && distToTarget > 8.0D) {
-                if (!isDoingAerial && !dragon.shouldDoAerialAttack()) {
-                    if (combatTickCounter == 5 || combatTickCounter % 80 == 0) {
-                        dragon.setShouldDoAerialAttack(true);
-                    }
-                }
-            }
+			// Ausruestung des Bürgers (Schild) bei Forschung verwalten
+			if (internalTickCounter % 20 == 0) {
+				double shieldResearch = worker.getCitizenColonyHandler().getColonyOrRegister().getResearchManager().getResearchEffects().getEffectStrength(ResearchConstants.SHIELD_USAGE);
+				if (shieldResearch > 0.0D && worker.getItemInHand(InteractionHand.OFF_HAND).getItem() != Items.SHIELD) {
+					int shieldSlot = InventoryUtils.findFirstSlotInItemHandlerWith(worker.getInventoryCitizen(), Items.SHIELD);
+					if (shieldSlot != -1) {
+						CitizenItemUtils.setHeldItem(worker, InteractionHand.OFF_HAND, shieldSlot);
+					}
+				}
+			}
 
-            if (isDoingAerial || dragon.shouldDoAerialAttack()) {
-                return;
-            }
+			// Ausrichtung auf den Gegner & Nahkampf-Schlag der Wache bei Feindkontakt
+			if (dragon.getLookControl() != null) dragon.getLookControl().setLookAt(target, 30.0F, 30.0F);
+			if (worker.getLookControl() != null) worker.getLookControl().setLookAt(target, 30.0F, 30.0F);
 
-            // Timeout-Schutz für verbuggte Kämpfe
-            if (combatTickCounter > 600 && distToTarget > 12.0D) {
-                worker.setTarget(null);
-                dragon.setTarget(null);
-                combatTickCounter = 0;
-                return;
-            }
+			if (distToTarget <= 6.0D && combatTickCounter % 15 == 0) {
+				worker.swing(InteractionHand.MAIN_HAND);
+			}
 
-            // Nahkampf-Schlag der Wache
-            if (distToTarget <= 6.0D && combatTickCounter % 15 == 0) {
-                worker.swing(InteractionHand.MAIN_HAND);
-            }
+			// Timeout-Schutz fuer verlassene oder unerreichbare Ziele
+			if (combatTickCounter > 600 && distToTarget > 16.0D) {
+				worker.setTarget(null);
+				dragon.setTarget(null);
+				combatTickCounter = 0;
+			}
 
-        } catch (Throwable t) {
-            System.err.println("!!! [KAMPFPHASE-FEHLER] " + t.getMessage());
-        }
-    }
+		} catch (Throwable t) {
+			DragonColonies.LOGGER.error("[KAMPFPHASE-FEHLER] ", t);
+		}
+	}
 }

@@ -50,7 +50,6 @@ public class RewardBoxBlockEntity extends RandomizableContainerBlockEntity imple
     public int serverAnimationTick = 0;
     private UUID openingPlayer = null;
     
-    // Cached List für 1:1 zerlegten 3D-Loot
     private List<ItemStack> cachedFlattenedItems = null;
 
     private final ContainerOpenersCounter openersCounter = new ContainerOpenersCounter() {
@@ -77,8 +76,6 @@ public class RewardBoxBlockEntity extends RandomizableContainerBlockEntity imple
     }
 
     public void startServerAnimation(ServerPlayer player) {
-        // Dynamische Zeitberechnung (identisch mit dem Client!): 
-        // 40 Ticks Start + (Anzahl Items * 2) + 60 Ticks Flug- und Landepuffer
         int totalItems = getFlattenedRenderItems().size();
         int duration = 40 + (totalItems * 2) + 60; 
         
@@ -90,7 +87,6 @@ public class RewardBoxBlockEntity extends RandomizableContainerBlockEntity imple
     public static void serverTick(Level level, BlockPos pos, BlockState state, RewardBoxBlockEntity be) {
         if (be.serverAnimationTick > 0) {
             be.serverAnimationTick--;
-            // Wenn der Countdown abgelaufen ist (letztes Item ist gelandet!), geben wir das Menü frei!
             if (be.serverAnimationTick == 0 && be.openingPlayer != null) {
                 Player player = level.getPlayerByUUID(be.openingPlayer);
                 if (player instanceof ServerPlayer sp) {
@@ -108,42 +104,48 @@ public class RewardBoxBlockEntity extends RandomizableContainerBlockEntity imple
         be.chestLidController.tickLid();
         
         if (be.clientAnimationTick > 0) {
-            be.clientAnimationTick++;
-            int t = be.clientAnimationTick;
+            int t = be.clientAnimationTick; // WICHTIG: Erst den aktuellen Tick auslesen!
+            be.clientAnimationTick++;       // Erst DANACH hochzählen!
+
             List<ItemStack> flattened = be.getFlattenedRenderItems();
 
-            // 1. Anticipation Sound & FIX FÜR DAS DECKEL-KLAPPERN
+            double x = pos.getX() + 0.5D;
+            double y = pos.getY() + 0.5D;
+            double z = pos.getZ() + 0.5D;
+
+            // 1. Anticipation Sound (Aufladen) - Startet sofort bei Tick 1
             if (t == 1) {
-                be.chestLidController.shouldBeOpen(false); // Verhindert das Zucken des Deckels!
-                level.playLocalSound(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5, RewardBoxSounds.BOX_CHARGE.get(), SoundSource.BLOCKS, 1.0f, 0.8f, false);
+                be.chestLidController.shouldBeOpen(false);
+                level.playLocalSound(x, y, z, RewardBoxSounds.BOX_CHARGE.get(), SoundSource.BLOCKS, 1.5f, 0.8f, false);
             }
             
-            // 2. The Burst! (Deckel reißt auf)
+            // 2. Burst (Explosion / Aufspringen) - Bei Tick 40 (2 Sekunden)
             if (t == 40) {
                 be.chestLidController.shouldBeOpen(true);
-                level.playLocalSound(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5, RewardBoxSounds.BOX_BURST.get(), SoundSource.BLOCKS, 1.0f, 1.0f, false);
+                level.playLocalSound(x, y, z, RewardBoxSounds.BOX_BURST.get(), SoundSource.BLOCKS, 1.8f, 1.0f, false);
                 be.spawnBurstParticles();
             }
 
-            // 3. Maschinenpistolen-Wusch & exaktes Klingeling bei Rückkehr
+            // 3. Item Swoosh & Land Sounds
             for (int i = 0; i < flattened.size(); i++) {
-                int itemStartTick = 40 + (i * 2); // Alle 2 Ticks schießt ein Item raus!
+                int itemStartTick = 40 + (i * 2);
                 
                 // Abschuss
                 if (t == itemStartTick) {
-                    level.playLocalSound(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5, RewardBoxSounds.ITEM_SWOOSH.get(), SoundSource.BLOCKS, 0.4f, 0.8f + (level.random.nextFloat() * 0.4f), false);
+                    level.playLocalSound(x, y, z, RewardBoxSounds.ITEM_SWOOSH.get(), SoundSource.BLOCKS, 1.0f, 0.8f + (level.random.nextFloat() * 0.4f), false);
                 }
                 
-                // Wiedereintritt in die Kiste (exakt 50 Ticks nach Abschuss)
+                // Landung/Einsaugen
                 if (t == itemStartTick + 50) { 
                     float pitchProgress = (float)i / Math.max(1, flattened.size());
                     float pitch = 1.0f + (pitchProgress * 1.0f); 
-                    level.playLocalSound(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5, RewardBoxSounds.ITEM_LAND.get(), SoundSource.BLOCKS, 0.7f, Math.min(pitch, 2.0f), false);
+                    level.playLocalSound(x, y, z, RewardBoxSounds.ITEM_LAND.get(), SoundSource.BLOCKS, 1.2f, Math.min(pitch, 2.0f), false);
                 }
             }
 
-            // 4. Ende der Animation (Dynamisch + Puffer für sanftes Schließen)
-            int duration = 40 + (flattened.size() * 2) + 60; // 50 Ticks Flugzeit + 10 Ticks Gnadenfrist
+            // 4. Ende der Animation
+            int totalItems = Math.max(1, flattened.size());
+            int duration = 40 + (totalItems * 2) + 60;
             if (t > duration) {
                 be.chestLidController.shouldBeOpen(false);
                 be.clientAnimationTick = 0;
@@ -152,17 +154,15 @@ public class RewardBoxBlockEntity extends RandomizableContainerBlockEntity imple
     }
 
     public List<ItemStack> getFlattenedRenderItems() {
-        if (this.cachedFlattenedItems == null) {
+        if (this.cachedFlattenedItems == null || (this.cachedFlattenedItems.isEmpty() && !this.items.isEmpty())) {
             this.cachedFlattenedItems = new ArrayList<>();
             
-            // Erst die Stacks nach Seltenheit sortieren
             List<ItemStack> baseSorted = new ArrayList<>();
             for (ItemStack stack : this.items) {
                 if (!stack.isEmpty()) baseSorted.add(stack);
             }
             baseSorted.sort(Comparator.comparingInt(a -> a.getRarity().ordinal()));
             
-            // Dann JEDES Item zerlegen (1 Stack = X Items für den Rendereffekt)
             for (ItemStack stack : baseSorted) {
                 int count = stack.getCount();
                 for (int i = 0; i < count; i++) {
@@ -181,7 +181,6 @@ public class RewardBoxBlockEntity extends RandomizableContainerBlockEntity imple
             this.chestLidController.shouldBeOpen(type > 0);
             return true;
         } else if (id == 2) {
-            // GLOBALES EVENT: Startet die Kisten-Wackel-Animation
             if (this.level != null && this.level.isClientSide) {
                 this.clientAnimationTick = 1;
             }
@@ -252,7 +251,7 @@ public class RewardBoxBlockEntity extends RandomizableContainerBlockEntity imple
         super.load(nbt);
         this.items = NonNullList.withSize(this.getContainerSize(), ItemStack.EMPTY);
         ContainerHelper.loadAllItems(nbt, this.items);
-        this.cachedFlattenedItems = null; // WICHTIG: Cache invalidieren bei NBT Sync!
+        this.cachedFlattenedItems = null;
         
         if (nbt.contains("BoxId")) this.boxId = nbt.getString("BoxId");
         if (nbt.contains("RewardTier")) this.tier = nbt.getInt("RewardTier");

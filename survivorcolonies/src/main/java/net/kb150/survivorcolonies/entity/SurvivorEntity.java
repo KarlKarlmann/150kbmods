@@ -643,7 +643,14 @@ public class SurvivorEntity extends PathfinderMob {
     public SurvivorActivity getActivity() {
         return this.currentActivity;
     }
-
+	
+	@Override
+	public boolean isSleeping() {
+		// Klinkt die Zelt-Erholung in das native Vanilla-Schlafsystem ein, damit Fremd-Mods (z.B. StealthMod)
+		// schlafende Überlebende automatisch von akustischen KI-Impulsen ausnehmen.
+		return super.isSleeping() || (this.tentGoal != null && this.tentGoal.isSleeping());
+	}
+	
     private void updateActivity() {
         if (this.getTarget() != null || this.hurtTime > 0 || this.isOnFire()) {
             if (this.tentGoal != null && this.tentGoal.isSleeping() && this.getTarget() == null) {

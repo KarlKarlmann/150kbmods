@@ -319,7 +319,7 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
         } else {
             if (!canStoreMore()) return false;
             addDragon(dragonNbt);
-            setDeployedStatus(roostDragonId, false);
+            setDeployedStatus(roostDragonId, false, null);
         }
 
         dragon.getPersistentData().remove("DragonColonies_RoostPos");
@@ -332,30 +332,58 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
         return true;
     }
 
-    public boolean emergencyRecall(UUID dragonId, @Nullable MinecraftServer server) {
-        Optional<CompoundTag> opt = getDragonByRoostId(dragonId);
-        if (opt.isEmpty()) opt = getDragonByUUID(dragonId);
-        if (opt.isEmpty()) return false;
+	public boolean emergencyRecall(UUID dragonId, @Nullable MinecraftServer server, boolean canRevive) {
+		Optional<CompoundTag> opt = getDragonByRoostId(dragonId);
+		if (opt.isEmpty()) opt = getDragonByUUID(dragonId);
+		if (opt.isEmpty()) return false;
 
-        CompoundTag tag = opt.get();
-        UUID roostDragonId = tag.hasUUID(TAG_ROOST_DRAGON_ID) ? tag.getUUID(TAG_ROOST_DRAGON_ID) : dragonId;
-        UUID activeUuid = tag.hasUUID(TAG_ACTIVE_ENTITY_UUID) ? tag.getUUID(TAG_ACTIVE_ENTITY_UUID) : null;
+		CompoundTag tag = opt.get();
 
-        if (server != null && activeUuid != null) {
-            for (ServerLevel level : server.getAllLevels()) {
-                Entity entity = level.getEntity(activeUuid);
-                if (entity instanceof DragonBase dragon && dragon.isAlive()) {
-                    return storeDragon(dragon);
-                }
-            }
-        }
+		// Revive-Pfad: Erspart die Schleifeniteration von setDeployedStatus, da die Tag-Referenz bereits vorliegt
+		if (tag.getBoolean(TAG_IS_DEAD) || tag.getShort("DeathTime") > 0) {
+			if (!canRevive) return false;
 
-        return setDeployedStatus(roostDragonId, false);
-    }
+			tag.putBoolean(TAG_IS_DEAD, false);
+			tag.putBoolean(TAG_DEPLOYED, false);
+			tag.remove(TAG_ACTIVE_ENTITY_UUID);
+			
+			// Neue Entity-UUID entkoppelt den Hort von ehemals gespawnten Geister-Entities in ungeladenen Chunks
+			tag.putUUID("UUID", UUID.randomUUID());
 
-    public boolean setDeployedStatus(UUID dragonId, boolean isDeployed) {
-        return setDeployedStatus(dragonId, isDeployed, null);
-    }
+			tag.remove("DeathTime");
+			tag.remove("HurtTime");
+			tag.remove("Pose");
+
+			float maxHp = 150.0f;
+			if (tag.contains("Attributes", Tag.TAG_LIST)) {
+				ListTag attributes = tag.getList("Attributes", Tag.TAG_COMPOUND);
+				for (int i = 0; i < attributes.size(); i++) {
+					CompoundTag attr = attributes.getCompound(i);
+					if ("minecraft:generic.max_health".equals(attr.getString("Name"))) {
+						maxHp = (float) attr.getDouble("Base");
+						break;
+					}
+				}
+			}
+			tag.putFloat("Health", maxHp);
+
+			this.markDirty();
+			return true;
+		}
+
+		UUID activeUuid = tag.hasUUID(TAG_ACTIVE_ENTITY_UUID) ? tag.getUUID(TAG_ACTIVE_ENTITY_UUID) : null;
+		if (server != null && activeUuid != null) {
+			for (ServerLevel level : server.getAllLevels()) {
+				Entity entity = level.getEntity(activeUuid);
+				if (entity instanceof DragonBase dragon && dragon.isAlive()) {
+					return storeDragon(dragon);
+				}
+			}
+		}
+
+		UUID roostDragonId = tag.hasUUID(TAG_ROOST_DRAGON_ID) ? tag.getUUID(TAG_ROOST_DRAGON_ID) : dragonId;
+		return setDeployedStatus(roostDragonId, false, null);
+	}
 
     public boolean setDeployedStatus(UUID roostDragonId, boolean isDeployed, @Nullable UUID activeEntityUuid) {
         for (CompoundTag tag : storedDragons) {
