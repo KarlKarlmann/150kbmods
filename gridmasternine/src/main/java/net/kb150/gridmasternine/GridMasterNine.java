@@ -384,7 +384,7 @@ public class GridMasterNine {
         return 1;
     }
 
-    private static int saveGrid(CommandContext<CommandSourceStack> context) {
+private static int saveGrid(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
         int count = 0;
@@ -397,7 +397,6 @@ public class GridMasterNine {
 
             for (int lvl = 1; lvl <= 5; lvl++) {
                 BlockPos savePos = START_POS.offset(bIndex * GRID_SPACING, 0, (lvl - 1) * GRID_SPACING);
-                BlockPos hutBlockPos = savePos.offset(0, 1, 0);
                 String schematicName = building + lvl;
 
                 // 1. CLEANSING
@@ -434,6 +433,26 @@ public class GridMasterNine {
                     }
                 }
 
+                // --- NEU: HUT-BLOCK DYNAMISCH IM RAUM SUCHEN ---
+                BlockPos hutBlockPos = savePos.offset(0, 1, 0); // Standard-Fallback (0, 1, 0 rel)
+
+                searchLoop:
+                for (int x = 0; x < SIZE_X; x++) {
+                    for (int y = 0; y < SIZE_Y; y++) {
+                        for (int z = 0; z < SIZE_Z; z++) {
+                            BlockPos checkPos = savePos.offset(x, y, z);
+                            BlockState state = level.getBlockState(checkPos);
+                            ResourceLocation key = ForgeRegistries.BLOCKS.getKey(state.getBlock());
+
+                            if (key != null && key.getPath().startsWith("blockhut")) {
+                                hutBlockPos = checkPos.immutable();
+                                break searchLoop; // Ersten gefundenen Hut-Block nehmen
+                            }
+                        }
+                    }
+                }
+                // -----------------------------------------------
+
                 Blueprint blueprint = BlueprintUtil.createBlueprint(
                         level,
                         savePos,
@@ -442,7 +461,7 @@ public class GridMasterNine {
                         (short) SAVE_HEIGHT,
                         (short) SIZE_Z,
                         schematicName,
-                        Optional.of(hutBlockPos)
+                        Optional.of(hutBlockPos) // <--- Hier wird nun die ermittelte Position verwendet
                 );
 
                 for (BlockPos p : tempVoids) {

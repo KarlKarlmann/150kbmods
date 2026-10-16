@@ -47,7 +47,7 @@
       "intarget": "temp",
       "outtarget": "swap",
       "auxtargets": [
-        { "name": "DepthSampler", "id": "minecraft:main:depth" }
+        { "name": "DepthSampler", "id": "worlddepth:depth" }
       ],
       "uniforms": [
         { "name": "totalAlpha", "values": [ 0.0 ] },

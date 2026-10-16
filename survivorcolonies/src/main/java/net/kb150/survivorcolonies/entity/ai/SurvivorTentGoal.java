@@ -28,9 +28,6 @@ public class SurvivorTentGoal extends Goal {
     private final SurvivorEntity survivor;
     private final List<BlockPos> blocksToBuild = new ArrayList<>();
 
-    private BlockPos tentInside = null;
-    private BlockPos tentApproach = null;
-    private BlockPos criticalRoofBlock = null;
     private State state = State.IDLE;
     private int actionTimer = 0;
     private int hiddenSafetyTimer = 0;
@@ -55,15 +52,12 @@ public class SurvivorTentGoal extends Goal {
         this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
     }
 
-    // --- DIREKTER ZUGRIFF AUF DIE SINGLE SOURCE OF TRUTH ---
-
-    public BlockPos getTentApproachPos() { 
-        return survivor.getKnownTentPos(); 
-    }
-
-    public BlockPos getTentAnchorPos() { 
-        BlockPos approach = getTentApproachPos();
-        return approach != null ? getTentInside(approach) : null; 
+    // Proxy-Getter für andere KI-Goals (Scavenge/Campfire), um Inkompatibilitäten zu vermeiden.
+    // Greifen direkt auf NBT zu, ohne KI-Zustände (IDLE) zu prüfen.
+    public BlockPos getTentApproachPos() { return survivor.getKnownTentPos(); }
+    public BlockPos getTentAnchorPos() {
+        BlockPos known = survivor.getKnownTentPos();
+        return known != null ? getTentInside(known) : null;
     }
 
     @Override
@@ -93,7 +87,6 @@ public class SurvivorTentGoal extends Goal {
 
     @Override
     public void start() {
-        SurvivorColonies.debug("TENT", "%s START -> State war: %s, Activity: %s", survivor.getSurvivorName(), this.state, survivor.getActivity());
         if (this.state == State.IDLE) {
             if (!planTentLocation()) {
                 this.failedCooldown = 100;
@@ -130,8 +123,7 @@ public class SurvivorTentGoal extends Goal {
 
     @Override
     public void tick() {
-        BlockPos approach = getTentApproachPos();
-        BlockPos inside = getTentAnchorPos();
+        BlockPos approach = survivor.getKnownTentPos();
 
         switch (state) {
             case BUILDING -> {
@@ -170,21 +162,24 @@ public class SurvivorTentGoal extends Goal {
             case ENTERING -> {
                 double distSq = (approach != null) ? survivor.distanceToSqr(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D) : Double.MAX_VALUE;
                 if (isInsideTent() || distSq < 1.5D || survivor.getNavigation().isDone()) {
-                    enterTent(approach, inside);
+                    enterTent();
                 } else if (approach != null) {
                     survivor.getNavigation().moveTo(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D, 1.0D);
                 }
             }
             case SLEEPING -> {
-                if (inside != null) survivor.setPos(inside.getX() + 0.5D, inside.getY(), inside.getZ() + 0.5D);
+                if (approach != null) {
+                    BlockPos inside = getTentInside(approach);
+                    survivor.setPos(inside.getX() + 0.5D, inside.getY(), inside.getZ() + 0.5D);
 
-                if (survivor.tickCount % 20 == 0 && survivor.getHealth() < survivor.getMaxHealth()) survivor.heal(1.0F);
+                    if (survivor.tickCount % 20 == 0 && survivor.getHealth() < survivor.getMaxHealth()) survivor.heal(1.0F);
 
-                hiddenSafetyTimer++;
-                sleepParticleTimer++;
-                if (sleepParticleTimer >= SLEEP_PARTICLE_INTERVAL) {
-                    sleepParticleTimer = 0;
-                    if (inside != null) survivor.spawnSleepParticles(inside);
+                    hiddenSafetyTimer++;
+                    sleepParticleTimer++;
+                    if (sleepParticleTimer >= SLEEP_PARTICLE_INTERVAL) {
+                        sleepParticleTimer = 0;
+                        survivor.spawnSleepParticles(inside);
+                    }
                 }
 
                 if (!isTentIntact()) tentWasDestroyed = true;
@@ -195,7 +190,6 @@ public class SurvivorTentGoal extends Goal {
 
     @Override
     public void stop() {
-        SurvivorColonies.debug("TENT", "%s STOP -> State war: %s", survivor.getSurvivorName(), this.state);
         exitTent();
 
         if (tentWasDestroyed) {
@@ -205,13 +199,16 @@ public class SurvivorTentGoal extends Goal {
         }
     }
 
-    private void enterTent(BlockPos approach, BlockPos inside) {
+    private void enterTent() {
+        BlockPos approach = survivor.getKnownTentPos();
+        if (approach == null) return;
+        
+        BlockPos inside = getTentInside(approach);
         survivor.getNavigation().stop();
-        BlockPos target = inside != null ? inside : approach;
-        if (target == null) return;
-
-        // Versetzen vor der Unsichtbarkeit verhindert, dass Partikel an der alten Postion vor dem Zelt gespawnt werden
-        survivor.setPos(target.getX() + 0.5D, target.getY(), target.getZ() + 0.5D);
+        
+        // Zwingend erst Position setzen, dann Partikel/Sichtbarkeit feuern, 
+        // da Vanilla sonst Effekte an der alten Anmarschposition berechnet.
+        survivor.setPos(inside.getX() + 0.5D, inside.getY(), inside.getZ() + 0.5D);
         survivor.setHiddenInTent(true);
         
         this.state = State.SLEEPING;
@@ -222,44 +219,44 @@ public class SurvivorTentGoal extends Goal {
     private void exitTent() {
         if (this.state != State.SLEEPING && !survivor.isInvisible()) return;
 
-        BlockPos exitPos = getTentApproachPos();
+        BlockPos approach = survivor.getKnownTentPos();
         
-        // Verhindert das Aufdecken der Entität mitten im Wollblock, falls die Anmarschkoordinate unauffindbar ist
-        if (exitPos == null) return;
+        // Atomare Sperre: Verhindert das Abschalten der Unsichtbarkeit, 
+        // wenn der NPC nicht physisch aus dem Wollblock bewegt werden kann.
+        if (approach == null) return;
 
         survivor.getNavigation().stop();
-        survivor.setPos(exitPos.getX() + 0.5D, exitPos.getY(), exitPos.getZ() + 0.5D);
+        survivor.setPos(approach.getX() + 0.5D, approach.getY(), approach.getZ() + 0.5D);
         survivor.setHiddenInTent(false);
     }
 
     public boolean isInsideTent() {
-        BlockPos inside = getTentAnchorPos();
-        return inside != null && survivor.blockPosition().distSqr(inside) <= 2;
+        BlockPos known = survivor.getKnownTentPos();
+        if (known == null) return false;
+        return survivor.blockPosition().distSqr(getTentInside(known)) <= 2;
     }
 
     public boolean isSleeping() { return this.state == State.SLEEPING; }
 
     public boolean isTentIntact() {
-        if (criticalRoofBlock == null) return false;
-        if (!survivor.level().hasChunkAt(criticalRoofBlock)) return true;
-        return survivor.level().getBlockState(criticalRoofBlock).is(BlockTags.WOOL);
+        BlockPos known = survivor.getKnownTentPos();
+        if (known == null) return false;
+        
+        BlockPos roof = getTentInside(known).above();
+        if (!survivor.level().hasChunkAt(roof)) return true;
+        return survivor.level().getBlockState(roof).is(BlockTags.WOOL);
     }
 
     @Override
     public boolean isInterruptable() {
-        // Blockiert P2 DistractionGoals der StealthMod während der Lazarett-Heilphase
         return this.state != State.SLEEPING || survivor.getHealth() >= survivor.getMaxHealth();
     }
 
-    public void notifyDestroyed() {
-        this.state = State.IDLE;
-        this.blocksToBuild.clear();
-        this.tentInside = null;
-        this.tentApproach = null;
-        this.criticalRoofBlock = null;
-        this.tentWasDestroyed = false;
-        survivor.setKnownTentPos(null);
-    }
+	public void notifyDestroyed() {
+		this.state = State.IDLE;
+		this.blocksToBuild.clear();
+		this.tentWasDestroyed = false;
+	}
 
     private boolean tryConsumeOneWool() {
         var inv = survivor.getInventory();
@@ -273,36 +270,35 @@ public class SurvivorTentGoal extends Goal {
         return false;
     }
 
-    private boolean planTentLocation() {
-        BlockPos knownTent = survivor.getKnownTentPos();
-        BlockPos knownCampfire = survivor.getKnownCampfirePos();
+	private boolean planTentLocation() {
+		BlockPos knownTent = survivor.getKnownTentPos();
+		BlockPos knownCampfire = survivor.getKnownCampfirePos();
 
-        if (knownTent != null) {
-            if (tryRepairExistingTent(knownTent, knownCampfire)) return true;
-            dismantleOldTent(knownTent);
-            survivor.setKnownTentPos(null);
-        }
+		if (knownTent != null) {
+			// Erst wenn die Strukturprüfungen fehlschlagen, wird das alte Zelt verworfen
+			if (tryRepairExistingTent(knownTent, knownCampfire)) return true;
+			
+			dismantleOldTent(knownTent);
+			survivor.setKnownTentPos(null);
+		}
 
-        BlockPos current = survivor.blockPosition();
-        if (checkAndSetTentAt(current, knownCampfire)) {
-            survivor.setKnownTentPos(this.tentApproach);
-            return true;
-        }
+		BlockPos current = survivor.blockPosition();
+		if (checkAndSetTentAt(current, knownCampfire)) {
+			survivor.setKnownTentPos(current);
+			return true;
+		}
 
-        for (BlockPos pos : BlockPos.betweenClosed(current.offset(-6, -2, -6), current.offset(6, 2, 6))) {
-            if (!pos.equals(current) && checkAndSetTentAt(pos, knownCampfire)) {
-                survivor.setKnownTentPos(this.tentApproach);
-                return true;
-            }
-        }
-        return false;
-    }
+		for (BlockPos pos : BlockPos.betweenClosed(current.offset(-6, -2, -6), current.offset(6, 2, 6))) {
+			if (!pos.equals(current) && checkAndSetTentAt(pos, knownCampfire)) {
+				survivor.setKnownTentPos(pos);
+				return true;
+			}
+		}
+		return false;
+	}
 
     private boolean tryRepairExistingTent(BlockPos tentPos, BlockPos knownCampfire) {
         if (!survivor.level().hasChunkAt(tentPos)) {
-            this.tentApproach = tentPos;
-            this.tentInside = getTentInside(tentPos);
-            this.criticalRoofBlock = this.tentInside.above();
             this.state = State.STANDBY;
             return true;
         }
@@ -314,14 +310,16 @@ public class SurvivorTentGoal extends Goal {
         for (Map.Entry<BlockPos, BlockState> entry : layout.entrySet()) {
             BlockState currentState = survivor.level().getBlockState(entry.getKey());
             if (currentState.is(BlockTags.WOOL)) continue;
-            if (currentState.canBeReplaced()) this.blocksToBuild.add(entry.getKey());
-            else { validStructure = false; break; }
+            
+            if (currentState.canBeReplaced()) {
+                this.blocksToBuild.add(entry.getKey());
+            } else { 
+                validStructure = false; 
+                break; 
+            }
         }
 
         if (validStructure) {
-            this.tentApproach = tentPos;
-            this.tentInside = getTentInside(tentPos);
-            this.criticalRoofBlock = this.tentInside.above();
             this.state = this.blocksToBuild.isEmpty() ? State.STANDBY : State.BUILDING;
             return true;
         }
@@ -337,9 +335,6 @@ public class SurvivorTentGoal extends Goal {
 
         if (!survivor.level().getFluidState(center).isEmpty() || !survivor.level().getBlockState(center.below()).isFaceSturdy(survivor.level(), center.below(), Direction.UP)) return false;
 
-        this.tentApproach = center;
-        this.tentInside = getTentInside(center);
-        this.criticalRoofBlock = this.tentInside.above();
         this.blocksToBuild.clear();
         this.blocksToBuild.addAll(layout.keySet());
         this.state = State.BUILDING;

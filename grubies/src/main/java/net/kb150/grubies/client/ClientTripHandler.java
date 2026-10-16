@@ -101,12 +101,38 @@ public class ClientTripHandler {
         ClientMotionBlur.reset();
     }
 
-    private static void buildWeights(int seed) {
+	private static void buildWeights(int seed) {
         RandomSource r = RandomSource.create(seed);
         int outCount = CHANNELS.size();
+
+        // 1. Matrix komplett auf 0 zurücksetzen
         for (int i = 0; i < INPUT_COUNT; i++) {
-            for (int j = 0; j < outCount; j++) {
-                weights[i][j] = r.nextFloat() > 0.4f ? (r.nextFloat() * 2.0f) - 1.0f : 0.0f;
+            Arrays.fill(weights[i], 0.0f);
+        }
+
+        if (outCount == 0) return;
+
+        // 2. Gezielt 3 bis 5 Outputs für diesen Trip auswählen
+        int activeOutputCount = 3 + r.nextInt(3); // 3, 4 oder 5
+        List<Integer> availableOutputs = new ArrayList<>();
+        for (int j = 0; j < outCount; j++) {
+            availableOutputs.add(j);
+        }
+
+        // 3. Ausgewählte Outputs mit 1-2 prägnanten Inputs verdrahten
+        for (int k = 0; k < activeOutputCount && !availableOutputs.isEmpty(); k++) {
+            int chosenOutIndex = availableOutputs.remove(r.nextInt(availableOutputs.size()));
+            
+            // 1 bis 2 Inputs pro Output wählen
+            int inputConnections = 1 + r.nextInt(2);
+            for (int c = 0; c < inputConnections; c++) {
+                int chosenInput = r.nextInt(INPUT_COUNT);
+                
+                // Vorzeichen und Signalstärke (Betrag zwischen 0.40f und 1.00f)
+                float sign = r.nextBoolean() ? 1.0f : -1.0f;
+                float magnitude = 0.40f + r.nextFloat() * 0.60f;
+                
+                weights[chosenInput][chosenOutIndex] = sign * magnitude;
             }
         }
     }
@@ -145,7 +171,7 @@ public class ClientTripHandler {
 			GrubiesMod.debug("TRIP", finalLog.equals("Matrix-Outs: ") ? "Matrix-Outs: [ALLE STUMM]" : finalLog);
 		}
 
-		ClientShaderManager.evaluate();
+		ClientShaderManager.evaluate(activeSeed);
 		ClientMotionBlur.evaluate();
 		ClientAudioHandler.evaluate();
 	}

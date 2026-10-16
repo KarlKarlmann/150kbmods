@@ -1,7 +1,7 @@
 {
   "tools": [
     "minecraft:iron_pickaxe",
-    "superbwarfare:wrench",
+    "minecraft:iron_hoe",
     "minecraft:iron_axe"
   ]
 }
