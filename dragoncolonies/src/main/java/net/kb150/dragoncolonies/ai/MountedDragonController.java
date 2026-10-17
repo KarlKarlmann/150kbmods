@@ -38,10 +38,9 @@ public class MountedDragonController {
         return this.currentAiPhase;
     }
 
-    public void handleFlight(AbstractEntityCitizen worker, DragonBase dragon, AbstractBuildingGuards building, long internalTickCounter, BlockPos currentPatrolPoint, boolean isGroundTask) {
+    public void handleFlight(AbstractEntityCitizen worker, DragonBase dragon, AbstractBuildingGuards building, long internalTickCounter, BlockPos currentPatrolPoint) {
         boolean doLog = (internalTickCounter % 40 == 0);
 
-        // Basis-Status des Drachen sicherstellen
         if (dragon.isNoAi()) dragon.setNoAi(false);
         if (dragon.isOrderedToSit()) dragon.setOrderedToSit(false);
         if (dragon.isInSittingPose()) dragon.setInSittingPose(false);
@@ -53,7 +52,6 @@ public class MountedDragonController {
         IThreatTableEntity threatEntity = (worker instanceof IThreatTableEntity) ? (IThreatTableEntity) worker : null;
         boolean lostTargetThisTick = false;
 
-        // 1. Target-Validierung (Aktuelles Ziel auf Gültigkeit prüfen)
         if (attackTarget != null) {
             if (!attackTarget.isAlive() || attackTarget.isRemoved() || attackTarget instanceof DragonBase) {
                 if (threatEntity != null) threatEntity.getThreatTable().removeCurrentTarget();
@@ -63,7 +61,6 @@ public class MountedDragonController {
             }
         }
 
-        // 2. Zielsuche komplett über findSmartTarget (ThreatTable + intelligentes Radar in einem Schritt)
         if (attackTarget == null && (lostTargetThisTick || internalTickCounter % 20 == 0) && worker.level() instanceof ServerLevel serverLevel) {
             attackTarget = findSmartTarget(worker, dragon, building, serverLevel);
             if (attackTarget != null) {
@@ -73,16 +70,12 @@ public class MountedDragonController {
 
         String previousPhase = this.currentAiPhase;
 
-        // Phasen bestimmen
         if (attackTarget != null) {
             this.currentAiPhase = "COMBAT";
-        } else if (isGroundTask) {
-            this.currentAiPhase = "GROUND_TASK";
         } else {
             this.currentAiPhase = "PATROL";
         }
 
-        // Bei Phasenwechsel zurück aus dem Kampf: BoD-Flags säubern!
         if (!previousPhase.equals(this.currentAiPhase) && !this.currentAiPhase.equals("COMBAT")) {
             this.combatTickCounter = 0;
             dragon.setShouldDoAerialAttack(false);
@@ -95,71 +88,63 @@ public class MountedDragonController {
             }
         }
 
-        // NUR IM KAMPF übernimmt der Controller aktiv Befehle!
         if (this.currentAiPhase.equals("COMBAT")) {
             handleCombatPhase(worker, dragon, attackTarget, doLog, internalTickCounter);
         }
-        // PATROL und GROUND_TASK bewegen sich rein über Minecolonies -> Mixin -> DragonNavigationHandler!
     }
 
-private LivingEntity findSmartTarget(AbstractEntityCitizen worker, DragonBase dragon, AbstractBuildingGuards buildingGuards, ServerLevel level) {
-    // 1. ThreatTable (Minecolonies Aggro)
-    if (worker instanceof IThreatTableEntity threatEntity) {
-        LivingEntity threat = threatEntity.getThreatTable().getTargetMob();
-        if (threat != null && threat.isAlive() && !threat.isRemoved() && !(threat instanceof DragonBase)
-                && hasLineOfSight(level, dragon, threat)) {
-            return threat;
-        }
-    }
-
-    if (buildingGuards == null) return null;
-
-    double visionRadius = buildingGuards.getBonusVision();
-    AABB searchBox;
-
-    // Prüfe, ob der Drache in der Luft ist
-    boolean isFlying = dragon.getTransportMode() == TransportMode.AIRBORNE || !dragon.onGround();
-
-    if (isFlying) {
-        // FLUG-MODUS: Dynamische Höhen-Erweiterung bis zum Erdboden
-        BlockPos dragonPos = dragon.blockPosition();
-        int surfaceY = level.getHeight(Heightmap.Types.WORLD_SURFACE, dragonPos.getX(), dragonPos.getZ());
-        double heightAboveGround = Math.max(0, dragon.getY() - surfaceY);
-
-        double downExtent = heightAboveGround + 10.0D;
-        double upExtent = 8.0D;
-
-        searchBox = new AABB(
-            dragon.getX() - visionRadius, dragon.getY() - downExtent, dragon.getZ() - visionRadius,
-            dragon.getX() + visionRadius, dragon.getY() + upExtent, dragon.getZ() + visionRadius
-        );
-    } else {
-        // BODEN-MODUS: Schneller, flacher Standard-Scan
-        searchBox = dragon.getBoundingBox().inflate(visionRadius, 6.0D, visionRadius);
-    }
-
-    List<Mob> candidates = level.getEntitiesOfClass(Mob.class, searchBox, target ->
-        target.isAlive() && !(target instanceof DragonBase)
-        // isAttackableTarget prüft automatisch die "hostiles"-Liste des Horts & Allianzen!
-        && AbstractEntityAIGuard.isAttackableTarget(worker, target)
-        // Maximale Einsatzdistanz um das Hort-Gebäude prüfen:
-        && target.blockPosition().closerThan(buildingGuards.getPosition(), buildingGuards.getPatrolDistance())
-    );
-
-    if (candidates.isEmpty()) return null;
-    candidates.sort(Comparator.comparingDouble(dragon::distanceToSqr));
-
-    for (Mob candidate : candidates) {
-        if (hasLineOfSight(level, dragon, candidate)) {
-            CombatUtils.notifyGuardsOfTarget(worker, candidate, (int) visionRadius);
-            if (worker instanceof IThreatTableEntity threatEntity) {
-                threatEntity.getThreatTable().addThreat(candidate, 1);
+    private LivingEntity findSmartTarget(AbstractEntityCitizen worker, DragonBase dragon, AbstractBuildingGuards buildingGuards, ServerLevel level) {
+        if (worker instanceof IThreatTableEntity threatEntity) {
+            LivingEntity threat = threatEntity.getThreatTable().getTargetMob();
+            if (threat != null && threat.isAlive() && !threat.isRemoved() && !(threat instanceof DragonBase)
+                    && hasLineOfSight(level, dragon, threat)) {
+                return threat;
             }
-            return candidate;
         }
+
+        if (buildingGuards == null) return null;
+
+        double visionRadius = buildingGuards.getBonusVision();
+        AABB searchBox;
+
+        boolean isFlying = dragon.getTransportMode() == TransportMode.AIRBORNE || !dragon.onGround();
+
+        if (isFlying) {
+            BlockPos dragonPos = dragon.blockPosition();
+            int surfaceY = level.getHeight(Heightmap.Types.WORLD_SURFACE, dragonPos.getX(), dragonPos.getZ());
+            double heightAboveGround = Math.max(0, dragon.getY() - surfaceY);
+
+            double downExtent = heightAboveGround + 10.0D;
+            double upExtent = 8.0D;
+
+            searchBox = new AABB(
+                dragon.getX() - visionRadius, dragon.getY() - downExtent, dragon.getZ() - visionRadius,
+                dragon.getX() + visionRadius, dragon.getY() + upExtent, dragon.getZ() + visionRadius
+            );
+        } else {
+            searchBox = dragon.getBoundingBox().inflate(visionRadius, 6.0D, visionRadius);
+        }
+
+        List<Mob> candidates = level.getEntitiesOfClass(Mob.class, searchBox, target ->
+            target.isAlive() && !(target instanceof DragonBase)
+            && AbstractEntityAIGuard.isAttackableTarget(worker, target)
+            && target.blockPosition().closerThan(buildingGuards.getPosition(), buildingGuards.getPatrolDistance())
+        );
+
+        if (candidates.isEmpty()) return null;
+        candidates.sort(Comparator.comparingDouble(dragon::distanceToSqr));
+
+        for (Mob candidate : candidates) {
+            if (hasLineOfSight(level, dragon, candidate)) {
+                CombatUtils.notifyGuardsOfTarget(worker, candidate, (int) visionRadius);
+                if (worker instanceof IThreatTableEntity threatEntity) {
+                    threatEntity.getThreatTable().addThreat(candidate, 1);
+                }
+                return candidate;
+            }
+        }
+        return null;
     }
-    return null;
-}
 
     private boolean hasLineOfSight(ServerLevel level, DragonBase dragon, LivingEntity target) {
         Vec3 start = dragon.getEyePosition();
@@ -170,65 +155,60 @@ private LivingEntity findSmartTarget(AbstractEntityCitizen worker, DragonBase dr
         return level.clip(context).getType() == HitResult.Type.MISS;
     }
 
-	private void handleCombatPhase(AbstractEntityCitizen worker, DragonBase dragon, LivingEntity target, boolean doLog, long internalTickCounter) {
-		combatTickCounter++;
-		double distToTarget = dragon.distanceTo(target);
+    private void handleCombatPhase(AbstractEntityCitizen worker, DragonBase dragon, LivingEntity target, boolean doLog, long internalTickCounter) {
+        combatTickCounter++;
+        double distToTarget = dragon.distanceTo(target);
 
-		if (doLog && DragonColonies.isLogging("COMBAT")) {
-			var handler = (OmniAttackHandler) dragon.componentRegistry.get(OmniAttackHandler.class);
-			var combat = (CombatComponent) dragon.componentRegistry.get(CombatComponent.class);
+        if (doLog && DragonColonies.isLogging("COMBAT")) {
+            var handler = (OmniAttackHandler) dragon.componentRegistry.get(OmniAttackHandler.class);
+            var combat = (CombatComponent) dragon.componentRegistry.get(CombatComponent.class);
 
-			// Ermittelt, welche BoD-Voraussetzung für den Luftangriff aktuell sperrt
-			boolean canFly = dragon.canFly();
-			boolean canFire = handler != null && handler.canFire();
-			int fuel = handler != null ? handler.getCurrentFuel() : -1;
-			int cd = handler != null ? handler.getBreathCooldownTicks() : -1;
-			boolean needsOk = dragon.getNeedsSystem() == null || dragon.getNeedsSystem().canUseRangedAttack();
+            boolean canFly = dragon.canFly();
+            boolean canFire = handler != null && handler.canFire();
+            int fuel = handler != null ? handler.getCurrentFuel() : -1;
+            int cd = handler != null ? handler.getBreathCooldownTicks() : -1;
+            boolean needsOk = dragon.getNeedsSystem() == null || dragon.getNeedsSystem().canUseRangedAttack();
 
-			DragonColonies.debug("COMBAT", "[AERIAL-DIAG] CanFly: " + canFly
-					+ " | CanFire: " + canFire
-					+ " | Fuel: " + fuel
-					+ " | BreathCD: " + cd
-					+ " | NeedsOK: " + needsOk
-					+ " | ShouldAerial: " + dragon.shouldDoAerialAttack()
-					+ " | DoingAerial: " + (combat != null && combat.isDoingAerialAttack())
-			);
-		}
+            DragonColonies.debug("COMBAT", "[AERIAL-DIAG] CanFly: " + canFly
+                    + " | CanFire: " + canFire
+                    + " | Fuel: " + fuel
+                    + " | BreathCD: " + cd
+                    + " | NeedsOK: " + needsOk
+                    + " | ShouldAerial: " + dragon.shouldDoAerialAttack()
+                    + " | DoingAerial: " + (combat != null && combat.isDoingAerialAttack())
+            );
+        }
 
-		try {
-			// Uebergibt das Ziel an BoD; BoDs eigene AI-Goals steuern Bewegung, Nah- und Fernkampf autonom
-			if (dragon.getTarget() != target) {
-				dragon.setTarget(target);
-			}
+        try {
+            if (dragon.getTarget() != target) {
+                dragon.setTarget(target);
+            }
 
-			// Ausruestung des Bürgers (Schild) bei Forschung verwalten
-			if (internalTickCounter % 20 == 0) {
-				double shieldResearch = worker.getCitizenColonyHandler().getColonyOrRegister().getResearchManager().getResearchEffects().getEffectStrength(ResearchConstants.SHIELD_USAGE);
-				if (shieldResearch > 0.0D && worker.getItemInHand(InteractionHand.OFF_HAND).getItem() != Items.SHIELD) {
-					int shieldSlot = InventoryUtils.findFirstSlotInItemHandlerWith(worker.getInventoryCitizen(), Items.SHIELD);
-					if (shieldSlot != -1) {
-						CitizenItemUtils.setHeldItem(worker, InteractionHand.OFF_HAND, shieldSlot);
-					}
-				}
-			}
+            if (internalTickCounter % 20 == 0) {
+                double shieldResearch = worker.getCitizenColonyHandler().getColonyOrRegister().getResearchManager().getResearchEffects().getEffectStrength(ResearchConstants.SHIELD_USAGE);
+                if (shieldResearch > 0.0D && worker.getItemInHand(InteractionHand.OFF_HAND).getItem() != Items.SHIELD) {
+                    int shieldSlot = InventoryUtils.findFirstSlotInItemHandlerWith(worker.getInventoryCitizen(), Items.SHIELD);
+                    if (shieldSlot != -1) {
+                        CitizenItemUtils.setHeldItem(worker, InteractionHand.OFF_HAND, shieldSlot);
+                    }
+                }
+            }
 
-			// Ausrichtung auf den Gegner & Nahkampf-Schlag der Wache bei Feindkontakt
-			if (dragon.getLookControl() != null) dragon.getLookControl().setLookAt(target, 30.0F, 30.0F);
-			if (worker.getLookControl() != null) worker.getLookControl().setLookAt(target, 30.0F, 30.0F);
+            if (dragon.getLookControl() != null) dragon.getLookControl().setLookAt(target, 30.0F, 30.0F);
+            if (worker.getLookControl() != null) worker.getLookControl().setLookAt(target, 30.0F, 30.0F);
 
-			if (distToTarget <= 6.0D && combatTickCounter % 15 == 0) {
-				worker.swing(InteractionHand.MAIN_HAND);
-			}
+            if (distToTarget <= 6.0D && combatTickCounter % 15 == 0) {
+                worker.swing(InteractionHand.MAIN_HAND);
+            }
 
-			// Timeout-Schutz fuer verlassene oder unerreichbare Ziele
-			if (combatTickCounter > 600 && distToTarget > 16.0D) {
-				worker.setTarget(null);
-				dragon.setTarget(null);
-				combatTickCounter = 0;
-			}
+            if (combatTickCounter > 600 && distToTarget > 16.0D) {
+                worker.setTarget(null);
+                dragon.setTarget(null);
+                combatTickCounter = 0;
+            }
 
-		} catch (Throwable t) {
-			DragonColonies.LOGGER.error("[KAMPFPHASE-FEHLER] ", t);
-		}
-	}
+        } catch (Throwable t) {
+            DragonColonies.LOGGER.error("[KAMPFPHASE-FEHLER] ", t);
+        }
+    }
 }
