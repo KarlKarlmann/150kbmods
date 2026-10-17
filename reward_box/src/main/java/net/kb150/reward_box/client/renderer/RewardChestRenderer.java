@@ -66,10 +66,11 @@ public class RewardChestRenderer implements BlockEntityRenderer<RewardBoxBlockEn
         this.lid.xRot = -(openness * ((float) Math.PI / 2F));
         this.lock.xRot = this.lid.xRot;
 
-        ResourceLocation texture = RewardBoxConfigManager.getTextureForBox(entity.getBoxId());
+        // --- 1. Normale Textur laden & rendern ---
+        ResourceLocation texture = net.kb150.reward_box.client.cache.ClientBoxCache.getTexture(entity.getBoxId());
+        if (texture == null) texture = RewardBoxConfigManager.getTextureForBox(entity.getBoxId()); // Fallback (Host/Singleplayer)
         if (texture == null) texture = DEFAULT_TEXTURE;
-
-        // Die Truhe selbst wird normal beleuchtet (nimmt das Umgebungslicht packedLight an)
+        
         VertexConsumer vertexConsumer = buffer.getBuffer(RenderType.entityCutout(texture));
         this.bottom.render(poseStack, vertexConsumer, packedLight, packedOverlay);
 
@@ -78,6 +79,23 @@ public class RewardChestRenderer implements BlockEntityRenderer<RewardBoxBlockEn
         this.lid.render(poseStack, vertexConsumer, packedLight, packedOverlay);
         this.lock.render(poseStack, vertexConsumer, packedLight, packedOverlay);
         poseStack.popPose();
+        
+        // --- 2. Glow-Map rendern (Emissive Layer) ---
+        ResourceLocation glowTexture = net.kb150.reward_box.client.cache.ClientBoxCache.getGlowTexture(entity.getBoxId());
+        if (glowTexture == null) glowTexture = RewardBoxConfigManager.getGlowTextureForBox(entity.getBoxId()); // Fallback (Host/Singleplayer)
+
+        if (glowTexture != null) {
+            // RenderType.eyes lässt die Textur im Dunkeln unbeeinflusst leuchten! (Fullbright)
+            VertexConsumer glowConsumer = buffer.getBuffer(RenderType.eyes(glowTexture));
+            
+            this.bottom.render(poseStack, glowConsumer, LightTexture.FULL_BRIGHT, packedOverlay);
+
+            poseStack.pushPose();
+            poseStack.translate(0.0D, 0.065D, 0.0D);
+            this.lid.render(poseStack, glowConsumer, LightTexture.FULL_BRIGHT, packedOverlay);
+            this.lock.render(poseStack, glowConsumer, LightTexture.FULL_BRIGHT, packedOverlay);
+            poseStack.popPose();
+        }
         
         poseStack.popPose();
 

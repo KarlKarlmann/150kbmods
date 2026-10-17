@@ -64,7 +64,7 @@ public class RewardBoxLootGenerator {
                 }
             }
 
-            // 2. Vanilla Loot Pools aus der JSON
+			// 2. Vanilla Loot Pools aus der JSON (Zwei Tabellen zu je 50% kombinieren)
             List<ResourceLocation> validTables = new ArrayList<>();
             for (RewardBoxConfigManager.LootPoolRule poolRule : def.vanillaLootPools()) {
                 if (tier >= poolRule.minTier()) {
@@ -73,18 +73,30 @@ public class RewardBoxLootGenerator {
             }
 
             if (!validTables.isEmpty()) {
-                ResourceLocation tableId = validTables.get(random.nextInt(validTables.size()));
                 LootParams params = new LootParams.Builder(level)
                         .withParameter(LootContextParams.ORIGIN, pos)
                         .create(LootContextParamSets.CHEST);
 
-                List<ItemStack> vanillaLoot = level.getServer().getLootData().getLootTable(tableId).getRandomItems(params);
-                List<ItemStack> modifiable = new ArrayList<>(vanillaLoot);
-                Collections.shuffle(modifiable, new java.util.Random(random.nextLong()));
+                // Tabellen durchmischen für zwei unterschiedliche Quellen
+                List<ResourceLocation> poolShuffle = new ArrayList<>(validTables);
+                Collections.shuffle(poolShuffle, new java.util.Random(random.nextLong()));
 
-                int halfSize = Math.max(1, modifiable.size() / 2);
-                for (int i = 0; i < halfSize; i++) {
-                    loot.add(modifiable.get(i));
+                // Immer 2 Tabellen ziehen (falls nur 1 definiert ist, wird sie 2x gewürfelt)
+                ResourceLocation table1 = poolShuffle.get(0);
+                ResourceLocation table2 = poolShuffle.size() > 1 ? poolShuffle.get(1) : poolShuffle.get(0);
+
+                ResourceLocation[] chosenTables = new ResourceLocation[]{table1, table2};
+
+                for (ResourceLocation tableId : chosenTables) {
+                    List<ItemStack> vanillaLoot = level.getServer().getLootData().getLootTable(tableId).getRandomItems(params);
+                    List<ItemStack> modifiable = new ArrayList<>(vanillaLoot);
+                    Collections.shuffle(modifiable, new java.util.Random(random.nextLong()));
+
+                    // 50% aus dieser Tabelle mitnehmen
+                    int halfSize = Math.max(1, modifiable.size() / 2);
+                    for (int i = 0; i < halfSize; i++) {
+                        loot.add(modifiable.get(i));
+                    }
                 }
             }
 

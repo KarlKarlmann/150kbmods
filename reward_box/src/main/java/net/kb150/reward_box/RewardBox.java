@@ -1,5 +1,6 @@
 package net.kb150.reward_box;
 
+import net.kb150.reward_box.network.RewardBoxNetwork;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -34,8 +35,8 @@ public class RewardBox {
         MinecraftForge.EVENT_BUS.register(this);
     }
 
-    private void commonSetup(final FMLCommonSetupEvent event) {
-        LOGGER.info("[RewardBox] Core Engine erfolgreich initialisiert.");
+	private void commonSetup(final FMLCommonSetupEvent event) {
+        event.enqueueWork(RewardBoxNetwork::register); // NEU
     }
 
     @SubscribeEvent
