@@ -34,9 +34,6 @@ public class EveryoneHasHatsAzureLayer<T extends Entity> implements AzRenderLaye
         Entity entity = context.animatable();
         if (!(entity instanceof LivingEntity living) || living.isInvisible()) return;
 
-        // DEBUG: Welcher Mob und welche Knochen kommen hier überhaupt an?
-        EveryoneHasHats.LOGGER.info("[AZURE-LAYER] Mob: {} | Bone gesichtet: {}", ForgeRegistries.ENTITY_TYPES.getKey(living.getType()), bone.getName());
-
         ItemStack stack = living.getItemBySlot(EquipmentSlot.HEAD);
         if (!EveryoneHasHatsEvents.isHat(stack)) return;
 

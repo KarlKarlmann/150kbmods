@@ -36,7 +36,7 @@ public class EveryoneHasHatsLayer<T extends LivingEntity, M extends EntityModel<
 		
         if (entity.isInvisible()) return;
 		if (entity.getType() == EntityType.IRON_GOLEM || entity.getType() == EntityType.WITCH) {
-			EveryoneHasHats.LOGGER.info("[HAT-CALL] {} gerendert mit Item: {}", entity.getType(), entity.getItemBySlot(EquipmentSlot.HEAD));
+			//EveryoneHasHats.LOGGER.info("[HAT-CALL] {} gerendert mit Item: {}", entity.getType(), entity.getItemBySlot(EquipmentSlot.HEAD));
 		}
 		ItemStack stack = entity.getItemBySlot(EquipmentSlot.HEAD);
 		if (!EveryoneHasHatsEvents.isHat(stack)) return;

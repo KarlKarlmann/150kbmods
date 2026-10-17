@@ -39,12 +39,12 @@ public class AzureCompat {
                             layersField.set(config, Collections.unmodifiableList(newLayers));
                             
                             // DEBUG: Wurde es wirklich injiziert?
-                            EveryoneHasHats.LOGGER.info("[AZURE-COMPAT] Layer erfolgreich injiziert in: {}", azRenderer.getClass().getSimpleName());
+                            //EveryoneHasHats.LOGGER.info("[AZURE-COMPAT] Layer erfolgreich injiziert in: {}", azRenderer.getClass().getSimpleName());
                         }
                     }
                 }
             } catch (Exception e) {
-                EveryoneHasHats.LOGGER.error("[EveryoneHasHats] Fehler beim Injizieren des AzureLib-Layers!", e);
+                //EveryoneHasHats.LOGGER.error("[EveryoneHasHats] Fehler beim Injizieren des AzureLib-Layers!", e);
             }
         }
     }
