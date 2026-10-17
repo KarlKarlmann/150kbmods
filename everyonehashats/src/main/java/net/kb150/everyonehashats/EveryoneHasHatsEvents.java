@@ -16,32 +16,42 @@ import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.ForgeRegistries;
-
+import net.minecraft.world.entity.EntityType;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 import java.util.Random;
 
 @Mod.EventBusSubscriber(modid = EveryoneHasHats.MODID)
 public class EveryoneHasHatsEvents {
-    private static List<Item> CACHED_HATS = null;
+    private static Set<Item> CACHED_HATS = null;
     private static final Random RANDOM = new Random();
-
+	
+	public static boolean isHat(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        if (CACHED_HATS == null) {
+            initializeHatCache();
+        }
+        return CACHED_HATS.contains(stack.getItem());
+    }
     // Scannt alle SimpleHats-Items für das zufällige Spawnen
-    private static void initializeHatCache() {
+	private static synchronized void initializeHatCache() {
         if (CACHED_HATS != null) return;
-        CACHED_HATS = new ArrayList<>();
-        
+        Set<Item> hats = new HashSet<>();
+
         for (Item item : ForgeRegistries.ITEMS) {
             ResourceLocation res = ForgeRegistries.ITEMS.getKey(item);
             if (res != null && res.getNamespace().equals("simplehats")) {
-                // FIX: Prüft auf die echte Java-Klasse statt fehleranfälliger Pfadnamen
                 String className = item.getClass().getSimpleName();
                 if ((className.equals("HatItem") || className.equals("HatItemDyeable")) && !res.getPath().equals("special")) {
-                    CACHED_HATS.add(item);
+                    hats.add(item);
                 }
             }
         }
-        EveryoneHasHats.LOGGER.info("[EveryoneHasHats] " + CACHED_HATS.size() + " Hüte für das Spawnen registriert!");
+        CACHED_HATS = Collections.unmodifiableSet(hats);
+        EveryoneHasHats.LOGGER.info("[EveryoneHasHats] " + CACHED_HATS.size() + " Hüte im Cache registriert!");
     }
 
     // INTERAKTION: Hut aufsetzen oder abnehmen
@@ -53,19 +63,9 @@ public class EveryoneHasHatsEvents {
         InteractionHand hand = event.getHand();
         ItemStack heldStack = player.getItemInHand(hand);
         
-        // Prüfe, ob das gehaltene Item ein valider SimpleHats-Hut ist
-        ResourceLocation heldItemKey = ForgeRegistries.ITEMS.getKey(heldStack.getItem());
-        boolean isSimpleHat = false;
-        
-        if (heldItemKey != null && heldItemKey.getNamespace().equals("simplehats")) {
-            // FIX: Auch hier auf die Klasse checken, damit keine Lootbags aufgesetzt werden können
-            String className = heldStack.getItem().getClass().getSimpleName();
-            isSimpleHat = (className.equals("HatItem") || className.equals("HatItemDyeable")) && !heldItemKey.getPath().equals("special");
-        }
-        
-        ItemStack currentHat = living.getItemBySlot(EquipmentSlot.HEAD);
-        ResourceLocation currentHatKey = ForgeRegistries.ITEMS.getKey(currentHat.getItem());
-        boolean hasSimpleHat = !currentHat.isEmpty() && currentHatKey != null && currentHatKey.getNamespace().equals("simplehats");
+		ItemStack currentHat = living.getItemBySlot(EquipmentSlot.HEAD);
+        boolean isSimpleHat = isHat(heldStack);
+        boolean hasSimpleHat = isHat(currentHat);
         
         // SCHLEICHEN + RECHTSKLICK MIT LEERER HAND -> Hut abnehmen
         if (player.isSecondaryUseActive() && heldStack.isEmpty()) {

@@ -40,11 +40,3 @@ mandatory=true
 versionRange="[0.4.0,)"
 ordering="NONE"
 side="BOTH"
-
-
-[[dependencies.everyonehashats]]
-    modId="geckolib"
-    mandatory=false
-    versionRange="[4.8,)"
-    ordering="NONE"
-    side="CLIENT"

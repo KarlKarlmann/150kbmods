@@ -378,17 +378,25 @@ public class HatStudioScreen extends Screen {
             EntityModel<?> model = null;
             this.entityHasNativeRendering = false;
 
-            boolean isGeckoLoaded = net.minecraftforge.fml.ModList.get().isLoaded("geckolib");
+			boolean isGeckoLoaded = net.minecraftforge.fml.ModList.get().isLoaded("geckolib");
+            boolean isAzureLoaded = net.minecraftforge.fml.ModList.get().isLoaded("azurelib");
             boolean isGeckoEntity = false;
+            boolean isAzureEntity = false;
 
             if (isGeckoLoaded) {
                 try {
                     isGeckoEntity = checkGecko(renderer);
                 } catch (Exception ignored) {}
             }
-
-            if (isGeckoEntity) {
+			if (isAzureLoaded) {
+                try {
+                    isAzureEntity = net.kb150.everyonehashats.compat.azurelib.AzureCompat.isAzureRenderer(renderer);
+                } catch (Exception ignored) {}
+            }
+			if (isGeckoEntity) {
                 availableBones.addAll(net.kb150.everyonehashats.compat.geckolib.GeckoCompat.getGeckoBones(renderer, this.previewEntity).keySet());
+            } else if (isAzureEntity) {
+                availableBones.addAll(net.kb150.everyonehashats.compat.azurelib.AzureCompat.getAzureBones(renderer, this.previewEntity).keySet());
             } else if (renderer instanceof LivingEntityRenderer<?, ?> livingRenderer) {
                 model = livingRenderer.getModel();
                 

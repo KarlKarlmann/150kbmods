@@ -2,5 +2,7 @@ archivesBaseName = 'everyonehashats'
 
 dependencies {
     implementation fg.deobf(fileTree(dir: rootProject.file('libs'), include: '*simplehats*.jar'))
-    implementation fg.deobf(fileTree(dir: rootProject.file('libs'), include: '*geckolib*.jar'))
+    compileOnly fg.deobf(fileTree(dir: rootProject.file('libs'), include: '*geckolib*.jar'))
+    compileOnly fg.deobf(fileTree(dir: rootProject.file('libs'), include: '*epic-fight*.jar'))
+	compileOnly fg.deobf(fileTree(dir: rootProject.file('libs'), include: '*azurelib*.jar'))
 }

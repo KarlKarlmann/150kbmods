@@ -14,7 +14,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
-
+import net.kb150.everyonehashats.EveryoneHasHatsEvents;
+import net.kb150.everyonehashats.EveryoneHasHats;
+import net.minecraft.world.entity.EntityType;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Locale;
@@ -33,9 +35,11 @@ public class EveryoneHasHatsLayer<T extends LivingEntity, M extends EntityModel<
     public void render(PoseStack poseStack, MultiBufferSource buffer, int packedLight, T entity, float limbSwing, float limbSwingAmount, float partialTicks, float age, float netHeadYaw, float headPitch) {
 		
         if (entity.isInvisible()) return;
-
-        ItemStack stack = entity.getItemBySlot(EquipmentSlot.HEAD);
-        if (stack.isEmpty() || !ForgeRegistries.ITEMS.getKey(stack.getItem()).getNamespace().equals("simplehats")) return;
+		if (entity.getType() == EntityType.IRON_GOLEM || entity.getType() == EntityType.WITCH) {
+			EveryoneHasHats.LOGGER.info("[HAT-CALL] {} gerendert mit Item: {}", entity.getType(), entity.getItemBySlot(EquipmentSlot.HEAD));
+		}
+		ItemStack stack = entity.getItemBySlot(EquipmentSlot.HEAD);
+		if (!EveryoneHasHatsEvents.isHat(stack)) return;
 
         poseStack.pushPose();
 

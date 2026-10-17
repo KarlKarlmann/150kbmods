@@ -39,7 +39,14 @@ public class ClientSetup {
                 EveryoneHasHats.LOGGER.error("Fehler beim Laden des GeckoLib Compat-Moduls!", e);
             }
         }
-
+		// 1.5 AZURELIB SOFT-DEPENDENCY CHECK
+        if (net.minecraftforge.fml.ModList.get().isLoaded("azurelib")) {
+            try {
+                net.kb150.everyonehashats.compat.azurelib.AzureCompat.addAzureLayers(processedRenderers);
+            } catch (Exception e) {
+                EveryoneHasHats.LOGGER.error("Fehler beim Laden des AzureLib Compat-Moduls!", e);
+            }
+        }
         // 2. VANILLA COMPATIBILTIY
         for (EntityType<?> entityType : ForgeRegistries.ENTITY_TYPES) {
             try {
@@ -102,27 +109,61 @@ public class ClientSetup {
             );
 			event.getDispatcher().register(Commands.literal("hatdebuglayers")
 				.executes(ctx -> {
-					EntityRenderer<?> renderer = Minecraft.getInstance().getEntityRenderDispatcher()
-						.renderers.get(EntityType.IRON_GOLEM);
+					for (var type : java.util.List.of(EntityType.IRON_GOLEM, EntityType.WITCH)) {
+						var mc = Minecraft.getInstance();
+						var rl = ForgeRegistries.ENTITY_TYPES.getKey(type);
+						var vanillaRenderer = mc.getEntityRenderDispatcher().renderers.get(type);
 
-					EveryoneHasHats.LOGGER.info("HAT DEBUG LIVE: renderer instance = " + System.identityHashCode(renderer)
-						+ " class=" + renderer.getClass().getSimpleName());
+						if (!(vanillaRenderer instanceof LivingEntityRenderer<?, ?> living)) {
+							EveryoneHasHats.LOGGER.info("[HAT-PROBE] {}: Kein LivingEntityRenderer vorhanden", rl);
+							continue;
+						}
 
-					if (renderer instanceof LivingEntityRenderer<?, ?> livingRenderer) {
-						for (Field field : LivingEntityRenderer.class.getDeclaredFields()) {
-							if (List.class.isAssignableFrom(field.getType())) {
+						// Umgeht 'protected access', ohne das Projekt auf Access-Transformer umstellen zu muessen
+						boolean inVanilla = false;
+						for (java.lang.reflect.Field f : LivingEntityRenderer.class.getDeclaredFields()) {
+							if (java.util.List.class.isAssignableFrom(f.getType())) {
 								try {
-									field.setAccessible(true);
-									List<?> layers = (List<?>) field.get(livingRenderer);
-									EveryoneHasHats.LOGGER.info("HAT DEBUG LIVE: layer count = " + layers.size());
-									for (Object l : layers) {
-										EveryoneHasHats.LOGGER.info("HAT DEBUG LIVE: -> " + l.getClass().getName()
-											+ " (identity=" + System.identityHashCode(l) + ")");
+									f.setAccessible(true);
+									java.util.List<?> list = (java.util.List<?>) f.get(living);
+									if (list != null) {
+										inVanilla = list.stream().anyMatch(l -> l instanceof EveryoneHasHatsLayer);
+										break;
 									}
-								} catch (Exception e) {
-									EveryoneHasHats.LOGGER.error("HAT DEBUG LIVE: reflection failed", e);
-								}
+								} catch (Exception ignored) {}
 							}
+						}
+
+						// Fragt Epic Fight vollstaendig entkoppelt ab, falls die Mod im Runtime-Classpath existiert
+						if (net.minecraftforge.fml.ModList.get().isLoaded("epicfight")) {
+							try {
+								Class<?> engineCls = Class.forName("yesman.epicfight.client.ClientEngine");
+								Object engineInstance = engineCls.getMethod("getInstance").invoke(null);
+								Object renderEngine = engineCls.getField("renderEngine").get(engineInstance);
+								Object efRenderer = renderEngine.getClass().getMethod("getEntityRenderer", EntityType.class).invoke(renderEngine, type);
+
+								if (efRenderer != null) {
+									Class<?> patchedCls = Class.forName("yesman.epicfight.client.renderer.patched.entity.PatchedLivingEntityRenderer");
+									if (patchedCls.isInstance(efRenderer)) {
+										java.lang.reflect.Field pLayersField = patchedCls.getDeclaredField("patchedLayers");
+										pLayersField.setAccessible(true);
+										java.util.Map<?, ?> map = (java.util.Map<?, ?>) pLayersField.get(efRenderer);
+										boolean inEf = map.containsKey(EveryoneHasHatsLayer.class);
+
+										EveryoneHasHats.LOGGER.info("[HAT-PROBE] {} -> Vanilla: {} | EF-Renderer: {} | In EF-Whitelist: {} (EF-Layers: {})",
+											rl, inVanilla, efRenderer.getClass().getSimpleName(), inEf, map.size());
+									} else {
+										EveryoneHasHats.LOGGER.info("[HAT-PROBE] {} -> Vanilla: {} | EF-Renderer: {} (Nicht gepatcht)",
+											rl, inVanilla, efRenderer.getClass().getSimpleName());
+									}
+								} else {
+									EveryoneHasHats.LOGGER.info("[HAT-PROBE] {} -> Vanilla: {} | EF-Renderer: null", rl, inVanilla);
+								}
+							} catch (Exception e) {
+								EveryoneHasHats.LOGGER.error("[HAT-PROBE] Reflection-Fehler bei Epic Fight fuer " + rl, e);
+							}
+						} else {
+							EveryoneHasHats.LOGGER.info("[HAT-PROBE] {} -> Vanilla: {} | Epic Fight nicht aktiv", rl, inVanilla);
 						}
 					}
 					return 1;

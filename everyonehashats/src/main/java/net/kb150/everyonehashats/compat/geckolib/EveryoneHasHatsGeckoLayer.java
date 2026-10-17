@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import net.kb150.everyonehashats.client.HatOffsetLoader;
 import net.kb150.everyonehashats.client.HatStudioScreen;
+import net.kb150.everyonehashats.EveryoneHasHatsEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -32,8 +33,8 @@ public class EveryoneHasHatsGeckoLayer<T extends Entity & GeoAnimatable> extends
         if (!(animatable instanceof LivingEntity living)) return;
         if (living.isInvisible()) return;
 
-        ItemStack stack = living.getItemBySlot(EquipmentSlot.HEAD);
-        if (stack.isEmpty() || !ForgeRegistries.ITEMS.getKey(stack.getItem()).getNamespace().equals("simplehats")) return;
+		ItemStack stack = living.getItemBySlot(EquipmentSlot.HEAD);
+        if (!EveryoneHasHatsEvents.isHat(stack)) return;
 
         float x = 0.0f, y = 0.0f, z = 0.0f;
         float scaleX = 1.0f, scaleY = 1.0f, scaleZ = 1.0f;
