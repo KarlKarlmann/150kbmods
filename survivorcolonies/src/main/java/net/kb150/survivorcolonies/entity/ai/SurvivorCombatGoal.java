@@ -3,31 +3,39 @@ package net.kb150.survivorcolonies.entity.ai;
 import net.kb150.survivorcolonies.SurvivorColonies;
 import net.kb150.survivorcolonies.entity.SurvivorEntity;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
-import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.entity.projectile.Arrow;
+import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.ShieldItem;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.common.ToolActions;
 
 import java.util.EnumSet;
 
 /**
  * Adaptives Kampf-Goal fuer Survivor (Nah- und Fernkampf in einem System).
- * Schaltet dynamisch zwischen Schwert/Nahkampf und Bogen/Kiting um.
+ *
+ * Schild-Mechanik ("Deckung und Konter"):
+ *  - Der Survivor hebt das Schild, sobald ein Gegner in Schlagnaehe kommt, der ihn angreift,
+ *    oder ein Projektil auf ihn zufliegt (kurze Reaktionszeit, damit es menschlich wirkt).
+ *  - Schlaegt der Gegner zu, nutzt der Survivor sofort das Zeitfenster fuer einen Konter:
+ *    Schild runter, zuschlagen, nach kurzer Pause wieder in Deckung.
+ *  - Ist die eigene Waffe bereit und der Gegner in Reichweite, hat Angreifen immer Vorrang.
+ *  - Dauerblocken ist begrenzt (Ausdauer), danach folgt eine kurze Pause.
+ *  - Mit dem Bogen in der Hand wird nie geblockt.
  */
 public class SurvivorCombatGoal extends Goal {
     private final SurvivorEntity survivor;
-    
+
     // Fernkampf-Parameter
-    private int bowChargeTicks = 0;
     private int strafeDirection = 1;
     private int strafeTimer = 0;
     private static final double MIN_RANGED_DIST_SQ = 25.0D;  // 5 Bloecke: Flucht/Kiting-Distanz
@@ -35,13 +43,25 @@ public class SurvivorCombatGoal extends Goal {
 
     // Nahkampf-Parameter
     private int meleeAttackCooldown = 0;
-    private static final int BASE_MELEE_COOLDOWN = 18; // ~0.9 Sekunden zwischen Schlaegen
+    private int repathDelay = 0;
+    private boolean lastTargetSwinging = false;
+    private static final int MELEE_COOLDOWN_NO_SHIELD = 18;  // ~0.9 Sekunden zwischen Schlaegen
+    private static final int MELEE_COOLDOWN_SHIELD = 24;     // etwas bedachter, wenn ein Schild getragen wird
+    private static final int COUNTER_MAX_COOLDOWN = 10;      // Konter nur, wenn der eigene Cooldown fast abgelaufen ist
 
     // Schild-Parameter
-    private boolean isBlocking = false;
-    private int blockCooldown = 0;
-    private int currentBlockDuration = 0;
-    private static final int MAX_BLOCK_TICKS = 60; // Max. 3 Sekunden Dauerblocken gegen Stalls
+    private boolean guarding = false;
+    private int guardTicks = 0;
+    private int guardRestTicks = 0;
+    private int raiseDelay = 0;
+    private int threatTicks = 0;
+    private int reactionDelay = 3;
+    private boolean incomingProjectile = false;
+    private static final int MAX_GUARD_TICKS = 50;           // "Ausdauer": max. 2,5 s am Stueck
+    private static final int GUARD_REST_TICKS = 15;          // Pause nach erschoepfter Ausdauer
+    private static final int RAISE_DELAY_AFTER_ATTACK = 3;   // Schild bleibt kurz unten nach einem Schlag
+    private static final double GUARD_RANGE_EXTRA = 2.5D;    // Deckung beginnt so viele Bloecke vor der Schlagreichweite
+    private static final double PROJECTILE_RANGE = 10.0D;
 
     public SurvivorCombatGoal(SurvivorEntity survivor) {
         this.survivor = survivor;
@@ -71,22 +91,32 @@ public class SurvivorCombatGoal extends Goal {
 
     @Override
     public void start() {
-        this.bowChargeTicks = 0;
         this.meleeAttackCooldown = 0;
+        this.repathDelay = 0;
+        this.lastTargetSwinging = false;
         this.strafeTimer = 0;
-        this.isBlocking = false;
-        this.blockCooldown = 0;
-        this.currentBlockDuration = 0;
+
+        this.guarding = false;
+        this.guardTicks = 0;
+        this.guardRestTicks = 0;
+        this.raiseDelay = 0;
+        this.threatTicks = 0;
+        this.incomingProjectile = false;
     }
 
     @Override
     public void stop() {
         // Zwingend laufende Lade- oder Blockzustaende aufraeumen
+        stopGuard();
         if (this.survivor.isUsingItem()) {
             this.survivor.stopUsingItem();
         }
-        this.isBlocking = false;
         this.survivor.getNavigation().stop();
+    }
+
+    @Override
+    public boolean requiresUpdateEveryTick() {
+        return true;
     }
 
     @Override
@@ -100,66 +130,195 @@ public class SurvivorCombatGoal extends Goal {
         ItemStack mainHand = this.survivor.getMainHandItem();
         ItemStack offHand = this.survivor.getOffhandItem();
 
-        // 1. Taktisches Schild-Handling (nur wenn nicht gerade der Bogen gespannt wird)
-        handleShieldDefense(target, offHand, distSq, mainHand.getItem() instanceof BowItem);
-
-        if (this.isBlocking) {
-            return;
-        }
-
-        // 2. Zweig nach Waffentyp
         if (mainHand.getItem() instanceof BowItem) {
+            // Bogen und Schild schliessen sich aus: laufende Deckung beenden
+            if (this.guarding) stopGuard();
             tickRangedCombat(target, mainHand, distSq);
+            return;
+        }
+
+        boolean hasShield = offHand.canPerformAction(ToolActions.SHIELD_BLOCK);
+        if (!hasShield && this.guarding) stopGuard();
+
+        tickMeleeCombat(target, distSq, hasShield);
+    }
+
+    // ------------------------------------------------------------------------------------
+    // NAHKAMPF
+    // ------------------------------------------------------------------------------------
+
+    private void tickMeleeCombat(LivingEntity target, double distSq, boolean hasShield) {
+        if (this.meleeAttackCooldown > 0) this.meleeAttackCooldown--;
+        if (this.repathDelay > 0) this.repathDelay--;
+
+        double reachSq = getAttackReachSqr(target);
+        boolean inReach = distSq <= reachSq;
+        boolean canSee = this.survivor.getSensing().hasLineOfSight(target);
+
+        // Konter-Fenster: Gegner hat gerade zugeschlagen und ist jetzt verwundbar
+        boolean enemySwinging = target.swinging;
+        if (enemySwinging && !this.lastTargetSwinging && inReach
+                && this.meleeAttackCooldown <= COUNTER_MAX_COOLDOWN) {
+            this.meleeAttackCooldown = 0;
+        }
+        this.lastTargetSwinging = enemySwinging;
+
+        // Bewegung: nur nachlaufen, wenn nicht in Reichweite, und nur selten neu pfaden
+        if (!inReach) {
+            if (this.repathDelay <= 0 || this.survivor.getNavigation().isDone()) {
+                this.repathDelay = 4 + this.survivor.getRandom().nextInt(7);
+                double speed = this.guarding ? 1.1D : 1.25D;
+                this.survivor.getNavigation().moveTo(target, speed);
+            }
         } else {
-            tickMeleeCombat(target, distSq);
+            this.survivor.getNavigation().stop();
+        }
+
+        // Angriff hat Vorrang vor der Deckung
+        if (inReach && canSee && this.meleeAttackCooldown <= 0) {
+            if (this.guarding) stopGuard();
+            this.raiseDelay = hasShield ? RAISE_DELAY_AFTER_ATTACK : 0;
+            this.meleeAttackCooldown = hasShield ? MELEE_COOLDOWN_SHIELD : MELEE_COOLDOWN_NO_SHIELD;
+
+            this.survivor.swing(InteractionHand.MAIN_HAND);
+            // Vanilla-Angriff: wendet Attribute, Waffen-Modifikatoren und Verzauberungen automatisch an
+            this.survivor.doHurtTarget(target);
+        }
+
+        if (hasShield) {
+            tickShield(target, distSq, reachSq);
+        }
+
+        if (this.survivor.tickCount % 10 == 0) {
+            SurvivorColonies.debug("COMBAT", "dist=%.2f reach=%.2f cd=%d guard=%s gTicks=%d rest=%d navDone=%s",
+                    Math.sqrt(distSq), Math.sqrt(reachSq), this.meleeAttackCooldown,
+                    this.guarding, this.guardTicks, this.guardRestTicks,
+                    this.survivor.getNavigation().isDone());
         }
     }
 
-    private void handleShieldDefense(LivingEntity target, ItemStack offHand, double distSq, boolean isHoldingBow) {
-        if (!(offHand.getItem() instanceof ShieldItem)) {
-            if (this.isBlocking) stopBlocking();
-            return;
-        }
+    private double getAttackReachSqr(LivingEntity target) {
+        // Mittelpunktsabstand: Eigener Radius + Gegner-Radius + etwas Schwertreichweite
+        double reach = 1.8D + this.survivor.getBbWidth() / 2.0D + target.getBbWidth() / 2.0D;
+        return reach * reach;
+    }
 
-        if (this.blockCooldown > 0) {
-            this.blockCooldown--;
-        }
+    // ------------------------------------------------------------------------------------
+    // SCHILD
+    // ------------------------------------------------------------------------------------
 
-        if (this.isBlocking) {
-            this.currentBlockDuration++;
-            // Block nach Maximaldauer oder wenn Gegner zu weit weg ist loesen
-            if (this.currentBlockDuration >= MAX_BLOCK_TICKS || distSq > 64.0D) {
-                stopBlocking();
-                this.blockCooldown = 25;
+    private void tickShield(LivingEntity target, double distSq, double reachSq) {
+        if (this.guardRestTicks > 0) this.guardRestTicks--;
+        if (this.raiseDelay > 0) this.raiseDelay--;
+
+        boolean threat = isThreatened(target, distSq, reachSq);
+
+        if (this.guarding) {
+            // Falls die Benutzung von aussen unterbrochen wurde (z. B. Item gewechselt)
+            if (!this.survivor.isUsingItem()) {
+                this.guarding = false;
+                this.guardTicks = 0;
+                return;
+            }
+
+            this.guardTicks++;
+            if (!threat) {
+                stopGuard();
+            } else if (this.guardTicks >= MAX_GUARD_TICKS) {
+                stopGuard();
+                this.guardRestTicks = GUARD_REST_TICKS;
             }
             return;
         }
 
-        // Bogen-Schuetzen blocken nicht, um ihren Ladezyklus nicht zu zerstoeren
-        if (isHoldingBow) return;
+        if (!threat) {
+            this.threatTicks = 0;
+            return;
+        }
 
-        // Block-Entscheidung: Nahbereich (< 4.5 Bloecke) und Feind holt zum Schlag aus
-        if (this.blockCooldown <= 0 && distSq <= 20.0D) {
-            boolean enemyThreat = target.swinging || target.isUsingItem() || (this.survivor.hurtTime > 0);
-            if (enemyThreat && this.survivor.getRandom().nextFloat() < 0.65F) {
-                startBlocking();
-            }
+        // Kurze Reaktionszeit, damit das Schild nicht "magisch" im selben Tick oben ist
+        if (this.threatTicks == 0) {
+            this.reactionDelay = 2 + this.survivor.getRandom().nextInt(5);
+        }
+        this.threatTicks++;
+
+        if (this.threatTicks >= this.reactionDelay
+                && this.raiseDelay <= 0
+                && this.guardRestTicks <= 0
+                && !this.survivor.isUsingItem()) {
+            startGuard();
         }
     }
 
-    private void startBlocking() {
-        this.isBlocking = true;
-        this.currentBlockDuration = 0;
+    /**
+     * Gilt als Bedrohung: ein Gegner in Schlagnaehe, der den Survivor angreift, oder ein
+     * Projektil, das auf ihn zufliegt. Waehrend der Deckung wird der Radius leicht erweitert,
+     * damit das Schild an der Grenze nicht flackert.
+     */
+    private boolean isThreatened(LivingEntity target, double distSq, double reachSq) {
+        double range = Math.sqrt(reachSq) + GUARD_RANGE_EXTRA + (this.guarding ? 1.0D : 0.0D);
+        boolean near = distSq <= range * range;
+
+        boolean meleeThreat = false;
+        if (near) {
+            if (target instanceof Mob mob) {
+                LivingEntity mobTarget = mob.getTarget();
+                meleeThreat = mobTarget == null || mobTarget == this.survivor;
+            } else {
+                meleeThreat = true;
+            }
+        }
+
+        return meleeThreat || detectIncomingProjectile();
+    }
+
+    private boolean detectIncomingProjectile() {
+        // Nur jeden 2. Tick scannen, das reicht voellig
+        if (this.survivor.tickCount % 2 != 0) {
+            return this.incomingProjectile;
+        }
+
+        this.incomingProjectile = false;
+        AABB box = this.survivor.getBoundingBox().inflate(PROJECTILE_RANGE, 4.0D, PROJECTILE_RANGE);
+        Vec3 eye = this.survivor.getEyePosition();
+
+        for (Projectile projectile : this.survivor.level().getEntitiesOfClass(Projectile.class, box,
+                p -> p.isAlive()
+                        && !p.onGround()
+                        && !(p.getOwner() instanceof SurvivorEntity)
+                        && p.getDeltaMovement().lengthSqr() > 0.01D)) {
+
+            Vec3 toMe = eye.subtract(projectile.position());
+            double dist = toMe.length();
+            if (dist > PROJECTILE_RANGE || dist < 0.5D) continue;
+
+            // Fliegt das Projektil (ungefaehr) in meine Richtung?
+            double alignment = projectile.getDeltaMovement().normalize().dot(toMe.normalize());
+            if (alignment > 0.85D) {
+                this.incomingProjectile = true;
+                break;
+            }
+        }
+        return this.incomingProjectile;
+    }
+
+    private void startGuard() {
+        this.guarding = true;
+        this.guardTicks = 0;
         this.survivor.startUsingItem(InteractionHand.OFF_HAND);
     }
 
-    private void stopBlocking() {
-        this.isBlocking = false;
-        this.currentBlockDuration = 0;
-        if (this.survivor.isUsingItem()) {
+    private void stopGuard() {
+        this.guarding = false;
+        this.guardTicks = 0;
+        if (this.survivor.isUsingItem() && this.survivor.getUsedItemHand() == InteractionHand.OFF_HAND) {
             this.survivor.stopUsingItem();
         }
     }
+
+    // ------------------------------------------------------------------------------------
+    // FERNKAMPF
+    // ------------------------------------------------------------------------------------
 
     private void tickRangedCombat(LivingEntity target, ItemStack bowStack, double distSq) {
         // Taktische Navigation & Kiting
@@ -213,7 +372,7 @@ public class SurvivorCombatGoal extends Goal {
         if (this.survivor.level().isClientSide) return;
 
         Arrow arrow = new Arrow(this.survivor.level(), this.survivor);
-        
+
         // Verhindert, dass Spieler unendliche Pfeile durch Beschuss farmen koennen
         arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
 
@@ -238,34 +397,11 @@ public class SurvivorCombatGoal extends Goal {
             arrow.setSecondsOnFire(100);
         }
 
-        // Schuess abgeben mit leichter Streuung
+        // Schuss abgeben mit leichter Streuung
         float inaccuracy = 14.0F - this.survivor.level().getDifficulty().getId() * 4.0F;
         arrow.shoot(dx, dy + horizontalDist * 0.18D, dz, power * 1.6F, Math.max(1.0F, inaccuracy));
 
         this.survivor.playSound(SoundEvents.SKELETON_SHOOT, 1.0F, 1.0F / (this.survivor.getRandom().nextFloat() * 0.4F + 0.8F));
         this.survivor.level().addFreshEntity(arrow);
-    }
-
-    private void tickMeleeCombat(LivingEntity target, double distSq) {
-        if (this.meleeAttackCooldown > 0) {
-            this.meleeAttackCooldown--;
-        }
-
-        // Ansturm auf den Gegner
-        this.survivor.getNavigation().moveTo(target, 1.25D);
-
-        // Schlagreichweite pruefen (Vanilla Angriffsdistanz inklusive Entity-Bounding-Box)
-        double reachSq = getAttackReachSqr(target);
-        if (distSq <= reachSq && this.meleeAttackCooldown <= 0) {
-            this.meleeAttackCooldown = BASE_MELEE_COOLDOWN;
-            this.survivor.swing(InteractionHand.MAIN_HAND);
-            
-            // Standard Vanilla mob attack wendet Attribute, Waffen-Modifikatoren und Verzauberungen vollautomatisch an
-            this.survivor.doHurtTarget(target);
-        }
-    }
-
-    private double getAttackReachSqr(LivingEntity target) {
-        return (double) (this.survivor.getBbWidth() * 2.0F * this.survivor.getBbWidth() * 2.0F + target.getBbWidth());
     }
 }

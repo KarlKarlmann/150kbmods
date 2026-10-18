@@ -38,7 +38,7 @@ public class MeteorCommand {
                             
                             MeteorServerManager.forceSpawnSingleMeteor(level, offsetPos);
                             
-                            source.sendSuccess(() -> Component.literal("§cWARNUNG: Test-Meteor im Anflug!"), true);
+                            source.sendSuccess(() -> Component.literal("§cWARNING: Test meteor approaching!"), true);
                             return 1;
                         })
                 )

@@ -12,6 +12,11 @@ import net.minecraft.client.renderer.entity.MobRenderer;
 import net.minecraft.client.renderer.entity.layers.HumanoidArmorLayer;
 import net.minecraft.client.renderer.entity.layers.ItemInHandLayer;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.item.BowItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.common.ToolActions;
 
 public class SurvivorRenderer extends MobRenderer<SurvivorEntity, SurvivorModel> {
 
@@ -41,7 +46,44 @@ public class SurvivorRenderer extends MobRenderer<SurvivorEntity, SurvivorModel>
     public void render(SurvivorEntity entity, float entityYaw, float partialTicks, PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
         // Männlich -> Steve-Modell (4px Arme) | Weiblich -> Alex-Modell (3px Arme + Brust-Mesh + Zopf)
         this.model = entity.isFemale() ? this.alexModel : this.steveModel;
+
+        applyArmPoses(entity, this.model);
+
         super.render(entity, entityYaw, partialTicks, poseStack, buffer, packedLight);
+    }
+
+    /**
+     * Setzt die Armposen anhand des aktuell benutzten Items, damit Schildblocken und
+     * Bogenspannen sichtbar sind. Die Rüstungs-Layer übernehmen die Posen automatisch
+     * über copyPropertiesTo.
+     */
+    private static void applyArmPoses(SurvivorEntity entity, SurvivorModel model) {
+        model.rightArmPose = HumanoidModel.ArmPose.ITEM;
+        model.leftArmPose = HumanoidModel.ArmPose.ITEM;
+
+        if (!entity.isUsingItem()) {
+            return;
+        }
+
+        ItemStack used = entity.getUseItem();
+        HumanoidArm usedArm = entity.getUsedItemHand() == InteractionHand.MAIN_HAND
+                ? entity.getMainArm()
+                : entity.getMainArm().getOpposite();
+
+        HumanoidModel.ArmPose pose;
+        if (used.canPerformAction(ToolActions.SHIELD_BLOCK)) {
+            pose = HumanoidModel.ArmPose.BLOCK;
+        } else if (used.getItem() instanceof BowItem) {
+            pose = HumanoidModel.ArmPose.BOW_AND_ARROW;
+        } else {
+            return;
+        }
+
+        if (usedArm == HumanoidArm.RIGHT) {
+            model.rightArmPose = pose;
+        } else {
+            model.leftArmPose = pose;
+        }
     }
 
     @Override
