@@ -17,6 +17,12 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.network.PacketDistributor;
+import net.minecraft.nbt.NbtIo;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.InputStream;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.InflaterInputStream;
 
 import java.io.RandomAccessFile;
 import java.nio.file.DirectoryStream;
@@ -146,8 +152,8 @@ public class MeteorServerManager {
 
             if (missing > 0) {
                 if (job.timeout % 40 == 0) {
-                    MeteorShower.LOGGER.info("[MeteorServerManager] Waiting for chunks for [{}, {}]: {}/{} still incomplete.", 
-                            job.source.x, job.source.z, missing, job.forcedChunks.size());
+                    MeteorShower.LOGGER.warn("[HYPOTHESIS CHUNKS] Crater [{}, {}] blocked: {}/{} chunks not yet in FULL status! Timeout remaining: {}", 
+                            job.source.x, job.source.z, missing, job.forcedChunks.size(), job.timeout);
                 }
                 return;
             }
@@ -194,16 +200,20 @@ public class MeteorServerManager {
         currentJob = null;
     }
 
+    // Schockwelle und Ejecta erreichen maximal treeImpactRadius (craterRadius * 7.0).
+    // Verhindert quadratische Eskalation auf 441 Chunks durch versehentliche Doppelmultiplikation.
+    public static int getRequiredChunkRange(double meteorRadius) {
+        double craterRadius = meteorRadius * 2.7 + 2.0;
+        return (int) Math.ceil((Math.max(48.0, craterRadius * 7.0) + 8.0) / 16.0);
+    }
+
     private static void startJob(ServerLevel level, PendingImpact target, boolean isEmergency) {
         if (isDistantHorizonsOverloaded()) {
             setDHPauseState(true);
             pausedDhForThisJob = true;
         }
-        
-        double craterRadius = target.radius * 2.7 + 2.0;
-        double simulationRadius = Math.max((craterRadius * 2.7 + 2.0) * 4.0 + 8.0, Math.max(48.0, craterRadius * 7.0));
-        int chunkRange = (int) Math.ceil(simulationRadius / 16.0);
 
+        int chunkRange = getRequiredChunkRange(target.radius);
         List<ChunkPos> forced = new ArrayList<>();
         int centerCX = target.x >> 4;
         int centerCZ = target.z >> 4;
@@ -214,6 +224,9 @@ public class MeteorServerManager {
                 forced.add(new ChunkPos(cx, cz));
             }
         }
+
+        MeteorShower.LOGGER.info("[MeteorServerManager] Job gestartet [{}] fuer [{}, {}] mit {} Chunks (Radius: {} Chunks).",
+                isEmergency ? "NOTFALL" : "HINTERGRUND", target.x, target.z, forced.size(), chunkRange);
 
         currentJob = new ImpactJob(target, forced, isEmergency);
     }
@@ -294,7 +307,10 @@ public class MeteorServerManager {
         if (!Files.exists(regionDir)) return;
 
         CompletableFuture.runAsync(() -> {
+            long scanStartTime = System.currentTimeMillis();
             LongArrayList tempChunks = new LongArrayList();
+            byte[] headerBuffer = new byte[4096];
+
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(regionDir, "r.*.*.mca")) {
                 for (Path mcaFile : stream) {
                     String[] parts = mcaFile.getFileName().toString().split("\\.");
@@ -303,18 +319,41 @@ public class MeteorServerManager {
                     int regionZ = Integer.parseInt(parts[2]);
 
                     try (RandomAccessFile raf = new RandomAccessFile(mcaFile.toFile(), "r")) {
+                        if (raf.length() < 8192) continue;
+                        raf.readFully(headerBuffer);
+
                         for (int i = 0; i < 1024; i++) {
-                            // Ein Header-Offset > 0 signalisiert gespeicherte Sektoren, ohne die NBT-Payload zu dekomprimieren.
-                            if (raf.readInt() != 0) {
+                            int offset = i * 4;
+                            int sectorOffset = ((headerBuffer[offset] & 0xFF) << 16)
+                                             | ((headerBuffer[offset + 1] & 0xFF) << 8)
+                                             | (headerBuffer[offset + 2] & 0xFF);
+                            int sectorCount = headerBuffer[offset + 3] & 0xFF;
+
+                            // Sektoren 0 und 1 sind fuer Header reserviert; Chunks beginnen erst ab Sektor 2.
+                            if (sectorOffset < 2 || sectorCount == 0) continue;
+
+                            raf.seek((long) sectorOffset * 4096L);
+                            int dataLength = raf.readInt();
+                            byte compressionType = raf.readByte();
+
+                            if (dataLength <= 1 || dataLength > sectorCount * 4096) continue;
+
+                            byte[] compressed = new byte[dataLength - 1];
+                            raf.readFully(compressed);
+
+                            if (isChunkOnDiskFull(compressed, compressionType)) {
                                 tempChunks.add(ChunkPos.asLong(regionX * 32 + (i % 32), regionZ * 32 + (i / 32)));
                             }
                         }
-                    } catch (Exception ignored) {}
+                    } catch (Exception e) {
+                        MeteorShower.LOGGER.warn("[RegionScan] Fehler beim Lesen von {}: {}", mcaFile.getFileName(), e.getMessage());
+                    }
                 }
             } catch (Exception e) {
-                MeteorShower.LOGGER.error("[MeteorServerManager] Region scan read error!", e);
+                MeteorShower.LOGGER.error("[RegionScan] Verzeichnis-Scan fehlgeschlagen!", e);
             }
 
+            long duration = System.currentTimeMillis() - scanStartTime;
             level.getServer().execute(() -> {
                 VALID_CHUNKS.clear();
                 VALID_CHUNKS.addAll(tempChunks);
@@ -323,9 +362,32 @@ public class MeteorServerManager {
                 int calculated = (int) Math.round((VALID_CHUNKS.size() / 100.0) * MeteorConfig.meteorsPer100Chunks);
                 data.totalMeteorsToSpawn = Math.max(MeteorConfig.minMeteors, Math.min(MeteorConfig.maxMeteors, calculated));
                 data.setDirty();
-                MeteorShower.LOGGER.info("[MeteorServerManager] Region scan complete: {} chunks detected. Target: {}", VALID_CHUNKS.size(), data.totalMeteorsToSpawn);
+                MeteorShower.LOGGER.info("[RegionScan] Vollstaendig verifizierte FULL-Chunks: {} (Dauer: {} ms). Ziel: {}", 
+                        VALID_CHUNKS.size(), duration, data.totalMeteorsToSpawn);
             });
         });
+    }
+
+    private static boolean isChunkOnDiskFull(byte[] data, byte compressionType) {
+        try {
+            InputStream is = new ByteArrayInputStream(data);
+            if (compressionType == 2) is = new InflaterInputStream(is);
+            else if (compressionType == 1) is = new GZIPInputStream(is);
+            else if (compressionType != 3) return false;
+
+            CompoundTag tag = NbtIo.read(new DataInputStream(is));
+            if (tag == null) return false;
+
+            // Distant Horizons und Vorab-Generatoren schreiben Proto-Chunks mit Status SURFACE oder FEATURES in die MCA.
+            String status = tag.getString("Status");
+            if (status.isEmpty() && tag.contains("Level", 10)) {
+                status = tag.getCompound("Level").getString("Status");
+            }
+
+            return "minecraft:full".equals(status) || "full".equals(status);
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private static boolean serverHasHeadroom(net.minecraft.server.MinecraftServer server) {
@@ -338,24 +400,22 @@ public class MeteorServerManager {
 
     private static void setDHPauseState(boolean pause) {
         if (ModList.get().isLoaded("distanthorizons")) {
-            net.kb150.meteorshower.compat.DistantHorizonsWrapper.setReadOnly(pause);
+            net.kb150.meteorshower.compat.DistantHorizonsWrapper.setThrottled(pause);
         }
     }
 
+    // Hintergrund-Scheduler darf niemals kalte Chunks von der SSD in den RAM zwingen.
+    // Wenn kein Krater komplett im RAM liegt, bleibt die Queue im Ruhezustand (null),
+    // bis ein Spieler in die 400m-Notfallgrenze läuft oder Chunks regulär geladen werden.
     private static PendingImpact pickNext(ServerLevel level, MeteorEventData data, long tick) {
-        PendingImpact fallback = null;
         for (PendingImpact p : data.pendingImpacts) {
-            if (tick < p.readyTick) continue; 
-            if (fallback == null) fallback = p;
-            if (allChunksLoaded(level, p)) return p;
+            if (tick >= p.readyTick && allChunksLoaded(level, p)) return p;
         }
-        return fallback;
+        return null;
     }
 
     private static boolean allChunksLoaded(ServerLevel level, PendingImpact p) {
-        double craterRadius = p.radius * 2.7 + 2.0;
-        double simulationRadius = Math.max((craterRadius * 2.7 + 2.0) * 4.0 + 8.0, Math.max(48.0, craterRadius * 7.0));
-        int chunkRange = (int) Math.ceil(simulationRadius / 16.0);
+        int chunkRange = getRequiredChunkRange(p.radius);
         int centerCX = p.x >> 4;
         int centerCZ = p.z >> 4;
 

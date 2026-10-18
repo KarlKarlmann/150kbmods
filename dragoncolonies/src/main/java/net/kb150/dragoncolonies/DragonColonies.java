@@ -50,8 +50,8 @@ public class DragonColonies {
 
 	public static void debug(String channel, String message, Object... args) {
 		if (isLogging(channel)) {
-			String formattedMessage = args.length > 0 ? String.format(java.util.Locale.ROOT, message, args) : message;
-			LOGGER.warn("[" + channel + "] " + formattedMessage);
+			// Log4j verarbeitet {} nativ, String.format würde hier %s erfordern.
+			LOGGER.warn("[" + channel + "] " + message, args);
 		}
 	}
 

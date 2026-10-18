@@ -77,9 +77,8 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
                 new AITarget(AIWorkerState.GET_MATERIALS, this::handleDragonControl, 1),
 
                 new AITarget(AIWorkerState.GUARD_DECIDE, this::handleDragonControl, 1),
-                new AITarget(AIWorkerState.GUARD_PATROL, this::handleDragonControl, 1),
+                new AITarget(AIWorkerState.GUARD_PATROL, this::patrol, 1),
                 new AITarget(AIWorkerState.GUARD_GUARD, this::handleDragonControl, 1),
-                new AITarget(AIWorkerState.GUARD_FOLLOW, this::handleDragonControl, 1),
                 new AITarget(AIWorkerState.GUARD_ATTACK_PHYSICAL, this::handleDragonControl, 1),
                 new AITarget(AIWorkerState.GUARD_ATTACK_RANGED, this::handleDragonControl, 1),
                 new AITarget(AIWorkerState.GUARD_ATTACK_PROTECT, this::handleDragonControl, 1)
