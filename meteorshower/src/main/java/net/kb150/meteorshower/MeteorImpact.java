@@ -327,14 +327,15 @@ public final class MeteorImpact {
         }
     }
 
-    private static void createMoltenCore(
+	private static void createMoltenCore(
             ServerLevel level,
             BlockPos centerPos,
             double meteorRadius
     ) {
         var random = level.random;
 
-        boolean shouldSpawnRare = random.nextInt(Math.max(1, MeteorConfig.RARE_BLOCK_INTERVAL)) == 0;
+        // Gecachter int statt Forge-Spec-Handle verhindert Typfehler und Blocking auf dem Main-Thread
+        boolean shouldSpawnRare = random.nextInt(Math.max(1, MeteorConfig.rareBlockInterval)) == 0;
         boolean rarePlaced = false;
 
         int radius = Math.max(1, (int) Math.round(meteorRadius * 0.9));
@@ -790,7 +791,7 @@ private static BlockPos findDropTarget(ServerLevel level, BlockPos startPos, int
         }
 
         int meteorIntRadius = Math.max(1, (int) Math.round(meteorRadius));
-        boolean shouldSpawnRare = random.nextInt(Math.max(1, MeteorConfig.RARE_BLOCK_INTERVAL)) == 0;
+        boolean shouldSpawnRare = random.nextInt(Math.max(1, MeteorConfig.rareBlockInterval)) == 0;
         boolean rarePlaced = false;
 
         // Meteoriten-Gestein auf dem Grund platzieren (ohne das umliegende Wasser zu entfernen)

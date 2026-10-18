@@ -34,61 +34,59 @@ public class MeteorServerManager {
     private static final int COOLDOWN_TICKS = 100; 
     private static final double EMERGENCY_DISTANCE_SQ = 400.0 * 400.0;
 
-    // --- RUNTIME STATE (Flüchtig) ---
-    // Startet mit dem Wert aus der Config (-1 = deaktivierter automatischer Start)
-    private static int spawnTimer = MeteorConfig.EVENT_START_DELAY;
+    // Startet mit Integer.MIN_VALUE als Sentinel, damit der Timer erst scharf schaltet,
+    // sobald die Server-Config nach dem Weltstart tatsächlich in den Speicher synchronisiert wurde.
+    private static int spawnTimer = Integer.MIN_VALUE;
     private static boolean eventStarted = false;
     private static final LongArrayList VALID_CHUNKS = new LongArrayList();
     private static boolean mapScanned = false;
 
     private static ImpactJob currentJob = null; 
     private static long nextEligibleTick = 0;
-    
-    // Snickers-Flag: Haben wir DH für DIESEN EINEN Job pausiert?
     private static boolean pausedDhForThisJob = false; 
 
     @SubscribeEvent
     public static void onLevelTick(TickEvent.LevelTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.level.isClientSide()) return;
-        if (!(event.level instanceof ServerLevel serverLevel)) return;
-        if (serverLevel.dimension() != Level.OVERWORLD) return;
+        if (!(event.level instanceof ServerLevel serverLevel) || serverLevel.dimension() != Level.OVERWORLD) return;
 
         MeteorEventData data = getOrCreateData(serverLevel);
         long tick = serverLevel.getServer().getTickCount();
 
-        // 1. EVENT: Flugshows starten (Kosmetik & Job in die Queue packen)
         handleEventSpawning(serverLevel, data);
 
-        // 2. SCHEDULER: Laufenden Job abarbeiten
+        // Parallele Impact-Berechnungen zwingen den Main-Thread in die Knie; Jobs werden strikt sequentiell abgearbeitet.
         if (currentJob != null) {
             advanceJob(serverLevel, data);
-            return; // Während ein Job läuft, NIE einen neuen starten!
+            return;
         }
 
         if (data.pendingImpacts.isEmpty()) return;
 
-        // 3. SCHEDULER: Notbremse (Spieler nähert sich einem wartenden Krater)
-        if (handleEmergencyTriggers(serverLevel, data, tick)) {
-            return; // Ein Notfall-Job wurde gestartet
-        }
+        if (handleEmergencyTriggers(serverLevel, data, tick)) return;
 
-        // 4. SCHEDULER: Hintergrund-Arbeiter
         handleBackgroundScheduler(serverLevel, data, tick);
     }
 
     private static void handleEventSpawning(ServerLevel level, MeteorEventData data) {
         if (data.isFinished) return;
 
+        // Fängt den Übergang ab: Initialisiert den Timer einmalig aus dem gecachten Config-Wert,
+        // sobald der erste Tick mit geladener Welt ausgeführt wird.
+        if (spawnTimer == Integer.MIN_VALUE) {
+            spawnTimer = MeteorConfig.eventStartDelay;
+        }
+
         if (!eventStarted) {
             if (!level.players().isEmpty()) {
-                // Wenn EVENT_START_DELAY auf -1 (oder negativ) gesetzt ist,
-                // zählt der Countdown nicht herunter. Das Event startet nur via Command (/meteor resetEvent).
-                if (MeteorConfig.EVENT_START_DELAY < 0) {
-                    return;
-                }
+                // Negativer Wert signalisiert reinen Admin-Betrieb; automatischer Countdown bleibt eingefroren.
+                if (MeteorConfig.eventStartDelay < 0) return;
 
                 spawnTimer--;
-                if (spawnTimer <= 0) eventStarted = true;
+                if (spawnTimer <= 0) {
+                    eventStarted = true;
+                    MeteorShower.LOGGER.info("[MeteorServerManager] Automatischer Start-Countdown abgelaufen. Event aktiv.");
+                }
             }
             return;
         }
@@ -108,7 +106,8 @@ public class MeteorServerManager {
             data.isFinished = true;
             data.setDirty();
             eventStarted = false;
-            spawnTimer = MeteorConfig.EVENT_START_DELAY;
+            spawnTimer = MeteorConfig.eventStartDelay;
+            MeteorShower.LOGGER.info("[MeteorServerManager] Alle geplanten Meteore eingeschlagen. Schauer beendet.");
         }
     }
 
@@ -117,8 +116,7 @@ public class MeteorServerManager {
             if (tick < p.readyTick) continue; 
 
             for (ServerPlayer player : level.players()) {
-                double distSq = player.distanceToSqr(p.x, player.getY(), p.z);
-                if (distSq <= EMERGENCY_DISTANCE_SQ) {
+                if (player.distanceToSqr(p.x, player.getY(), p.z) <= EMERGENCY_DISTANCE_SQ) {
                     startJob(level, p, true); 
                     return true;
                 }
@@ -128,13 +126,10 @@ public class MeteorServerManager {
     }
 
     private static void handleBackgroundScheduler(ServerLevel level, MeteorEventData data, long tick) {
-        if (tick < nextEligibleTick) return; 
-        if (!serverHasHeadroom(level.getServer())) return; 
+        if (tick < nextEligibleTick || !serverHasHeadroom(level.getServer())) return; 
 
         PendingImpact best = pickNext(level, data, tick);
-        if (best != null) {
-            startJob(level, best, false); 
-        }
+        if (best != null) startJob(level, best, false); 
     }
 
     private static void advanceJob(ServerLevel level, MeteorEventData data) {
@@ -142,10 +137,10 @@ public class MeteorServerManager {
         job.timeout--;
 
         if (job.timeout <= 0) {
-            MeteorShower.LOGGER.warn("Meteor-Impact Timeout erreicht! Breche ab.");
+            MeteorShower.LOGGER.warn("[MeteorServerManager] Timeout beim Laden der Chunks für Krater bei X={} Z={}. Breche ab.", job.source.x, job.source.z);
             data.pendingImpacts.remove(job.source);
             data.setDirty();
-            cleanupJob(level); // cleanupJob hebt auch die DH-Pause wieder auf!
+            cleanupJob(level); 
             return;
         }
 
@@ -158,9 +153,7 @@ public class MeteorServerManager {
         }
 
         if (allLoaded) {
-            if (!job.isEmergency && !serverHasHeadroom(level.getServer())) {
-                return; // Server braucht kurz Luft, wir verschieben um einen Tick
-            }
+            if (!job.isEmergency && !serverHasHeadroom(level.getServer())) return;
 
             try {
                 int targetY = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, new BlockPos(job.source.x, 0, job.source.z)).getY();
@@ -169,11 +162,10 @@ public class MeteorServerManager {
 
                 MeteorImpact.execute(level, flightStart, impactPos, 0, job.source.radius);
             } catch (Exception e) {
-                MeteorShower.LOGGER.error("Fehler bei MeteorImpact.execute()!", e);
+                MeteorShower.LOGGER.error("[MeteorServerManager] Kritischer Fehler bei Krater-Ausführung!", e);
             } finally {
                 data.pendingImpacts.remove(job.source);
                 data.setDirty();
-                
                 cleanupJob(level);
                 nextEligibleTick = level.getServer().getTickCount() + COOLDOWN_TICKS;
             }
@@ -187,7 +179,6 @@ public class MeteorServerManager {
             level.setChunkForced(cp.x, cp.z, false);
         }
         
-        // DH-Pause aufheben, falls wir sie für diesen einen Job gesetzt hatten
         if (pausedDhForThisJob) {
             setDHPauseState(false);
             pausedDhForThisJob = false;
@@ -197,17 +188,13 @@ public class MeteorServerManager {
     }
 
     private static void startJob(ServerLevel level, PendingImpact target, boolean isEmergency) {
-        // "Iss ein Snickers"-Logik
         if (isDistantHorizonsOverloaded()) {
             setDHPauseState(true);
             pausedDhForThisJob = true;
         }
         
         double craterRadius = target.radius * 2.7 + 2.0;
-        double thermalRadius = craterRadius * 3.5;
-        double treeImpactRadius = Math.max(48.0, thermalRadius * 2.0);
-        double ejectaRadius = craterRadius * 4.0;
-        double simulationRadius = Math.max(ejectaRadius + 8.0, treeImpactRadius);
+        double simulationRadius = Math.max((craterRadius * 2.7 + 2.0) * 4.0 + 8.0, Math.max(48.0, craterRadius * 7.0));
         int chunkRange = (int) Math.ceil(simulationRadius / 16.0);
 
         List<ChunkPos> forced = new ArrayList<>();
@@ -237,16 +224,14 @@ public class MeteorServerManager {
         int targetX = chunkX * 16 + level.random.nextInt(16);
         int targetZ = chunkZ * 16 + level.random.nextInt(16);
 
-        int targetY = 70;
-        if (level.hasChunk(chunkX, chunkZ)) {
-            targetY = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, new BlockPos(targetX, 0, targetZ)).getY();
-        }
+        int targetY = level.hasChunk(chunkX, chunkZ) 
+                ? level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, new BlockPos(targetX, 0, targetZ)).getY() 
+                : 70;
 
-        double meteorRadius;
         double roll = level.random.nextDouble();
-        if (roll < 0.65) meteorRadius = 1.4 + level.random.nextDouble() * 1.5;
-        else if (roll < 0.93) meteorRadius = 2.4 + level.random.nextDouble() * 2.0;
-        else meteorRadius = 4.0 + level.random.nextDouble() * 2.5;
+        double meteorRadius = roll < 0.65 ? (1.4 + level.random.nextDouble() * 1.5)
+                            : roll < 0.93 ? (2.4 + level.random.nextDouble() * 2.0)
+                            : (4.0 + level.random.nextDouble() * 2.5);
 
         double startOffsetX = (level.random.nextBoolean() ? 1 : -1) * (600 + level.random.nextInt(900));
         double startOffsetZ = (level.random.nextBoolean() ? 1 : -1) * (600 + level.random.nextInt(900));
@@ -255,12 +240,10 @@ public class MeteorServerManager {
         Vec3 start = new Vec3(targetX + startOffsetX, targetY + startOffsetY, targetZ + startOffsetZ);
         Vec3 end = new Vec3(targetX, targetY, targetZ);
 
-        MeteorSpawnPacket packet = new MeteorSpawnPacket(start, end, FLIGHT_DURATION);
-        NetworkHandler.INSTANCE.send(PacketDistributor.ALL.noArg(), packet);
+        NetworkHandler.INSTANCE.send(PacketDistributor.ALL.noArg(), new MeteorSpawnPacket(start, end, FLIGHT_DURATION));
 
         long readyTick = level.getServer().getTickCount() + FLIGHT_DURATION;
         data.pendingImpacts.add(new PendingImpact(targetX, targetZ, meteorRadius, start.x, start.y, start.z, readyTick));
-        
         return true;
     }
 
@@ -271,8 +254,7 @@ public class MeteorServerManager {
         Vec3 start = new Vec3(targetPos.getX() + 600, targetPos.getY() + 300, targetPos.getZ() + 600);
         Vec3 end = Vec3.atCenterOf(targetPos);
         
-        MeteorSpawnPacket packet = new MeteorSpawnPacket(start, end, FLIGHT_DURATION);
-        NetworkHandler.INSTANCE.send(PacketDistributor.ALL.noArg(), packet);
+        NetworkHandler.INSTANCE.send(PacketDistributor.ALL.noArg(), new MeteorSpawnPacket(start, end, FLIGHT_DURATION));
 
         MeteorEventData data = getOrCreateData(level);
         data.pendingImpacts.add(new PendingImpact(targetPos.getX(), targetPos.getZ(), meteorRadius, start.x, start.y, start.z, readyTick));
@@ -287,13 +269,13 @@ public class MeteorServerManager {
         data.pendingImpacts.clear();
         data.setDirty();
 
-        // Wird explizit via Befehl gestartet, unabhängig vom Start-Countdown
         eventStarted = true;
         spawnTimer = 20;
 
         cleanupJob(level); 
         VALID_CHUNKS.clear();
         mapScanned = false;
+        MeteorShower.LOGGER.info("[MeteorServerManager] Event manuell per Command zurückgesetzt und gestartet.");
     }
 
     private static void scanMapForExistingChunksAsync(ServerLevel level) {
@@ -315,13 +297,15 @@ public class MeteorServerManager {
 
                     try (RandomAccessFile raf = new RandomAccessFile(mcaFile.toFile(), "r")) {
                         for (int i = 0; i < 1024; i++) {
-                            if (raf.readInt() == 0) continue;
-                            tempChunks.add(ChunkPos.asLong(regionX * 32 + (i % 32), regionZ * 32 + (i / 32)));
+                            // Header-Offset ungleich 0 beweist reale Blockdaten im Chunk-Slot ohne teures Dekomprimieren
+                            if (raf.readInt() != 0) {
+                                tempChunks.add(ChunkPos.asLong(regionX * 32 + (i % 32), regionZ * 32 + (i / 32)));
+                            }
                         }
                     } catch (Exception ignored) {}
                 }
             } catch (Exception e) {
-                MeteorShower.LOGGER.error("Fehler beim asynchronen Scannen!", e);
+                MeteorShower.LOGGER.error("[MeteorServerManager] Fehler beim asynchronen Region-Scan!", e);
             }
 
             level.getServer().execute(() -> {
@@ -329,23 +313,21 @@ public class MeteorServerManager {
                 VALID_CHUNKS.addAll(tempChunks);
 
                 MeteorEventData data = getOrCreateData(level);
-                int calculated = (int) Math.round((VALID_CHUNKS.size() / 100.0) * MeteorConfig.METEORS_PER_100_CHUNKS);
-                data.totalMeteorsToSpawn = Math.max(MeteorConfig.MIN_METEORS, Math.min(MeteorConfig.MAX_METEORS, calculated));
+                int calculated = (int) Math.round((VALID_CHUNKS.size() / 100.0) * MeteorConfig.meteorsPer100Chunks);
+                data.totalMeteorsToSpawn = Math.max(MeteorConfig.minMeteors, Math.min(MeteorConfig.maxMeteors, calculated));
                 data.setDirty();
+                MeteorShower.LOGGER.info("[MeteorServerManager] Region-Scan abgeschlossen. {} Chunks indexiert. Zielmenge Meteore: {} (Min: {}, Max: {})",
+                        VALID_CHUNKS.size(), data.totalMeteorsToSpawn, MeteorConfig.minMeteors, MeteorConfig.maxMeteors);
             });
         });
     }
 
     private static boolean serverHasHeadroom(net.minecraft.server.MinecraftServer server) {
-        float mspt = server.getAverageTickTime();
-        return mspt < HEADROOM_THRESHOLD_MS;
+        return server.getAverageTickTime() < HEADROOM_THRESHOLD_MS;
     }
 
     private static boolean isDistantHorizonsOverloaded() {
-        if (ModList.get().isLoaded("distanthorizons")) {
-            return net.kb150.meteorshower.compat.DistantHorizonsWrapper.isOverloaded();
-        }
-        return false;
+        return ModList.get().isLoaded("distanthorizons") && net.kb150.meteorshower.compat.DistantHorizonsWrapper.isOverloaded();
     }
 
     private static void setDHPauseState(boolean pause) {
@@ -356,11 +338,9 @@ public class MeteorServerManager {
 
     private static PendingImpact pickNext(ServerLevel level, MeteorEventData data, long tick) {
         PendingImpact fallback = null;
-
         for (PendingImpact p : data.pendingImpacts) {
             if (tick < p.readyTick) continue; 
             if (fallback == null) fallback = p;
-
             if (allChunksLoaded(level, p)) return p;
         }
         return fallback;

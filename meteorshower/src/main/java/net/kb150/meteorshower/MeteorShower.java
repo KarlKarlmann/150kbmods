@@ -2,7 +2,9 @@ package net.kb150.meteorshower;
 
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,10 +17,10 @@ public class MeteorShower {
     public MeteorShower() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
-        // 1. Netzwerk-Setup auf dem MOD Event-Bus registrieren
-        modEventBus.addListener(NetworkHandler::register);
+        // Legt die Config weltgebunden unter saves/<world>/serverconfig/meteorshower-server.toml ab
+        ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, MeteorConfig.SERVER_SPEC);
 
-        // 2. Server-Manager auf dem FORGE Event-Bus registrieren
+        modEventBus.addListener(NetworkHandler::register);
         MinecraftForge.EVENT_BUS.register(MeteorServerManager.class);
     }
 }
