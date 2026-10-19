@@ -3,14 +3,15 @@ package net.kb150.dragoncolonies.buildings;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyView;
 import com.minecolonies.core.colony.buildings.AbstractBuildingGuards;
-import com.minecolonies.core.colony.buildings.views.AbstractBuildingView;
 import net.kb150.dragoncolonies.buildings.modules.DragonStorageModule;
 import net.kb150.dragoncolonies.registry.DragonColoniesRegistries;
+import net.kb150.dragoncolonies.util.ColonyRelationHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
+import net.magister.bookofdragons.entity.base.dragon.DragonBase;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -54,8 +55,10 @@ public class BuildingDragonRoost extends AbstractBuildingGuards {
                     return e;
                 });
 
-                if (entity != null) {
-                    level.addFreshEntity(entity);
+                if (entity instanceof DragonBase wildDragon) {
+                    // Löscht die alte Hort-Bindung aus dem NBT, damit der Drache wild und frei ist
+                    ColonyRelationHelper.cleanColonyData(wildDragon);
+                    level.addFreshEntity(wildDragon);
                 }
             }
             

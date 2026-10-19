@@ -651,7 +651,9 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
 
             if (trueDistance < 16.0D) {
                 if (this.worker.isPassenger() || currentDragon.getPassengers().contains(this.worker)) {
-                    this.worker.stopRiding();
+					this.worker.resetFallDistance();
+					this.worker.stopRiding();
+					this.worker.resetFallDistance();
                 }
 
                 DragonStorageModule storage = roost.getStorageModule();

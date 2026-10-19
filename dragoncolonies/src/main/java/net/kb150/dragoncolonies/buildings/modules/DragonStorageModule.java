@@ -7,6 +7,7 @@ import com.minecolonies.api.colony.buildings.modules.IPersistentModule;
 import com.minecolonies.api.colony.buildings.modules.ITickingModule;
 import net.kb150.dragoncolonies.config.DragonColoniesConfig;
 import net.kb150.dragoncolonies.DragonColonies;
+import net.kb150.dragoncolonies.util.ColonyRelationHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -149,11 +150,7 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
                             UUID roostDragonId = dragonTag.hasUUID(TAG_ROOST_DRAGON_ID) ? dragonTag.getUUID(TAG_ROOST_DRAGON_ID) : null;
                             DragonBase spawned = deployDragon(roostDragonId, level, this.getBuilding().getPosition(), null);
                             if (spawned != null) {
-                                spawned.getPersistentData().remove("DragonColonies_RoostPos");
-                                spawned.getPersistentData().remove("DragonColonies_RoostDragonID");
-                                spawned.getPersistentData().remove("DragonColonies_GuardDeployed");
-                                spawned.getPersistentData().remove("DragonColonies_OrphanTicks");
-                                spawned.getPersistentData().remove("DragonColonies_GuardUUID");
+								ColonyRelationHelper.cleanColonyData(spawned);
                             }
                         }
                     }
@@ -259,10 +256,14 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
         Entity entity = EntityType.loadEntityRecursive(dragonTag, level, (e) -> {
             e.moveTo(spawnPos.getX() + 0.5, spawnPos.getY() + 1.0, spawnPos.getZ() + 0.5, 0, 0);
 
-            BlockPos roostPos = this.getBuilding() != null ? this.getBuilding().getPosition() : spawnPos;
-            e.getPersistentData().putLong("DragonColonies_RoostPos", roostPos.asLong());
-            e.getPersistentData().putUUID("DragonColonies_RoostDragonID", assignedRoostId);
+			BlockPos roostPos = this.getBuilding() != null ? this.getBuilding().getPosition() : spawnPos;
+			e.getPersistentData().putLong("DragonColonies_RoostPos", roostPos.asLong());
+			e.getPersistentData().putUUID("DragonColonies_RoostDragonID", assignedRoostId);
 
+			// Verhindert wiederholte World-Lookups im Entity-Tick und Kampfsystem
+			if (this.getBuilding() != null && this.getBuilding().getColony() != null) {
+				e.getPersistentData().putInt("DragonColonies_ColonyId", this.getBuilding().getColony().getID());
+			}
             if (guardUuid != null) {
                 e.getPersistentData().putBoolean("DragonColonies_GuardDeployed", true);
                 e.getPersistentData().putUUID("DragonColonies_GuardUUID", guardUuid);
@@ -322,12 +323,7 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
             setDeployedStatus(roostDragonId, false, null);
         }
 
-        dragon.getPersistentData().remove("DragonColonies_RoostPos");
-        dragon.getPersistentData().remove("DragonColonies_RoostDragonID");
-        dragon.getPersistentData().remove("DragonColonies_GuardDeployed");
-        dragon.getPersistentData().remove("DragonColonies_OrphanTicks");
-        dragon.getPersistentData().remove("DragonColonies_GuardUUID");
-
+		ColonyRelationHelper.cleanColonyData(dragon);
         dragon.discard();
         return true;
     }

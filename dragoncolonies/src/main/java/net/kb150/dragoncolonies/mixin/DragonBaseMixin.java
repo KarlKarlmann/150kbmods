@@ -8,6 +8,7 @@ import net.kb150.dragoncolonies.buildings.BuildingDragonRoost;
 import net.kb150.dragoncolonies.buildings.modules.DragonStorageModule;
 import net.kb150.dragoncolonies.config.DragonColoniesConfig;
 import net.kb150.dragoncolonies.data.WildDragonData;
+import net.kb150.dragoncolonies.util.ColonyRelationHelper;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
 import net.magister.bookofdragons.entity.component.TamingComponent;
 import net.magister.bookofdragons.entity.component.ranged.OmniAttackHandler;
@@ -63,11 +64,7 @@ public abstract class DragonBaseMixin {
                 if (storage != null && !storage.isEntityValidForRoostId(roostDragonId, dragon.getUUID())) {
                     DragonColonies.debug("NAVIGATION", "[VALIDATE-DISCARD] Discarding invalid dragon instance {}", dragon.getUUID());
                     dragon.ejectPassengers();
-                    data.remove("DragonColonies_RoostPos");
-                    data.remove("DragonColonies_RoostDragonID");
-                    data.remove("DragonColonies_GuardDeployed");
-                    data.remove("DragonColonies_OrphanTicks");
-                    data.remove("DragonColonies_GuardUUID");
+					ColonyRelationHelper.cleanColonyData(dragon);
                     dragon.discard();
                 }
             }
@@ -174,11 +171,7 @@ public abstract class DragonBaseMixin {
                         }
                     }
 
-                    data.remove("DragonColonies_RoostPos");
-                    data.remove("DragonColonies_RoostDragonID");
-                    data.remove("DragonColonies_GuardDeployed");
-                    data.remove("DragonColonies_OrphanTicks");
-                    data.remove("DragonColonies_GuardUUID");
+					ColonyRelationHelper.cleanColonyData(dragon);
 
                     dragoncolonies$triggerWildFlee(dragon, (ServerLevel) dragon.level());
                 }
@@ -218,11 +211,7 @@ public abstract class DragonBaseMixin {
 
             // Strips ephemeral transit flags before persistence
             CompoundTag persistent = dragonNbt.getCompound("ForgeData");
-            persistent.remove("DragonColonies_FleeingTicks");
-            persistent.remove("DragonColonies_RoostPos");
-            persistent.remove("DragonColonies_RoostDragonID");
-            persistent.remove("DragonColonies_GuardDeployed");
-            persistent.remove("DragonColonies_GuardUUID");
+			ColonyRelationHelper.cleanColonyData(persistent);
 
             // Calculates random destination vector between 500 and 5000 blocks away
             double angle = level.random.nextDouble() * 2 * Math.PI;
@@ -353,7 +342,19 @@ public abstract class DragonBaseMixin {
             }
         }
     }
-
+	
+	@Inject(method = {"setTarget", "m_6710_"}, at = @At("HEAD"), cancellable = true, remap = false, require = 0)
+	private void dragoncolonies$neverTargetColonyCitizen(@org.jetbrains.annotations.Nullable LivingEntity target, CallbackInfo ci) {
+		if (target instanceof AbstractEntityCitizen citizen) {
+			DragonBase dragon = (DragonBase) (Object) this;
+			if (ColonyRelationHelper.isSameColony(citizen, dragon)) {
+				DragonColonies.debug("COMBAT", "[TARGET-BLOCKED] Drache {} darf Kolonist {} nicht anvisieren",
+						dragon.getName().getString(), citizen.getName().getString());
+				ci.cancel();
+			}
+		}
+	}
+	
     // Syncs health and death states back into storage before world unloads remove the entity.
     @Inject(
         method = {"remove", "m_142687_"},
@@ -376,9 +377,7 @@ public abstract class DragonBaseMixin {
 
                 if (storage != null && storage.getDragonByRoostId(roostDragonId).isPresent()) {
                     if (!storage.isEntityValidForRoostId(roostDragonId, dragon.getUUID())) {
-                        data.remove("DragonColonies_RoostPos");
-                        data.remove("DragonColonies_RoostDragonID");
-                        data.remove("DragonColonies_GuardUUID");
+                        ColonyRelationHelper.cleanColonyData(dragon);
                         return;
                     }
 
@@ -397,9 +396,7 @@ public abstract class DragonBaseMixin {
                     }
 
                     storage.updateDragonData(roostDragonId, dragonNbt);
-                    data.remove("DragonColonies_RoostPos");
-                    data.remove("DragonColonies_RoostDragonID");
-                    data.remove("DragonColonies_GuardUUID");
+                    ColonyRelationHelper.cleanColonyData(dragon);
                 }
             }
         }

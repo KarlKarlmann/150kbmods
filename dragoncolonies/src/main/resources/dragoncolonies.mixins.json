@@ -15,7 +15,8 @@
   "AbstractEntityAIGuardMixin",
   "AbstractAISkeletonAccessor",
   "EntityNavigationUtilsMixin",
-  "AIPathResolverBridgeMixin"
+  "AIPathResolverBridgeMixin",
+  "ThreatTableMixin"
   ],
   "client": [
   "client.StructurePacksMixin",

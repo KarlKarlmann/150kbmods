@@ -462,10 +462,12 @@ public final class DragonNavigationHandler {
     }
 
     private static void dismount(DragonBase dragon, AbstractEntityCitizen citizen) {
+		citizen.resetFallDistance();
         if (citizen.getVehicle() == dragon) {
             citizen.stopRiding();
         }
-
+		citizen.resetFallDistance();
+		
         AIMovementComponent movement = dragon.getAIMovement();
         if (movement != null) {
             movement.clearAllWaypoints();

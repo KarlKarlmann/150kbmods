@@ -5,6 +5,7 @@ import com.minecolonies.api.entity.citizen.Skill;
 import com.minecolonies.api.research.util.ResearchConstants;
 import com.minecolonies.core.entity.ai.workers.guard.AbstractEntityAIGuard;
 import net.kb150.dragoncolonies.ai.AbstractEntityAIDragonRider;
+import net.kb150.dragoncolonies.util.ColonyRelationHelper;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
 import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -52,7 +53,22 @@ public abstract class AbstractEntityAIGuardMixin {
             cir.setReturnValue(false);
         }
     }
+	
+	@Inject(method = "isAttackableTarget", at = @At("HEAD"), cancellable = true, remap = false)
+	private static void dragoncolonies$neverTargetColonyDragon(AbstractEntityCitizen user, LivingEntity entity, CallbackInfoReturnable<Boolean> cir) {
+		if (entity instanceof DragonBase dragon && ColonyRelationHelper.isSameColony(user, dragon)) {
+			cir.setReturnValue(false);
+		}
+	}
 
+	// Blockiert das Umschalten in den Angriffsmodus, wenn ein Bürger wegen Schaden durch den eigenen Drachen ruft
+	@Inject(method = "startHelpCitizen", at = @At("HEAD"), cancellable = true, remap = false)
+	private void dragoncolonies$doNotHelpAgainstColonyDragon(LivingEntity attacker, CallbackInfo ci) {
+		AbstractEntityCitizen worker = ((AbstractAISkeletonAccessor) this).getWorker();
+		if (worker != null && attacker instanceof DragonBase dragon && ColonyRelationHelper.isSameColony(worker, dragon)) {
+			ci.cancel();
+		}
+	}
     @Inject(method = "stopSleeping", at = @At("HEAD"), cancellable = true, remap = false)
     private void dragoncolonies$preventStopSleepingOnDragon(CallbackInfo ci) {
         AbstractEntityCitizen worker = ((AbstractAISkeletonAccessor) this).getWorker();
