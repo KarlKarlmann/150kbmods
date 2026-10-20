@@ -2,9 +2,9 @@ package net.kb150.woerp.event;
 
 import net.kb150.woerp.Woerp;
 import net.kb150.woerp.capability.ChunkRadiationProvider;
-import net.kb150.woerp.config.WoerpConfig;
 import net.kb150.woerp.radiation.EmitterSavedData;
 import net.kb150.woerp.radiation.RadiationEmitter;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraftforge.event.level.ChunkEvent;
@@ -16,7 +16,6 @@ public class ChunkRadiationHandler {
 
     @SubscribeEvent
     public static void onChunkLoad(ChunkEvent.Load event) {
-        // Logik läuft exklusiv serverseitig auf echten LevelChunks
         if (event.getLevel().isClientSide() || !(event.getChunk() instanceof LevelChunk chunk)) return;
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
 
@@ -25,43 +24,36 @@ public class ChunkRadiationHandler {
             long lastUpdate = cap.getLastUpdateTick();
             long deltaTicks = currentTick - lastUpdate;
 
-            // Chunk ist bereits up-to-date (z.B. frisch generiert in diesem Tick)
             if (deltaTicks <= 0) return;
 
-            float halfLife = WoerpConfig.HALF_LIFE_TICKS.get().floatValue();
-            
-            // 1. Exponentieller Zerfall der alten Umgebungsstrahlung
-            double decayFactor = Math.pow(0.5, deltaTicks / (double) halfLife);
-            float currentAmbient = (float) (cap.getAmbient() * decayFactor);
-
-            // 2. Verpasste Strahlung aller Emitter im Radius nachholen
+            double deltaSeconds = deltaTicks / 20.0;
             EmitterSavedData data = EmitterSavedData.get(serverLevel);
-            float accumulated = 0.0f;
+            BlockPos midBlock = chunk.getPos().getMiddleBlockPosition(serverLevel.getSeaLevel());
+            float maxTarget = 0.0f;
 
             for (RadiationEmitter emitter : data.getEmitters()) {
-                // Wir betrachten nur das Zeitfenster, in dem sowohl Chunk offline als auch Emitter aktiv war
-                long overlapStart = Math.max(lastUpdate, emitter.startTick);
-                long activeEnd = (emitter.endTick == -1L) ? currentTick : emitter.endTick;
-                long overlapEnd = Math.min(currentTick, activeEnd);
-                
-                long activeTicks = overlapEnd - overlapStart;
-                
-                if (activeTicks > 0) {
-                    double distSq = emitter.pos.distSqr(chunk.getPos().getMiddleBlockPosition(64));
-                    
-                    if (distSq <= (emitter.maxRadius * emitter.maxRadius)) {
-                        // Inverse-Square-Law für Entfernungsabnahme
-                        float factor = (float) (emitter.baseEmission / Math.max(1.0, distSq));
-                        // 0.05f = Absorptionsrate der Umgebung (kann später in Config)
-                        accumulated += factor * activeTicks * 0.05f; 
-                    }
+                if (!emitter.isActive()) continue;
+                double distSq = emitter.pos.distSqr(midBlock);
+                if (distSq <= (RadiationEmitter.GLOBAL_RADIUS * RadiationEmitter.GLOBAL_RADIUS)) {
+                    float field = (float) (emitter.getBaseEmission() * (1.0 - (Math.sqrt(distSq) / RadiationEmitter.GLOBAL_RADIUS)));
+                    if (field > maxTarget) maxTarget = field;
                 }
             }
+            maxTarget = Math.min(500.0f, maxTarget);
 
-            // 3. Zustand einbrennen
-            cap.setAmbient(currentAmbient + accumulated);
+            // Analytische Integration: Berechnet das Gleichgewicht ueber Offline-Perioden in O(1)
+            double decayCoeff = Math.exp(-0.01511 * deltaSeconds);
+            float current = cap.getAmbient();
+            float updated = (float) (maxTarget + (current - maxTarget) * decayCoeff);
+
+            cap.setAmbient(updated);
             cap.setLastUpdateTick(currentTick);
-            chunk.setUnsaved(true); // Zwingt den Chunk zum Speichern der neuen NBT-Daten
+            chunk.setUnsaved(true);
+
+            // Reaktiviert Chunks mit Reststrahlung im RAM-Simulations-Set
+            if (updated > 0.001f || maxTarget > 0.001f) {
+                RadiationTickHandler.trackChunk(serverLevel.dimension(), chunk.getPos());
+            }
         });
     }
 }

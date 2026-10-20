@@ -91,7 +91,7 @@ public class AcceptExportOfferMessage {
                     // Drachen endgültig entfernen
                     storage.removeDragon(message.dragonId);
                     
-                    player.sendSystemMessage(Component.literal("§a[DragonColonies] §fDrache erfolgreich an die Fraktion '" + acceptedOffer.getString("FactionName") + "' übergeben. Tribut erhalten!"));
+                    player.sendSystemMessage(Component.translatable("dragoncolonies.message.export.success", acceptedOffer.getString("FactionName")));
                 }
             }
         });

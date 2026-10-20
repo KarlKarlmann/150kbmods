@@ -10,7 +10,10 @@ public class ChunkRadiation implements IChunkRadiation {
     public float getAmbient() { return ambientRadiation; }
     
     @Override
-    public void setAmbient(float value) { this.ambientRadiation = Math.max(0, value); }
+    public void setAmbient(float value) { 
+        // 500.0f spiegelt das visuelle Maximum des Shaders; fängt Runaways sofort ab
+        this.ambientRadiation = Math.max(0.0f, Math.min(500.0f, value)); 
+    }
     
     @Override
     public long getLastUpdateTick() { return lastUpdateTick; }
@@ -26,7 +29,8 @@ public class ChunkRadiation implements IChunkRadiation {
     }
 
     public void load(CompoundTag tag) {
-        this.ambientRadiation = tag.getFloat("ambient");
+        // Bereinigt korrumpierte Altdaten über 500 beim Betreten von Chunks
+        this.ambientRadiation = Math.max(0.0f, Math.min(500.0f, tag.getFloat("ambient")));
         this.lastUpdateTick = tag.getLong("lastUpdate");
     }
 }

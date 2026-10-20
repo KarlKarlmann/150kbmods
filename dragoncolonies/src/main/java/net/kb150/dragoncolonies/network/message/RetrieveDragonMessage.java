@@ -10,7 +10,8 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
-
+import net.magister.bookofdragons.entity.base.dragon.DragonBase;
+import net.minecraft.network.chat.Component;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -38,7 +39,7 @@ public class RetrieveDragonMessage {
         return new RetrieveDragonMessage(buffer.readBlockPos(), buffer.readUUID());
     }
 
-    public static void handle(RetrieveDragonMessage message, Supplier<NetworkEvent.Context> contextSupplier) {
+	public static void handle(RetrieveDragonMessage message, Supplier<NetworkEvent.Context> contextSupplier) {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
             ServerPlayer player = context.getSender();
@@ -54,8 +55,12 @@ public class RetrieveDragonMessage {
             DragonStorageModule storage = roost.getStorageModule();
             if (storage == null) return;
 
-            // Zentraler Aufruf ohne lokales NBT-Gefummel
-            storage.deployDragon(message.dragonId, level, roost.getPosition(), null);
+            // Fängt das zurückgegebene Entity-Objekt ab, um bei erfolgreichem Spawn den exakten (Custom-)Namen für das Chat-Feedback auszulesen.
+            DragonBase spawned = storage.deployDragon(message.dragonId, level, roost.getPosition(), null);
+            if (spawned != null) {
+                String name = spawned.hasCustomName() ? spawned.getCustomName().getString() : spawned.getName().getString();
+                player.sendSystemMessage(Component.translatable("dragoncolonies.message.retrieve.success", name));
+            }
         });
         context.setPacketHandled(true);
     }

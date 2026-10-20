@@ -3,14 +3,14 @@ loaderVersion="[47,)"
 license="CC BY-NC 4.0"
 
 [[mods]]
-modId="meteorshower"
+modId="woerp"
 version="${version}"
-displayName="Meteor shower"
+displayName="Wörp"
 displayURL="https://www.n3g.de"
 authors="Karl Karlmann"
-logoFile="meteorshower.png"
+logoFile="woerp.png"
 description='''
-Triggers a Meteor shower at the start of the map.
+Radiation in yellow.
 '''
 
 # -------------------------------------------------------------------------
@@ -18,7 +18,7 @@ Triggers a Meteor shower at the start of the map.
 # -------------------------------------------------------------------------
 
 # 1. Forge API
-[[dependencies.meteorshower]]
+[[dependencies.woerp]]
 modId="forge"
 mandatory=true
 versionRange="[47.2.0,)"
@@ -26,7 +26,7 @@ ordering="NONE"
 side="BOTH"
 
 # 2. Minecraft Core
-[[dependencies.meteorshower]]
+[[dependencies.woerp]]
 modId="minecraft"
 mandatory=true
 versionRange="[1.20.1,1.21)"

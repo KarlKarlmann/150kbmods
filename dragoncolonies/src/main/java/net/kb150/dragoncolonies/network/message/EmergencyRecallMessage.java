@@ -53,7 +53,8 @@ public class EmergencyRecallMessage {
 			boolean canRevive = player.isCreative() || player.hasPermissions(2);
 
 			if (storage.emergencyRecall(message.dragonId, player.server, canRevive)) {
-				player.sendSystemMessage(Component.literal("§a[DragonColonies] §fDrache gesichert / wiederbelebt."));
+				// Nutzt i18n statt hartem deutschen String, damit englische Clients die passende Übersetzung erhalten
+				player.sendSystemMessage(Component.translatable("dragoncolonies.message.recall.success"));
 			}
 		});
 		context.setPacketHandled(true);

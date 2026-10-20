@@ -23,25 +23,31 @@ public class ContainerTracker {
             if (be.isRemoved() || !(be.getLevel() instanceof ServerLevel level)) continue;
 
             be.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler -> {
-                float emission = 0.0f;
+                float maxItemEmission = 0.0f;
                 for (int i = 0; i < handler.getSlots(); i++) {
                     ItemStack stack = handler.getStackInSlot(i);
-                    emission += ItemRadiationRegistry.getStackEmission(stack);
+                    float slotEmission = ItemRadiationRegistry.getStackEmission(stack);
+                    if (slotEmission > maxItemEmission) maxItemEmission = slotEmission;
                 }
 
+                maxItemEmission = Math.min(500.0f, maxItemEmission);
                 EmitterSavedData data = EmitterSavedData.get(level);
                 long currentTick = level.getServer().getTickCount();
                 RadiationEmitter existing = data.getEmitterAt(be.getBlockPos());
 
-                if (emission > 0) {
-                    if (existing == null || !existing.isActive()) {
-                        data.addEmitter(new RadiationEmitter(be.getBlockPos(), emission, 24.0f, currentTick));
-                        Woerp.LOGGER.debug("[WOERP-DEBUG] Mixin-Catch: BE bei {} hat Strahlung {}. Emitter registriert.", be.getBlockPos(), emission);
+                if (maxItemEmission > 0) {
+                    if (existing == null) {
+                        data.addEmitter(new RadiationEmitter(be.getBlockPos(), maxItemEmission, currentTick));
+                        Woerp.LOGGER.info("[WOERP-CONTAINER-DEBUG] Neuer Emitter bei {} mit Basis-Emission {}", be.getBlockPos(), maxItemEmission);
+                    } else {
+                        // Dynamisches Update des existierenden Emitters statt Ignorieren weiterer Items
+                        existing.setBaseEmission(maxItemEmission);
+                        data.setDirty();
                     }
                 } else if (existing != null && existing.isActive()) {
                     existing.endTick = currentTick;
                     data.setDirty();
-                    Woerp.LOGGER.debug("[WOERP-DEBUG] Mixin-Catch: BE bei {} geleert. Emitter auf Zerfall gesetzt.", be.getBlockPos());
+                    Woerp.LOGGER.info("[WOERP-CONTAINER-DEBUG] Kiste bei {} geleert. Zerfall aktiv.", be.getBlockPos());
                 }
             });
         }

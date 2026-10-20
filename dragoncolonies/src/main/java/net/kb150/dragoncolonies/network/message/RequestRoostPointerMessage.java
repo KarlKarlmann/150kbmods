@@ -50,7 +50,7 @@ public class RequestRoostPointerMessage {
                             player.drop(pointerStack, false);
                         }
                         
-                        player.sendSystemMessage(Component.literal("§a[DragonColonies] §fHort-Leitstab erhalten. Klicke auf deinen Drachen, um ihn in den Hort zu rufen!"));
+                        player.sendSystemMessage(Component.translatable("dragoncolonies.message.pointer.received"));
                     }
                 }
             }

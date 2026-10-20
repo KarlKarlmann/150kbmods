@@ -1,22 +1,26 @@
 {
-    "targets": [
-        "worlddepth"
-    ],
-    "passes": [
-        {
-            "name": "woerp_depth_melt",
-            "intarget": "minecraft:main",
-            "outtarget": "minecraft:main",
-            "auxtargets": [
-                {
-                    "name": "DepthSampler",
-                    "id": "worlddepth"
-                }
-            ],
-            "uniforms": [
-                { "name": "RadiationDose", "type": "float", "count": 1, "values": [ 0.0 ] },
-                { "name": "Time", "type": "float", "count": 1, "values": [ 0.0 ] }
-            ]
-        }
-    ]
+  "targets": [
+    "swap",
+    "emitter_mask"
+  ],
+  "passes": [
+    {
+      "name": "woerp_depth_melt",
+      "intarget": "minecraft:main",
+      "outtarget": "swap",
+      "auxtargets": [
+        { "name": "MaskSampler", "id": "emitter_mask" }
+      ],
+      "uniforms": [
+        { "name": "RadiationDose", "values": [ 0.0 ] },
+        { "name": "BodyDose", "values": [ 0.0 ] },
+        { "name": "Time", "values": [ 0.0 ] }
+      ]
+    },
+    {
+      "name": "blit",
+      "intarget": "swap",
+      "outtarget": "minecraft:main"
+    }
+  ]
 }

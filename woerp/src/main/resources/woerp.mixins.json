@@ -1,11 +1,12 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "net.kb150.meteorshower.mixin",
+  "package": "net.kb150.woerp.mixin",
   "compatibilityLevel": "JAVA_17",
-  "refmap": "meteorshower.refmap.json", 
+  "refmap": "woerp.refmap.json", 
   "mixins": [
-  "BlockEntityMixin"
+  "BlockEntityMixin",
+  "PostChainAccessor"
   ],
   "client": [],
   "injectors": {

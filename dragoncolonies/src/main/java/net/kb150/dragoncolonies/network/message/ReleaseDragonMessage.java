@@ -44,7 +44,7 @@ public class ReleaseDragonMessage {
                     IBuilding building = colony.getServerBuildingManager().getBuilding(message.roostPos);
                     if (building instanceof BuildingDragonRoost roost) {
                         roost.getStorageModule().removeDragon(message.dragonId);
-                        player.sendSystemMessage(Component.literal("§c[DragonColonies] §fDer Drache wurde freigelassen."));
+                        player.sendSystemMessage(Component.translatable("dragoncolonies.message.release.success"));
                     }
                 }
             }

@@ -6,7 +6,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
-
+import net.minecraft.core.BlockPos;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,7 +55,14 @@ public class EmitterSavedData extends SavedData {
             this.setDirty();
         }
     }
-
+	
+	public RadiationEmitter getEmitterAt(BlockPos pos) {
+        for (RadiationEmitter emitter : this.emitters) {
+            if (emitter.pos.equals(pos) && emitter.isActive()) return emitter;
+        }
+        return null;
+    }
+	
     // Helfer-Methode, um die Instanz für ein Level zu holen
     public static EmitterSavedData get(ServerLevel level) {
         return level.getDataStorage().computeIfAbsent(
