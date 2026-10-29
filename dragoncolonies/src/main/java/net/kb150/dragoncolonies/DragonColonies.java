@@ -4,7 +4,10 @@ import com.minecolonies.api.sounds.EventType;
 import com.minecolonies.api.sounds.ModSoundEvents;
 import net.kb150.dragoncolonies.data.WildDragonData;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
-import net.magister.bookofdragons.entity.state.TransportMode;
+import net.magister.liberanimalium.body.state.TransportMode;
+import net.magister.liberanimalium.chassis.component.CommandComponent;
+import net.magister.liberanimalium.chassis.component.command.Modifier;
+import net.magister.liberanimalium.chassis.component.command.Stance;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -112,7 +115,12 @@ public class DragonColonies {
 
             if (entity instanceof DragonBase wildDragon) {
                 wildDragon.setTransportMode(TransportMode.GROUNDED);
-                wildDragon.setCommand(0);
+                
+                CommandComponent cmd = (CommandComponent) wildDragon.componentRegistry.get(CommandComponent.class);
+                if (cmd != null) {
+                    cmd.setCommandForced(Stance.FREE, Modifier.GROUND);
+                }
+                
                 serverLevel.addFreshEntity(wildDragon);
 
                 serverLevel.sendParticles(ParticleTypes.CLOUD, spawnX + 0.5D, spawnY + 1.2D, spawnZ + 0.5D, 18, 1.0D, 0.5D, 1.0D, 0.02D);

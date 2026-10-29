@@ -61,7 +61,9 @@ public class MutationSpawnHandler {
             for (int i = 0; i < count && i < pool.size(); i++) {
                 MobEffectInstance inst = new MobEffectInstance(pool.get(i).get(), -1, amplifier, false, false, false);
                 mob.addEffect(inst);
-                // Informiert Spieler, die im Moment des Spawns bereits im Tracking-Radius stehen
+
+                // ServerEntity broadcastet Mobeverything ausser Effekten beim Spawnen; 
+                // ChunkSource-Broadcast stopft dieses Vanilla-Loch fuer Clients, die beim Spawn bereits im Chunk stehen.
                 level.getChunkSource().broadcast(mob, new ClientboundUpdateMobEffectPacket(mob.getId(), inst));
             }
 
@@ -72,7 +74,8 @@ public class MutationSpawnHandler {
         });
     }
 
-    // Behebt den Vanilla-Sync-Mangel: ServerEntity sendet Effekte standardmaessig nicht an beobachtende Clients
+    // Vanilla sendet beim Initial-Tracking ueber ServerEntity.sendPairingData keine Potion-Effekte an Beobachter.
+    // Dieser Hook holt den Paket-Versand nach, sobald ein Spieler den Mob in Render-Distanz laedt.
     @SubscribeEvent
     public static void onStartTracking(PlayerEvent.StartTracking event) {
         if (!(event.getTarget() instanceof Mob mob) || !(event.getEntity() instanceof ServerPlayer player)) return;

@@ -4,6 +4,9 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.kb150.woerp.Woerp;
 import net.kb150.woerp.client.model.*;
+import net.kb150.woerp.client.offset.MutationOffsetLoader;
+import net.kb150.woerp.client.screen.MutationStudioScreen;
+import net.kb150.woerp.client.util.ModelBoneScanner;
 import net.kb150.woerp.init.ModEffects;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.HeadedModel;
@@ -18,16 +21,9 @@ import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
-
-import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
+import net.minecraftforge.registries.ForgeRegistries;
 
 public class MutationLayer<T extends LivingEntity, M extends EntityModel<T>> extends RenderLayer<T, M> {
-    // Verhindert Performance-Einbrueche im Frame-Rendering: Speichert Feld-Referenzen pro Model-Klasse dauerhaft im RAM
-    private static final Map<Class<?>, Map<String, Field>> BONE_CACHE = new HashMap<>();
-
     private static ResourceLocation tex(String name) {
         return new ResourceLocation(Woerp.MODID, "textures/entity/mutations/" + name + ".png");
     }
@@ -69,148 +65,100 @@ public class MutationLayer<T extends LivingEntity, M extends EntityModel<T>> ext
         this.maw = new MawModel(modelSet.bakeLayer(WoerpModelLayers.MAW));
     }
 
-@Override
+    @Override
     public void render(PoseStack poseStack, MultiBufferSource buffer, int packedLight, T entity, float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks, float netHeadYaw, float headPitch) {
         if (entity.isInvisible()) return;
 
-        // Entlarvt stumme Abbrueche: Zeigt ob der Layer rendert, Effekte am Client ankommen und Knochen existieren
-        if (entity.tickCount % 40 == 0) {
-            M pModel = this.getParentModel();
-            ModelPart hPart = getBone(pModel, "head", "f_102808_", "f_102948_", "f_103846_");
-            Woerp.LOGGER.info("[WOERP-VFX-PROBE] Mob: {} | Effekte: {} | Head-Bone: {}", 
-                entity.getType().getDescriptionId(), 
-                entity.getActiveEffects().size(), 
-                (hPart != null));
-        }
-
         M parent = this.getParentModel();
-        ModelPart head = getBone(parent, "head", "f_102808_", "f_102948_", "f_103846_");
-        ModelPart body = getBone(parent, "body", "torso", "f_102810_", "f_103499_");
-        ModelPart arm = getBone(parent, "rightArm", "right_arm", "leftArm", "f_102811_");
-        ModelPart leg = getBone(parent, "leftLeg", "left_leg", "rightLeg", "leftHindLeg", "f_102813_");
-
+        ModelPart head = (parent instanceof HeadedModel headed) ? headed.getHead() : null;
         int overlay = LivingEntityRenderer.getOverlayCoords(entity, 0.0F);
-        long seed = entity.getUUID().getLeastSignificantBits();
 
-        if (entity.hasEffect(ModEffects.MUTATION_HORN.get())) {
-            // Asymmetrischer Wuchs an linker Schlaefe; Seed-Jitter bricht starre Klon-Winkel
-            float jRot = ((seed & 0xF) - 7.5F) * 2.0F;
-            renderSocket(horn, head, TEX_HORN, poseStack, buffer, packedLight, overlay, -0.30F, -0.45F, -0.10F, 0, 0, jRot);
-        }
+        if (entity.hasEffect(ModEffects.MUTATION_HORN.get()))
+            renderMutation("mutation_horn", horn, TEX_HORN, null, poseStack, buffer, packedLight, overlay, entity, head);
 
-        if (entity.hasEffect(ModEffects.MUTATION_EYESTALK.get())) {
-            renderSocket(eyestalk, head, TEX_EYESTALK, poseStack, buffer, packedLight, overlay, 0.32F, -0.40F, -0.15F, 0, 0, 0);
-            // RenderType.eyes umgeht Umgebungslicht und triggert Bloom in Shadermods
-            renderGlow(eyestalk, head, TEX_EYESTALK_GLOW, poseStack, buffer, 0.32F, -0.40F, -0.15F, 0, 0, 0);
-        }
+        if (entity.hasEffect(ModEffects.MUTATION_EYESTALK.get()))
+            renderMutation("mutation_eyestalk", eyestalk, TEX_EYESTALK, TEX_EYESTALK_GLOW, poseStack, buffer, packedLight, overlay, entity, head);
 
-        if (entity.hasEffect(ModEffects.MUTATION_VISAGE.get()) && head != null) {
-            // Decal und Phosphor-Glow direkt auf Kopfgeometrie gelegt; benoetigt kein eigenes 3D-Mesh
-            poseStack.pushPose();
-            head.translateAndRotate(poseStack);
-            head.render(poseStack, buffer.getBuffer(RenderType.entityCutoutNoCull(TEX_VISAGE)), packedLight, overlay, 1F, 1F, 1F, 1F);
-            head.render(poseStack, buffer.getBuffer(RenderType.eyes(TEX_VISAGE_GLOW)), 15728640, OverlayTexture.NO_OVERLAY, 1F, 1F, 1F, 1F);
-            poseStack.popPose();
-        }
+        if (entity.hasEffect(ModEffects.MUTATION_VISAGE.get()))
+            renderMutation("mutation_visage", null, TEX_VISAGE, TEX_VISAGE_GLOW, poseStack, buffer, packedLight, overlay, entity, head);
 
-        if (entity.hasEffect(ModEffects.MUTATION_SECOND_FACE.get())) {
-            renderSocket(secondFace, body, TEX_SECOND_FACE, poseStack, buffer, packedLight, overlay, -0.22F, 0.15F, -0.18F, 0, 15F, 0);
-            renderGlow(secondFace, body, TEX_SECOND_FACE_GLOW, poseStack, buffer, -0.22F, 0.15F, -0.18F, 0, 15F, 0);
-        }
+        if (entity.hasEffect(ModEffects.MUTATION_SECOND_FACE.get()))
+            renderMutation("mutation_second_face", secondFace, TEX_SECOND_FACE, TEX_SECOND_FACE_GLOW, poseStack, buffer, packedLight, overlay, entity, null);
 
-        if (entity.hasEffect(ModEffects.MUTATION_PUSTULES.get())) {
-            renderSocket(pustules, body, TEX_PUSTULES, poseStack, buffer, packedLight, overlay, 0.25F, 0.20F, 0.12F, 0, 0, 0);
-        }
+        if (entity.hasEffect(ModEffects.MUTATION_PUSTULES.get()))
+            renderMutation("mutation_pustules", pustules, TEX_PUSTULES, null, poseStack, buffer, packedLight, overlay, entity, null);
 
-        if (entity.hasEffect(ModEffects.MUTATION_CREST.get())) {
-            renderSocket(crest, body, TEX_CREST, poseStack, buffer, packedLight, overlay, 0.0F, 0.05F, 0.18F, 0, 0, 0);
-        }
+        if (entity.hasEffect(ModEffects.MUTATION_CREST.get()))
+            renderMutation("mutation_crest", crest, TEX_CREST, null, poseStack, buffer, packedLight, overlay, entity, null);
 
-        if (entity.hasEffect(ModEffects.MUTATION_SPUR.get())) {
-            // Fallback auf Torso verhindert Renderabbrueche bei armlosen Kreaturen wie Creepern
-            ModelPart target = arm != null ? arm : body;
-            renderSocket(spur, target, TEX_SPUR, poseStack, buffer, packedLight, overlay, arm != null ? 0.0F : -0.28F, 0.25F, 0.15F, 0, 0, 0);
-        }
+        if (entity.hasEffect(ModEffects.MUTATION_SPUR.get()))
+            renderMutation("mutation_spur", spur, TEX_SPUR, null, poseStack, buffer, packedLight, overlay, entity, null);
 
-        if (entity.hasEffect(ModEffects.MUTATION_CARAPACE.get())) {
-            renderSocket(carapace, body, TEX_CARAPACE, poseStack, buffer, packedLight, overlay, -0.28F, -0.05F, 0.0F, 0, 0, 0);
-        }
+        if (entity.hasEffect(ModEffects.MUTATION_CARAPACE.get()))
+            renderMutation("mutation_carapace", carapace, TEX_CARAPACE, null, poseStack, buffer, packedLight, overlay, entity, null);
 
-        if (entity.hasEffect(ModEffects.MUTATION_CLUBFOOT.get())) {
-            renderSocket(clubfoot, leg, TEX_CLUBFOOT, poseStack, buffer, packedLight, overlay, 0.0F, 0.20F, 0.0F, 0, 0, 0);
-        }
+        if (entity.hasEffect(ModEffects.MUTATION_CLUBFOOT.get()))
+            renderMutation("mutation_clubfoot", clubfoot, TEX_CLUBFOOT, null, poseStack, buffer, packedLight, overlay, entity, null);
 
-        if (entity.hasEffect(ModEffects.MUTATION_MAW.get())) {
-            renderSocket(maw, head, TEX_MAW, poseStack, buffer, packedLight, overlay, 0.0F, 0.0F, -0.15F, 0, 0, 0);
-        }
+        if (entity.hasEffect(ModEffects.MUTATION_MAW.get()))
+            renderMutation("mutation_maw", maw, TEX_MAW, null, poseStack, buffer, packedLight, overlay, entity, head);
     }
 
-    private void renderSocket(Model model, ModelPart bone, ResourceLocation tex, PoseStack poseStack, MultiBufferSource buffer, int packedLight, int overlay, float tx, float ty, float tz, float rx, float ry, float rz) {
-        if (bone == null) return;
+    private void renderMutation(String mutationId, Model model, ResourceLocation tex, ResourceLocation glowTex, PoseStack poseStack, MultiBufferSource buffer, int packedLight, int overlay, T entity, ModelPart fallbackBone) {
+        ResourceLocation entityRl = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+
+        MutationOffsetLoader.MutationOffset offset;
+        // Studio-Zustand uebersteuert den Offset live im RAM, sobald der Editor fuer diese Mutation aktiv ist
+        if (MutationStudioScreen.isStudioActive && mutationId.equals(MutationStudioScreen.studioActiveMutation)) {
+            offset = new MutationOffsetLoader.MutationOffset(
+                MutationStudioScreen.studioSelectedBone,
+                MutationStudioScreen.studioX, MutationStudioScreen.studioY, MutationStudioScreen.studioZ,
+                MutationStudioScreen.studioScaleX, MutationStudioScreen.studioScaleY, MutationStudioScreen.studioScaleZ,
+                MutationStudioScreen.studioRotX, MutationStudioScreen.studioRotY, MutationStudioScreen.studioRotZ
+            );
+        } else {
+            offset = MutationOffsetLoader.getOffset(entityRl, mutationId);
+        }
+
         poseStack.pushPose();
-        bone.translateAndRotate(poseStack);
-        poseStack.translate(tx, ty, tz);
-        if (rx != 0) poseStack.mulPose(Axis.XP.rotationDegrees(rx));
-        if (ry != 0) poseStack.mulPose(Axis.YP.rotationDegrees(ry));
-        if (rz != 0) poseStack.mulPose(Axis.ZP.rotationDegrees(rz));
-        model.renderToBuffer(poseStack, buffer.getBuffer(RenderType.entityCutoutNoCull(tex)), packedLight, overlay, 1F, 1F, 1F, 1F);
-        poseStack.popPose();
-    }
 
-    private void renderGlow(Model model, ModelPart bone, ResourceLocation tex, PoseStack poseStack, MultiBufferSource buffer, float tx, float ty, float tz, float rx, float ry, float rz) {
-        if (bone == null) return;
-        poseStack.pushPose();
-        bone.translateAndRotate(poseStack);
-        poseStack.translate(tx, ty, tz);
-        if (rx != 0) poseStack.mulPose(Axis.XP.rotationDegrees(rx));
-        if (ry != 0) poseStack.mulPose(Axis.YP.rotationDegrees(ry));
-        if (rz != 0) poseStack.mulPose(Axis.ZP.rotationDegrees(rz));
-        model.renderToBuffer(poseStack, buffer.getBuffer(RenderType.eyes(tex)), 15728640, OverlayTexture.NO_OVERLAY, 1F, 1F, 1F, 1F);
-        poseStack.popPose();
-    }
-
-	private ModelPart getBone(EntityModel<?> model, String... candidates) {
-        if (candidates.length == 0) return null;
-        String primary = candidates[0];
-
-        // 1. Prioritaet: HeadedModel-Interface (Humanoids, Zombies, Skelette)
-        if ("head".equals(primary) && model instanceof HeadedModel headed) {
-            return headed.getHead();
+        boolean boneApplied = false;
+        if (!offset.bone.isEmpty()) {
+            boneApplied = ModelBoneScanner.applyBoneTransforms(this.getParentModel(), offset.bone, poseStack);
+        }
+        if (!boneApplied && fallbackBone != null) {
+            fallbackBone.translateAndRotate(poseStack);
+            boneApplied = true;
         }
 
-        // 2. Prioritaet: HierarchicalModel (Creeper, Warden, Frogs etc.) - nutzt unverschleierte String-Keys
-        if (model instanceof net.minecraft.client.model.HierarchicalModel<?> hierarchical) {
-            ModelPart root = hierarchical.root();
-            for (String cand : candidates) {
-                if (root.hasChild(cand)) {
-                    return root.getChild(cand);
+        if (boneApplied) {
+            poseStack.translate(offset.x, offset.y, offset.z);
+            if (offset.rotX != 0) poseStack.mulPose(Axis.XP.rotationDegrees(offset.rotX));
+            if (offset.rotY != 0) poseStack.mulPose(Axis.YP.rotationDegrees(offset.rotY));
+            if (offset.rotZ != 0) poseStack.mulPose(Axis.ZP.rotationDegrees(offset.rotZ));
+
+            // Jitter wird im Studio deaktiviert, damit die Ausrichtung auf dem Bildschirm exakt bleibt
+            if (!MutationStudioScreen.isStudioActive && "mutation_horn".equals(mutationId)) {
+                float jRot = ((entity.getUUID().getLeastSignificantBits() & 0xF) - 7.5F) * 2.0F;
+                poseStack.mulPose(Axis.ZP.rotationDegrees(jRot));
+            }
+
+            poseStack.scale(offset.scaleX, offset.scaleY, offset.scaleZ);
+
+            if (model != null) {
+                model.renderToBuffer(poseStack, buffer.getBuffer(RenderType.entityCutoutNoCull(tex)), packedLight, overlay, 1F, 1F, 1F, 1F);
+                if (glowTex != null) {
+                    model.renderToBuffer(poseStack, buffer.getBuffer(RenderType.eyes(glowTex)), 15728640, OverlayTexture.NO_OVERLAY, 1F, 1F, 1F, 1F);
+                }
+            } else if (fallbackBone != null) {
+                // Decal-Mutationen (Visage) besitzen kein Mesh und rendern direkt auf die Elternflaeche
+                fallbackBone.render(poseStack, buffer.getBuffer(RenderType.entityCutoutNoCull(tex)), packedLight, overlay, 1F, 1F, 1F, 1F);
+                if (glowTex != null) {
+                    fallbackBone.render(poseStack, buffer.getBuffer(RenderType.eyes(glowTex)), 15728640, OverlayTexture.NO_OVERLAY, 1F, 1F, 1F, 1F);
                 }
             }
         }
 
-        // 3. Prioritaet: Cache & Reflection fuer unstrukturierte Custom-Modelle
-        Class<?> cls = model.getClass();
-        Map<String, Field> map = BONE_CACHE.computeIfAbsent(cls, k -> new HashMap<>());
-        if (map.containsKey(primary)) {
-            Field f = map.get(primary);
-            try { return f != null ? (ModelPart) f.get(model) : null; } catch (Exception e) { return null; }
-        }
-
-        for (Class<?> c = cls; c != null && c != Object.class; c = c.getSuperclass()) {
-            for (Field f : c.getDeclaredFields()) {
-                if (ModelPart.class.isAssignableFrom(f.getType())) {
-                    String name = f.getName().toLowerCase(Locale.ROOT);
-                    for (String cand : candidates) {
-                        if (name.contains(cand.toLowerCase(Locale.ROOT))) {
-                            f.setAccessible(true);
-                            map.put(primary, f);
-                            try { return (ModelPart) f.get(model); } catch (Exception e) { return null; }
-                        }
-                    }
-                }
-            }
-        }
-        map.put(primary, null);
-        return null;
+        poseStack.popPose();
     }
 }

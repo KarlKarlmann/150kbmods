@@ -21,7 +21,9 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
-import net.magister.bookofdragons.entity.state.GroundStance;
+import net.magister.liberanimalium.chassis.component.CommandComponent;
+import net.magister.liberanimalium.chassis.component.command.Modifier;
+import net.magister.liberanimalium.chassis.component.command.Stance;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -253,7 +255,7 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
         }
         this.markDirty();
 
-        Entity entity = EntityType.loadEntityRecursive(dragonTag, level, (e) -> {
+		Entity entity = EntityType.loadEntityRecursive(dragonTag, level, (e) -> {
             e.moveTo(spawnPos.getX() + 0.5, spawnPos.getY() + 1.0, spawnPos.getZ() + 0.5, 0, 0);
 
 			BlockPos roostPos = this.getBuilding() != null ? this.getBuilding().getPosition() : spawnPos;
@@ -275,8 +277,12 @@ public class DragonStorageModule extends AbstractBuildingModule implements IPers
         });
 
         if (entity instanceof DragonBase dragon) {
-            dragon.setCommand(0);
-            dragon.setGroundStance(GroundStance.IDLE);
+            dragon.setTame(true);
+            dragon.setTamingRitualCompleted(true);
+            CommandComponent cmd = (CommandComponent) dragon.componentRegistry.get(CommandComponent.class);
+            if (cmd != null) {
+                cmd.setCommandForced(Stance.FREE, Stance.FREE.defaultModifier());
+            }
             level.addFreshEntity(dragon);
             return dragon;
         }

@@ -20,13 +20,10 @@ import net.kb150.dragoncolonies.network.DragonColoniesNetwork;
 import net.kb150.dragoncolonies.network.message.RiderLeapMessage;
 import net.kb150.dragoncolonies.util.DragonStatusHelper;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
-import net.magister.bookofdragons.entity.component.ranged.OmniAttackHandler;
-import net.magister.bookofdragons.entity.state.GroundStance;
-import net.magister.bookofdragons.entity.ai.movement.AIMovementComponent;
+import net.magister.liberanimalium.chassis.component.CommandComponent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.phys.Vec3;
@@ -37,6 +34,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Basis-KI fuer Drachenreiter-Wachen in MineColonies.
+ * Verwaltet den Arbeits- und Patrouillenalltag, Hort-Abruf und FAUNA-Mounting.
+ */
 public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>, B extends AbstractBuildingGuards> extends AbstractEntityAIGuard<J, B> {
 
     protected DragonBase assignedDragon = null;
@@ -50,11 +51,11 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
     private final MountedDragonController flightController = new MountedDragonController();
     private static final java.util.Map<java.util.UUID, AbstractEntityAIDragonRider<?, ?>> RIDERS_BY_CITIZEN = new java.util.concurrent.ConcurrentHashMap<>();
     private static java.lang.reflect.Field SLEEP_TIMER_FIELD;
-	private List<BlockPos> activeOrbitRing = null;
-	private int currentOrbitIndex = 0;
+
+    private List<BlockPos> activeOrbitRing = null;
+    private int currentOrbitIndex = 0;
     private BlockPos lastReachedPatrolPoint = null;
     private long radarTickCounter = 0;
-    private int cachedLoiterAltitude = -1;
 
     static {
         try {
@@ -114,7 +115,7 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
 
         DragonBase currentDragon = getAssignedDragon();
 
-        // Fallback ohne Drachen: Nutzen des nativer Fußgänger-Follows von MineColonies
+        // Fallback ohne Drachen: Regulaeres Folgen zu Fuss
         if (!hasDragonOrCanGetOne() || currentDragon == null) {
             if (com.minecolonies.api.util.BlockPosUtil.getDistance2D(this.worker.blockPosition(), followPos) > 30L) {
                 com.minecolonies.core.util.TeleportHelper.teleportCitizen(this.worker, level, followPos);
@@ -124,13 +125,13 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             return null;
         }
 
-        // Drache vorhanden, aber Wache noch nicht aufgesessen -> Mount-Phase einleiten
+        // Drache vorhanden, aber Wache noch nicht aufgesessen
         if (this.worker.getVehicle() != currentDragon) {
             this.isMountingDragon = true;
             return null;
         }
 
-        // Distanzprüfung zum Folge-Ziel (>35 Blöcke = Verschütt gegangen)
+        // Distanzpruefung zum Folge-Ziel (>35 Bloecke = Verschuett gegangen)
         double distSq = this.worker.distanceToSqr(followPos.getX() + 0.5D, followPos.getY() + 1.0D, followPos.getZ() + 0.5D);
         if (distSq > 35.0D * 35.0D) {
             teleportDragonAndRider(currentDragon, this.worker, followPos);
@@ -139,15 +140,15 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             return null;
         }
 
-        // Normale Flug-Ansteuerung: walkToUnSafePos wird direkt von DragonNavigationHandler.handleDragonFlight abgefangen
+        // Registriert das Folge-Ziel als Luftkorridor
+        DragonNavigationHandler.setAirTarget(this.worker.getUUID(), followPos);
+
         int desiredRange = this.buildingGuards.isTightGrouping() ? 6 : 15;
         this.walkToUnSafePos(followPos, desiredRange);
 
         return null;
     }
 
-    // Teleportiert Drache und Wache als unzertrennliche Einheit an die Zielposition, 
-    // ohne dass die Rider-Beziehung im Minecraft-Speicher gelöst wird.
     private void teleportDragonAndRider(DragonBase dragon, AbstractEntityCitizen citizen, BlockPos targetPos) {
         double x = targetPos.getX() + 0.5D;
         double y = targetPos.getY() + 1.0D;
@@ -159,9 +160,7 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             citizen.startRiding(dragon, true);
         }
 
-        if (dragon.getAIMovement() != null) {
-            dragon.getAIMovement().clearAllWaypoints();
-        }
+        dragon.applyMove(null);
         citizen.getNavigation().stop();
     }
 
@@ -284,7 +283,8 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
                         currentDragon,
                         this.building,
                         this.radarTickCounter,
-                        this.currentPatrolPoint
+                        this.currentPatrolPoint,
+                        !hasAxe() || isReturningDragon
                 );
             }
         }
@@ -326,21 +326,24 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
                     this.worker.getName().getString(), workerHasAxe, this.building != null);
         }
 
-        // Kein pauschales Aufsitzen in decide(); nur die Tasks patrol() und dragonFollow() fordern ein Aufsitzen an.
+        if (shouldWork && currentDragon != null && currentDragon.isAlive() && !isReturningDragon && this.worker.getVehicle() != currentDragon) {
+            this.isMountingDragon = true;
+        }
 
+        // Drache muss zurueck in den Hort, falls verletzt, hungrig oder entfremdet (isEstranged)
         boolean dragonNeedsReturn = currentDragon != null && currentDragon.isAlive() && !DragonStatusHelper.isFitToFly(currentDragon);
 
         if (currentDragon != null && (!workerHasAxe || dragonNeedsReturn)) {
             if (!this.isReturningDragon) {
                 this.isReturningDragon = true;
                 currentDragon.setTarget(null);
+                currentDragon.dropTrigger();
                 DragonColonies.debug("NAVIGATION", "[RETURN-TRIGGER] Rueckruf eingeleitet | WacheAxt: {} | FitToFly: {}",
                         workerHasAxe, !dragonNeedsReturn);
             }
         }
 
-        // Solange der Drache auf dem Heimweg ist, füttern wir nur die Hort-Navigation.
-        // super.decide() darf NICHT aufgerufen werden, damit MineColonies keine Patrouillenbefehle abfeuert.
+        // Solange der Drache auf dem Heimweg ist, füttern wir nur die Hort-Navigation
         if (this.isReturningDragon && currentDragon != null) {
             handleReturnDragonToRoost(level);
             return null;
@@ -349,96 +352,75 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         return super.decide();
     }
 
-	@Override
-	public IAIState patrol() {
-		if (this.buildingGuards == null || !(this.worker.level() instanceof ServerLevel level)) return super.patrol();
-		if (this.worker.getTarget() != null && this.worker.getTarget().isAlive()) return null;
+    @Override
+    public IAIState patrol() {
+        if (this.buildingGuards == null || !(this.worker.level() instanceof ServerLevel level)) return super.patrol();
 
-		DragonBase currentDragon = getAssignedDragon();
-		if (!hasDragonOrCanGetOne()) return super.patrol();
-		if (this.worker.getVehicle() != currentDragon) {
-			this.isMountingDragon = true;
-			return null;
-		}
+        DragonBase currentDragon = getAssignedDragon();
+        if (!hasDragonOrCanGetOne()) return super.patrol();
+        if (this.worker.getVehicle() != currentDragon) {
+            this.isMountingDragon = true;
+            return null;
+        }
 
-		BlockPos rawTarget = this.buildingGuards.getNextPatrolTarget(false);
-		if (rawTarget == null) return null;
+        // Bei Feindkontakt pausiert die Patrouille sofort (wie im Original 1.3),
+        // damit die Patrouillenrouten nicht gegen die Kampf-Positionierung ankaempfen!
+        if (this.worker.getTarget() != null && this.worker.getTarget().isAlive()) {
+            return null;
+        }
 
-		// Fall A: Wache haelt die Stellung am Posten und kreist im Orbit
-		if (rawTarget.equals(this.lastReachedPatrolPoint)) {
-			if (this.activeOrbitRing == null || this.activeOrbitRing.isEmpty()) {
-				this.activeOrbitRing = generateOrbitRing(rawTarget, 16, 12);
-				DragonNavigationHandler.registerAirRoute(this.worker.getUUID(), this.activeOrbitRing);
-				this.currentOrbitIndex = 0;
-			}
+        BlockPos rawTarget = this.buildingGuards.getNextPatrolTarget(false);
+        if (rawTarget == null) return null;
 
-			// Weiterschalten zum naechsten Ringpunkt erst, wenn der vorherige passiert wurde
-			if (this.currentPatrolPoint == null || this.walkToSafePos(this.currentPatrolPoint)) {
-				this.currentPatrolPoint = this.activeOrbitRing.get(this.currentOrbitIndex);
-				this.currentOrbitIndex = (this.currentOrbitIndex + 1) % this.activeOrbitRing.size();
-				this.walkToSafePos(this.currentPatrolPoint);
-			}
-			return null;
-		}
+        // Fall A: Wache haelt die Stellung am Posten und kreist im 8-Punkte-Orbit
+        if (rawTarget.equals(this.lastReachedPatrolPoint)) {
+            if (this.activeOrbitRing == null || this.activeOrbitRing.isEmpty()) {
+                this.activeOrbitRing = generateOrbitRing(rawTarget, 16, 12);
+                DragonNavigationHandler.registerAirRoute(this.worker.getUUID(), this.activeOrbitRing);
+                this.currentOrbitIndex = 0;
+            }
 
-		// Fall B: Neuer Wachposten zugewiesen -> Route initialisieren und Erstanflug starten
-		this.activeOrbitRing = null; // Alten Orbit verwerfen
-		DragonNavigationHandler.clearAirRoute(this.worker.getUUID());
+            // Weiterschalten zum naechsten Ringpunkt erst, wenn der vorherige passiert wurde
+            if (this.currentPatrolPoint == null || this.walkToSafePos(this.currentPatrolPoint)) {
+                this.currentPatrolPoint = this.activeOrbitRing.get(this.currentOrbitIndex);
+                this.currentOrbitIndex = (this.currentOrbitIndex + 1) % this.activeOrbitRing.size();
+                this.walkToSafePos(this.currentPatrolPoint);
+            }
+            return null;
+        }
 
-		this.currentPatrolPoint = (this.building instanceof BuildingDragonRoost roost && roost.getStorageModule() != null)
-				? roost.getStorageModule().getSafeAirTarget(level, rawTarget)
-				: DragonNavigationHandler.getHighAirPos(level, rawTarget);
+        // Fall B: Neuer Wachposten zugewiesen -> Route initialisieren und Erstanflug starten
+        this.activeOrbitRing = null;
+        DragonNavigationHandler.clearAirRoute(this.worker.getUUID());
 
-		// Registriert Erstanflug PLUS den zukuenftigen Orbitring vorab, damit MineColonies-Versatz niemals Air:false triggert
-		List<BlockPos> fullRoute = new ArrayList<>();
-		fullRoute.add(this.currentPatrolPoint);
-		fullRoute.addAll(generateOrbitRing(rawTarget, 16, 12));
-		DragonNavigationHandler.registerAirRoute(this.worker.getUUID(), fullRoute);
+        this.currentPatrolPoint = (this.building instanceof BuildingDragonRoost roost && roost.getStorageModule() != null)
+                ? roost.getStorageModule().getSafeAirTarget(level, rawTarget)
+                : DragonNavigationHandler.getHighAirPos(level, rawTarget);
 
-		// Exakt ein Navigationsaufruf pro Zyklus. Wenn erreicht, Vollzug melden; der Orbit startet erst im Folgetick.
-		if (this.walkToSafePos(this.currentPatrolPoint)) {
-			this.lastReachedPatrolPoint = rawTarget;
-			this.buildingGuards.arrivedAtPatrolPoint(this.worker);
-		}
+        // Registriert Erstanflug PLUS den zukuenftigen Orbitring vorab
+        List<BlockPos> fullRoute = new ArrayList<>();
+        fullRoute.add(this.currentPatrolPoint);
+        fullRoute.addAll(generateOrbitRing(rawTarget, 16, 12));
+        DragonNavigationHandler.registerAirRoute(this.worker.getUUID(), fullRoute);
 
-		return null;
-	}
-	
-	private List<BlockPos> generateOrbitRing(BlockPos center, int radius, int yOffset) {
-		List<BlockPos> ring = new ArrayList<>(8);
-		for (int i = 0; i < 8; i++) {
-			double angle = i * (Math.PI / 4.0); // 45-Grad-Schritte fuer 8 Segmente
-			int x = center.getX() + (int) Math.round(radius * Math.cos(angle));
-			int z = center.getZ() + (int) Math.round(radius * Math.sin(angle));
-			ring.add(new BlockPos(x, center.getY() + yOffset, z));
-		}
-		return ring;
-	}
-    // Ersetzt die alte instabile yaw+25°-Pfeilgeometrie durch zentrierte Polarkoordinaten, 
-    // um das Aufschaukeln der Kurvenradien bei Richtungswechseln zu verhindern.
-    private BlockPos calculateKinematicOrbitPoint(DragonBase dragon, BlockPos center, ServerLevel level) {
-        Vec3 pos = dragon.position();
-        double dx = pos.x - (center.getX() + 0.5D);
-        double dz = pos.z - (center.getZ() + 0.5D);
-        double dist = Math.sqrt(dx * dx + dz * dz);
+        // Exakt ein Navigationsaufruf pro Zyklus. Wenn erreicht, Vollzug melden; der Orbit startet im Folgetick.
+        if (this.walkToSafePos(this.currentPatrolPoint)) {
+            this.lastReachedPatrolPoint = rawTarget;
+            this.buildingGuards.arrivedAtPatrolPoint(this.worker);
+        }
 
-        double angle = (dist < 0.1D) ? 0.0D : Math.atan2(dz, dx);
-        double nextAngle = angle + Math.toRadians(35.0D);
-        double radius = Mth.lerp(0.3D, dist, 22.0D);
+        return null;
+    }
 
-        // Baut pro Orbit-Schritt 1 Block Höhe auf (max. +20m über Ziel),
-        // um Höhenvorteil für den nächsten Anflug zu gewinnen.
-        int targetY = Math.min(center.getY() + 20, dragon.blockPosition().getY() + 1);
-
-        BlockPos rawOrbitPos = new BlockPos(
-            Mth.floor((center.getX() + 0.5D) + Math.cos(nextAngle) * radius),
-            targetY,
-            Mth.floor((center.getZ() + 0.5D) + Math.sin(nextAngle) * radius)
-        );
-
-        return (this.building instanceof BuildingDragonRoost roost && roost.getStorageModule() != null)
-                ? roost.getStorageModule().getSafeAirTarget(level, rawOrbitPos)
-                : DragonNavigationHandler.getHighAirPos(level, rawOrbitPos);
+    private List<BlockPos> generateOrbitRing(BlockPos center, int radius, int yOffset) {
+        List<BlockPos> ring = new ArrayList<>(8);
+        for (int i = 0; i < 8; i++) {
+            double angle = i * (Math.PI / 4.0); // 45-Grad-Schritte fuer 8 Segmente
+            int x = center.getX() + (int) Math.round(radius * Math.cos(angle));
+            int z = center.getZ() + (int) Math.round(radius * Math.sin(angle));
+            ring.add(new BlockPos(x, center.getY() + yOffset, z));
+        }
+        return ring;
     }
 
     public void handleMountingPhase(AbstractEntityCitizen citizen) {
@@ -460,20 +442,17 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             this.mountingTicks++;
             double distSqr = citizen.distanceToSqr(currentDragon);
 
-            AIMovementComponent move = currentDragon.getAIMovement();
-            boolean navInProgress = move != null && move.isPathing();
-
             if (this.mountingTicks % 10 == 0 || this.mountingTicks == 1) {
-                DragonColonies.debug("NAVIGATION", "[MOUNT-PHASE] Tick: {} | DistSqr: {} | DragonNavInProgress: {} | CitizenPos: {} | DragonPos: {}",
-                        this.mountingTicks, String.format("%.2f", distSqr), navInProgress, citizen.blockPosition().toShortString(), currentDragon.blockPosition().toShortString());
+                DragonColonies.debug("NAVIGATION", "[MOUNT-PHASE] Tick: {} | DistSqr: {} | CitizenPos: {} | DragonPos: {}",
+                        this.mountingTicks, String.format("%.2f", distSqr), citizen.blockPosition().toShortString(), currentDragon.blockPosition().toShortString());
             }
 
-            // BoD-Drachen benoetigen AIMovementComponent fuer synchrone Rumpfausrichtung; Vanilla-moveTo laesst den Body-Yaw einfrieren.
-            if (move != null && !navInProgress) {
-                move.setWaypoint(citizen.position(), 1.35D);
-                DragonColonies.debug("NAVIGATION", "[MOUNT-NAV] BoD-Waypoint gesetzt fuer Heranrufen -> Ziel: {}", citizen.blockPosition().toShortString());
+            // Bringt den Drachen am Boden ueber die regulaere Pfadfindung heran
+            if (distSqr > 16.0D && this.mountingTicks % 20 == 1) {
+                currentDragon.getNavigation().moveTo(citizen, 1.25D);
             }
 
+            // Aufsitz-Distanz erreicht: Sprung-Animation und startRiding
             if (distSqr <= 16.0D) {
                 Vec3 startPos = citizen.position();
                 Vec3 targetPos = new Vec3(currentDragon.getX(), currentDragon.getY() + 0.5D, currentDragon.getZ());
@@ -484,45 +463,53 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
                 if (mounted) {
                     this.isMountingDragon = false;
                     this.mountingTicks = 0;
-                    if (move != null) move.clearAllWaypoints();
-                    currentDragon.setCommand(0);
-                    currentDragon.setGroundStance(GroundStance.IDLE);
+                    currentDragon.applyMove(null);
+                    currentDragon.getNavigation().stop();
+
+                    CommandComponent cmd = (CommandComponent) currentDragon.componentRegistry.get(CommandComponent.class);
+                    if (cmd != null) {
+                        cmd.wakeFromRest();
+                    }
                     currentDragon.getPersistentData().putUUID("DragonColonies_GuardUUID", citizen.getUUID());
                     return;
                 }
             }
 
+            // Timeout-Schutz: Bei Feststecken direkter Zwangstransfer
             if (this.mountingTicks >= MAX_MOUNT_TICKS || citizen.getNavigation().isStuck()) {
                 Vec3 startPos = citizen.position();
                 Vec3 targetPos = new Vec3(currentDragon.getX(), currentDragon.getY() + 0.5D, currentDragon.getZ());
 
-                DragonColonies.debug("NAVIGATION", "[MOUNT-FORCE] Timeout/Stuck erreicht (Ticks: {}) -> Teleportiere Citizen zu Drache", this.mountingTicks);
+                DragonColonies.debug("NAVIGATION", "[MOUNT-FORCE] Timeout erreicht (Ticks: {}) -> Teleportiere Citizen zu Drache", this.mountingTicks);
 
                 triggerMountLeapEffect(citizen, startPos, targetPos);
-
                 citizen.moveTo(targetPos.x, targetPos.y, targetPos.z);
                 boolean mounted = citizen.startRiding(currentDragon, true);
-                DragonColonies.debug("NAVIGATION", "[MOUNT-FORCE] startRiding(force) ausgefuehrt -> Erfolg: {}", mounted);
+
                 if (mounted) {
                     this.isMountingDragon = false;
                     this.mountingTicks = 0;
+                    currentDragon.applyMove(null);
                     currentDragon.getNavigation().stop();
-                    currentDragon.setCommand(0);
-                    currentDragon.setGroundStance(GroundStance.IDLE);
+
+                    CommandComponent cmd = (CommandComponent) currentDragon.componentRegistry.get(CommandComponent.class);
+                    if (cmd != null) {
+                        cmd.wakeFromRest();
+                    }
                     currentDragon.getPersistentData().putUUID("DragonColonies_GuardUUID", citizen.getUUID());
                 }
             }
         }
     }
 
-	public IAIState handleDragonControl() {
-		if (this.worker != null && getAssignedDragon() != null) {
-			RIDERS_BY_CITIZEN.put(this.worker.getUUID(), this);
-		}
-		// Verhindert Deadlock im Zustand NO_TARGET: Gibt die Kontrolle an decide() zurueck,
-		// damit Hunger und Schichtwechsel ausgewertet werden koennen, statt im Sattel zu verhungern.
-		return this.decide();
-	}
+    public IAIState handleDragonControl() {
+        if (this.worker != null && getAssignedDragon() != null) {
+            RIDERS_BY_CITIZEN.put(this.worker.getUUID(), this);
+        }
+        // Verhindert Deadlock im Zustand NO_TARGET / GUARD_GUARD: Gibt die Kontrolle an decide() zurueck,
+        // damit Hunger, Schichtwechsel und Patrouillen-Updates ausgewertet werden koennen.
+        return this.decide();
+    }
 
     private void syncAssignedDragon(ServerLevel level) {
         if (this.worker != null && this.worker.getVehicle() instanceof DragonBase ridingDragon) {
@@ -606,12 +593,10 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
             DragonColonies.debug("AI", "[RETRIEVE-SCAN] Drache #{}: Fit={}, Mode='{}', AssignedId={}, WorkerId={}",
                     i, fit, mode, assignedId, workerCitizenId);
 
-            if (fit) {
-                if (DragonStorageModule.MODE_ASSIGNED.equals(mode) && assignedId == workerCitizenId) {
-                    targetDragonNbt = tag;
-                    DragonColonies.debug("AI", "[RETRIEVE-MATCH] Passender zugewiesener Drache gefunden (Index {})", i);
-                    break;
-                }
+            if (fit && DragonStorageModule.MODE_ASSIGNED.equals(mode) && assignedId == workerCitizenId) {
+                targetDragonNbt = tag;
+                DragonColonies.debug("AI", "[RETRIEVE-MATCH] Passender zugewiesener Drache gefunden (Index {})", i);
+                break;
             }
         }
 
@@ -655,17 +640,17 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         return false;
     }
 
-	private void handleReturnDragonToRoost(ServerLevel level) {
-		DragonBase currentDragon = getAssignedDragon();
-		if (currentDragon == null || !isReturningDragon) {
-			return;
-		}
+    private void handleReturnDragonToRoost(ServerLevel level) {
+        DragonBase currentDragon = getAssignedDragon();
+        if (currentDragon == null || !isReturningDragon) {
+            return;
+        }
 
-		this.activeOrbitRing = null;
-		this.currentOrbitIndex = 0;
-		DragonNavigationHandler.clearAirRoute(this.worker.getUUID());
+        this.activeOrbitRing = null;
+        this.currentOrbitIndex = 0;
+        DragonNavigationHandler.clearAirRoute(this.worker.getUUID());
 
-		if (this.building instanceof BuildingDragonRoost roost) {
+        if (this.building instanceof BuildingDragonRoost roost) {
             BlockPos roostPos = roost.getPosition();
 
             this.walkToSafePos(roostPos);
@@ -678,7 +663,7 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
 
             if (trueDistance < 16.0D) {
                 if (this.worker.isPassenger() || currentDragon.getPassengers().contains(this.worker)) {
-					this.worker.stopRiding();
+                    this.worker.stopRiding();
                 }
 
                 DragonStorageModule storage = roost.getStorageModule();
@@ -700,11 +685,10 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         if (!this.isReturningDragon && currentDragon != null) {
             this.isReturningDragon = true;
             currentDragon.setTarget(null);
-            DragonNavigationHandler.setAirTarget(this.worker.getUUID(), null);
-            OmniAttackHandler h = (OmniAttackHandler) currentDragon.componentRegistry.get(OmniAttackHandler.class);
-            if (h != null && h.isAttacking()) {
-                h.handlePlayerFiring(false);
-            }
+            currentDragon.dropTrigger(); // Bricht alle aktiven Atem-/Fernkampfangriffe in FAUNA ab
+            this.activeOrbitRing = null;
+            this.currentOrbitIndex = 0;
+            DragonNavigationHandler.clearAirRoute(this.worker.getUUID());
         }
     }
 
@@ -722,29 +706,29 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
         }
         return 0;
     }
-	
-	@Override
-	public void resetAI() {
-		super.resetAI();
-		this.activeOrbitRing = null;
-		this.currentOrbitIndex = 0;
-		if (this.worker != null) {
-			DragonNavigationHandler.clearAirRoute(this.worker.getUUID());
-		}
-	}
 
-	@Override
-	public void onRemoval() {
-		super.onRemoval();
-		this.activeOrbitRing = null;
-		this.currentOrbitIndex = 0;
-		// Beseitigt Referenzleichen auf Dedicated Servern, wenn Bürger sterben oder entlassen werden
-		if (this.worker != null) {
-			UUID id = this.worker.getUUID();
-			DragonNavigationHandler.clearAirRoute(id);
-			RIDERS_BY_CITIZEN.remove(id);
-		}
-	}
+    @Override
+    public void resetAI() {
+        super.resetAI();
+        this.activeOrbitRing = null;
+        this.currentOrbitIndex = 0;
+        if (this.worker != null) {
+            DragonNavigationHandler.clearAirRoute(this.worker.getUUID());
+        }
+    }
+
+    @Override
+    public void onRemoval() {
+        super.onRemoval();
+        this.activeOrbitRing = null;
+        this.currentOrbitIndex = 0;
+        if (this.worker != null) {
+            UUID id = this.worker.getUUID();
+            DragonNavigationHandler.clearAirRoute(id);
+            RIDERS_BY_CITIZEN.remove(id);
+        }
+    }
+
     @Override
     protected IAIState sleep() {
         DragonBase currentDragon = getAssignedDragon();
@@ -774,8 +758,5 @@ public abstract class AbstractEntityAIDragonRider<J extends AbstractJobGuard<J>,
 
     public void setPatrolPoint(BlockPos pos) {
         this.currentPatrolPoint = pos;
-        if (this.worker != null) {
-            DragonNavigationHandler.setAirTarget(this.worker.getUUID(), pos);
-        }
     }
 }

@@ -3,22 +3,22 @@ package net.kb150.dragoncolonies.util;
 import net.kb150.dragoncolonies.DragonColonies;
 import net.kb150.dragoncolonies.buildings.modules.DragonStorageModule;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
+import net.magister.liberanimalium.chassis.component.simulation.FaunaNeedsSystem;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 
 /**
  * Zentrale Single Source of Truth fuer den Status von Drachen.
  * Bewertet sowohl NBT-Daten aus dem Hort als auch Live-Entitaeten in der Welt
- * nach identischen, unbestechlichen Regeln.
+ * nach identischen, unbestechlichen Regeln (jetzt kompatibel mit BoD 1.4 / FAUNA Engine).
  */
 public final class DragonStatusHelper {
 
-    // Schwellenwerte fuer Hunger
-    public static final int HUNGER_THRESHOLD_FIT = 60;
-    public static final int HUNGER_THRESHOLD_FEEDING = 80;
+    // Schwellenwerte fuer Hunger (FAUNA-Skala: 0 - 100)
+    public static final int HUNGER_THRESHOLD_FIT = 40;
+    public static final int HUNGER_THRESHOLD_FEEDING = 70;
 
     // Mindest-Gesundheit in Prozent (50%), ab der ein Drache als akut verletzt gilt
     public static final float EMERGENCY_HEALTH_RATIO = 0.50f;
@@ -61,7 +61,7 @@ public final class DragonStatusHelper {
 
         if (!isAdult(tag)) return false;
 
-        // Ernährungszustand pruefen
+        // Ernährungszustand pruefen (unterstuetzt FaunaNeeds und Legacy-dragonNeeds)
         if (getFoodLevel(tag) < HUNGER_THRESHOLD_FIT) {
             DragonColonies.debug("AI", "[FIT-CHECK] Drache verweigert Flugdienst wegen Hunger: {}/100", getFoodLevel(tag));
             return false;
@@ -71,6 +71,12 @@ public final class DragonStatusHelper {
         if (isEmergencyInjured(tag)) {
             DragonColonies.debug("AI", "[FIT-CHECK] Drache verweigert Flugdienst wegen akuter Verletzung: {}/{} HP",
                     getHealth(tag), getMaxHealth(tag));
+            return false;
+        }
+
+        // Pruefung auf Flugunfaehigkeit durch Wunden (FAUNA PartWounds)
+        if (tag.contains("WoundGroundedTicks") && tag.getInt("WoundGroundedTicks") > 0) {
+            DragonColonies.debug("AI", "[FIT-CHECK] Drache hat Fluegelwunde (WoundGroundedTicks: {})", tag.getInt("WoundGroundedTicks"));
             return false;
         }
 
@@ -91,18 +97,35 @@ public final class DragonStatusHelper {
 
         if (!isAdult(dragon)) return false;
 
+        // 1. FAUNA Schmoll-Check: Entfremdete Drachen verweigern den Dienst komplett
+        if (dragon.isEstranged()) {
+            DragonColonies.debug("AI", "[FIT-CHECK-LIVE] Drache {} schmollt (isEstranged) -> Rueckruf",
+                    dragon.getName().getString());
+            return false;
+        }
+
+        // 2. FAUNA Flugfaehigkeit: Prueft physische Faehigkeit (Fluegellaehme/Wunde, Incapacitation, Schlaf)
+        if (!dragon.canFly()) {
+            DragonColonies.debug("AI", "[FIT-CHECK-LIVE] Drache {} kann physisch nicht fliegen (Wunde/Incap/Schlaf) -> Rueckruf",
+                    dragon.getName().getString());
+            return false;
+        }
+
+        // 3. Hunger-Check ueber FAUNA NeedsSystem
         if (getFoodLevel(dragon) < HUNGER_THRESHOLD_FIT) {
             DragonColonies.debug("AI", "[FIT-CHECK-LIVE] Drache {} hungrig ({}/100) -> Rueckruf",
                     dragon.getName().getString(), getFoodLevel(dragon));
             return false;
         }
 
+        // 4. Akute Verletzung
         if (isEmergencyInjured(dragon)) {
             DragonColonies.debug("AI", "[FIT-CHECK-LIVE] Drache {} akut verletzt ({}/{} HP) -> Rueckruf",
                     dragon.getName().getString(), dragon.getHealth(), dragon.getMaxHealth());
             return false;
         }
 
+        // 5. Physischer Sattel vorhanden
         if (!isSaddled(dragon)) {
             DragonColonies.debug("AI", "[FIT-CHECK-LIVE] Drache {} hat keinen Sattel im Slot 0 -> Rueckruf",
                     dragon.getName().getString());
@@ -113,17 +136,24 @@ public final class DragonStatusHelper {
     }
 
     public static int getFoodLevel(CompoundTag tag) {
-        if (tag == null || !tag.contains("dragonNeeds")) return 100;
-        CompoundTag needs = tag.getCompound("dragonNeeds");
-        return needs.contains("foodLevel") ? needs.getInt("foodLevel") : 100;
+        if (tag == null) return 100;
+        // FAUNA speichert unter "FaunaNeeds", aeltere BoD-Versionen unter "dragonNeeds"
+        CompoundTag needs = tag.contains("FaunaNeeds") ? tag.getCompound("FaunaNeeds")
+                : (tag.contains("dragonNeeds") ? tag.getCompound("dragonNeeds") : null);
+
+        if (needs != null && needs.contains("foodLevel")) {
+            return needs.getInt("foodLevel");
+        }
+        return 100;
     }
 
     public static int getFoodLevel(DragonBase dragon) {
         if (dragon == null) return 100;
-        if (dragon.getNeedsSystem() != null) {
-            return dragon.getNeedsSystem().getFoodLevel();
+        FaunaNeedsSystem needs = dragon.getNeedsSystem();
+        if (needs != null) {
+            return needs.getFoodLevel();
         }
-        return dragon.getEntityData().get(DragonBase.getHungerLevelData());
+        return 100;
     }
 
     public static boolean isHungry(CompoundTag tag) {
@@ -180,9 +210,7 @@ public final class DragonStatusHelper {
     }
 
     /**
-     * Wirtschaftlichkeitspruefung: Verhindert Verschwendung von Heilkraeutern
-     * fuer Mini-Kratzer. Eine Heilung lohnt sich, wenn der fehlende Betrag
-     * mindestens 65% der moeglichen Heilwirkung ausnutzt oder ein akuter Notfall vorliegt.
+     * Wirtschaftlichkeitspruefung fuer Heiler.
      */
     public static boolean isWorthHealing(CompoundTag tag, float calculatedHealAmount) {
         if (isEmergencyInjured(tag)) return true;
@@ -196,7 +224,6 @@ public final class DragonStatusHelper {
 
     /**
      * Prueft, ob in Slot 0 des BoD-Inventars physisch ein Sattel liegt.
-     * Verhindert Desyncs durch rein ephemere Speicher-Flags.
      */
     public static boolean isSaddled(CompoundTag tag) {
         if (tag == null) return false;
@@ -224,6 +251,6 @@ public final class DragonStatusHelper {
             return !slot0.isEmpty() && (slot0.is(net.minecraft.world.item.Items.SADDLE) || slot0.getDescriptionId().contains("saddle"));
         }
 
-        return dragon.isSaddled();
+        return dragon.m_6254_();
     }
 }

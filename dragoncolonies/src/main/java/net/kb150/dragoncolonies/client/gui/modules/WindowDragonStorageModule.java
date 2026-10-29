@@ -21,12 +21,11 @@ import net.kb150.dragoncolonies.util.DragonStatusHelper;
 
 import net.magister.bookofdragons.client.gui.book.DragonStatGrader;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
+import net.magister.bookofdragons.entity.base.dragon.GrowthStage;
 import net.magister.bookofdragons.entity.data.DragonType;
-import net.magister.bookofdragons.entity.data.GrowthStage;
-import net.magister.bookofdragons.entity.state.GroundStance;
-import net.magister.bookofdragons.entity.state.TransportMode;
-import net.magister.bookofdragons.entity.stats.PrimaryAttribute;
-import net.magister.bookofdragons.entity.stats.SpeciesStatRegistry;
+import net.magister.liberanimalium.body.gameplay.SpeciesGameplayRegistry;
+import net.magister.liberanimalium.body.state.TransportMode;
+import net.magister.liberanimalium.body.stats.PrimaryAttribute;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -299,7 +298,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             }
         }
         DragonType type = parseDragonType(tag);
-        return (type != null) ? type.getDisplayName() : Component.translatable("dragoncolonies.gui.module.dragon_storage.dragon_number", index + 1).getString();
+        return (type != null) ? getDragonTypeName(type) : Component.translatable("dragoncolonies.gui.module.dragon_storage.dragon_number", index + 1).getString();
     }
 
     private String buildPrioritizedSubInfo(CompoundTag tag, DragonType type) {
@@ -309,7 +308,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         float health = DragonStatusHelper.getHealth(tag);
         float maxHp = DragonStatusHelper.getMaxHealth(tag);
 
-        String species = (type != null) ? type.getDisplayName() : Component.translatable("dragoncolonies.gui.module.dragon_storage.unknown").getString();
+        String species = getDragonTypeName(type);
 
         String hpFormatted = String.format(Locale.ROOT, "%.0f", health);
         String maxHpFormatted = String.format(Locale.ROOT, "%.0f", maxHp);
@@ -318,6 +317,14 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
         String saddleTag = saddled ? " §6[Saddle]§r" : "";
 
         return Component.translatable("dragoncolonies.gui.module.dragon_storage.subinfo", hunger, hpFormatted, maxHpFormatted, species).getString() + saddleTag;
+    }
+
+    private String getDragonTypeName(DragonType type) {
+        if (type == null) return Component.translatable("dragoncolonies.gui.module.dragon_storage.unknown").getString();
+        if (type.getEntityType() != null) {
+            return type.getEntityType().getDescription().getString();
+        }
+        return type.getSerializedName();
     }
 
     private DragonType parseDragonType(CompoundTag tag) {
@@ -339,9 +346,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
     private String getSafeGradeString(DragonType type, PrimaryAttribute attr) {
         if (type == null) return "-";
         try {
-            if (SpeciesStatRegistry.getProfile(type.getSerializedName()) != null) {
-                return String.valueOf(DragonStatGrader.grade(type, attr));
-            }
+            return String.valueOf(DragonStatGrader.grade(type, attr));
         } catch (Exception ignored) {}
         return "-";
     }
@@ -353,7 +358,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
 
         if (this.detailName != null) this.detailName.setText(Component.literal(displayName));
         if (this.detailSpecies != null) {
-            String speciesStr = type != null ? type.getDisplayName() : Component.translatable("dragoncolonies.gui.module.dragon_storage.unknown").getString();
+            String speciesStr = getDragonTypeName(type);
             this.detailSpecies.setText(Component.translatable("dragoncolonies.gui.module.dragon_storage.species", speciesStr));
         }
 
@@ -365,7 +370,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
                 currentStage = 0;
             } else if (dragonNbt.contains("GrowthStage")) {
                 currentStage = dragonNbt.getInt("GrowthStage");
-                stageStr = GrowthStage.fromStageId(currentStage).getDisplayName();
+                stageStr = GrowthStage.fromStageId(currentStage).getDisplayName().getString();
             } else if (dragonNbt.contains("AgeTicks") && dragonNbt.getInt("AgeTicks") < 24000) {
                 stageStr = Component.translatable("dragoncolonies.gui.module.dragon_storage.stage.baby").getString();
                 currentStage = 0;
@@ -595,7 +600,6 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
             if (loaded instanceof LivingEntity living) {
                 if (living instanceof DragonBase dragon) {
                     dragon.setTransportMode(TransportMode.GROUNDED);
-                    dragon.setGroundStance(GroundStance.IDLE);
                 }
                 return living;
             }
@@ -608,7 +612,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
     private ItemStack getPrimaryDiet(DragonType type) {
         if (type == null) return ItemStack.EMPTY;
         try {
-            var profile = SpeciesStatRegistry.getProfile(type.getSerializedName());
+            var profile = SpeciesGameplayRegistry.getProfile(type.getSerializedName());
             if (profile != null && !profile.favoriteFoods().isEmpty()) {
                 Item item = ForgeRegistries.ITEMS.getValue(profile.favoriteFoods().iterator().next());
                 if (item != null) return new ItemStack(item);
@@ -620,7 +624,7 @@ public class WindowDragonStorageModule extends AbstractModuleWindow<DragonStorag
     private ItemStack getSpecialDiet(DragonType type) {
         if (type == null) return ItemStack.EMPTY;
         try {
-            var profile = SpeciesStatRegistry.getProfile(type.getSerializedName());
+            var profile = SpeciesGameplayRegistry.getProfile(type.getSerializedName());
             if (profile != null && !profile.specialFoods().isEmpty()) {
                 Item item = ForgeRegistries.ITEMS.getValue(profile.specialFoods().iterator().next());
                 if (item != null) return new ItemStack(item);

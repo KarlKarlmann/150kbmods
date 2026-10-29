@@ -17,10 +17,16 @@ public class WoerpNetwork {
     private static int id = 0;
 
     public static void register() {
-        CHANNEL.messageBuilder(SyncRadiationPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+		CHANNEL.messageBuilder(SyncRadiationPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(SyncRadiationPacket::encode)
                 .decoder(SyncRadiationPacket::new)
                 .consumerNetworkThread(SyncRadiationPacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(OpenMutationStudioPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(OpenMutationStudioPacket::encode)
+                .decoder(OpenMutationStudioPacket::new)
+                .consumerNetworkThread(OpenMutationStudioPacket::handle)
                 .add();
     }
 

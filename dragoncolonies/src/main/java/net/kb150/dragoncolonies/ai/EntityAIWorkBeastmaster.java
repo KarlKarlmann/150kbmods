@@ -13,7 +13,7 @@ import net.kb150.dragoncolonies.buildings.modules.DragonStorageModule;
 import net.kb150.dragoncolonies.jobs.JobBeastmaster;
 import net.kb150.dragoncolonies.util.DragonStatusHelper;
 import net.magister.bookofdragons.entity.data.DragonType;
-import net.magister.bookofdragons.entity.stats.SpeciesStatRegistry;
+import net.magister.liberanimalium.body.gameplay.SpeciesGameplayRegistry;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -21,6 +21,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -377,7 +378,7 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
                 DragonType type2 = parseDragonType(parent2);
 
                 if (type1 != null && type1 == type2) {
-                    ItemStack requiredFood = type1.getDragonClass().getBreedingFood();
+                    ItemStack requiredFood = getBreedingFood(type1);
                     boolean hasItemOrTransferred = this.checkIfRequestForItemExistOrCreateAsync(requiredFood, 1, 1);
                     
                     this.breedingParent1 = getOrAssignRoostID(parent1);
@@ -414,7 +415,7 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
         CompoundTag parent2 = p2Opt.get();
         DragonType type = parseDragonType(parent1);
 
-        Item requiredItem = type.getDragonClass().getBreedingFood().getItem();
+        Item requiredItem = getBreedingFood(type).getItem();
         int slot = InventoryUtils.findFirstSlotInItemHandlerWith(
             this.worker.getInventoryCitizen(), 
             stack -> stack.is(requiredItem)
@@ -433,7 +434,7 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
             egg.putBoolean("DragonColonies_IsEgg", true);
             egg.putInt("DragonColonies_IncubationTicks", 24000);
             egg.putString("DragonType", type.getSerializedName());
-            egg.putString("CustomName", "Egg (" + type.getDisplayName() + ")");
+            egg.putString("CustomName", "Egg (" + getDragonTypeName(type) + ")");
             
             egg.putInt("Parent1Variant", parent1.getInt("Variant"));
             egg.putInt("Parent2Variant", parent2.getInt("Variant"));
@@ -494,11 +495,36 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
         return tag.getUUID(DragonStorageModule.TAG_ROOST_DRAGON_ID);
     }
 
+    private String getDragonTypeName(DragonType type) {
+        if (type == null) return "Dragon";
+        if (type.getEntityType() != null) {
+            return type.getEntityType().getDescription().getString();
+        }
+        return type.getSerializedName();
+    }
+
+    private ItemStack getBreedingFood(DragonType type) {
+        if (type != null) {
+            var profile = SpeciesGameplayRegistry.getProfile(type.getSerializedName());
+            if (profile != null) {
+                if (!profile.specialFoods().isEmpty()) {
+                    Item item = ForgeRegistries.ITEMS.getValue(profile.specialFoods().iterator().next());
+                    if (item != null) return new ItemStack(item);
+                }
+                if (!profile.favoriteFoods().isEmpty()) {
+                    Item item = ForgeRegistries.ITEMS.getValue(profile.favoriteFoods().iterator().next());
+                    if (item != null) return new ItemStack(item);
+                }
+            }
+        }
+        return new ItemStack(Items.COD);
+    }
+
     // Liest sowohl Lieblingsfutter als auch Allgemeinfutter aus der BoD-Profil-Registry
 	private List<Item> getValidFoodsForDragon(DragonType type) {
 		List<Item> foods = new ArrayList<>();
 		if (type != null) {
-			var profile = SpeciesStatRegistry.getProfile(type.getSerializedName());
+			var profile = SpeciesGameplayRegistry.getProfile(type.getSerializedName());
 			if (profile != null) {
 				for (var loc : profile.favoriteFoods()) addFoodIfValid(foods, loc);
 				for (var loc : profile.generalFoods()) addFoodIfValid(foods, loc);
@@ -508,7 +534,7 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
 	}
 	
 	private void addFoodIfValid(List<Item> list, net.minecraft.resources.ResourceLocation loc) {
-		Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(loc);
+		Item item = ForgeRegistries.ITEMS.getValue(loc);
 		if (item != null && !list.contains(item)) {
 			list.add(item);
 		}
@@ -523,7 +549,7 @@ public class EntityAIWorkBeastmaster extends AbstractEntityAIBasic<JobBeastmaste
         net.minecraft.resources.ResourceLocation entityLoc = new net.minecraft.resources.ResourceLocation(entityIdStr);
         for (DragonType dt : DragonType.values()) {
             if (dt.getEntityType() != null) {
-                net.minecraft.resources.ResourceLocation dtLoc = net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getKey(dt.getEntityType());
+                net.minecraft.resources.ResourceLocation dtLoc = ForgeRegistries.ENTITY_TYPES.getKey(dt.getEntityType());
                 if (dtLoc != null && dtLoc.equals(entityLoc)) return dt;
             }
         }

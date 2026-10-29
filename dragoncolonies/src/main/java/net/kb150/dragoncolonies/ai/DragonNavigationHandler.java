@@ -3,9 +3,10 @@ package net.kb150.dragoncolonies.ai;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import net.kb150.dragoncolonies.DragonColonies;
 import net.kb150.dragoncolonies.util.CitizenReasonResolver;
-import net.magister.bookofdragons.entity.ai.movement.AIMovementComponent;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
-import net.magister.bookofdragons.entity.state.TransportMode;
+import net.magister.liberanimalium.body.state.TransportMode;
+import net.magister.liberanimalium.fauna.api.MoveIntent;
+import net.magister.liberanimalium.fauna.api.MoveMode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -74,11 +75,11 @@ public final class DragonNavigationHandler {
         AIR_ROUTES.remove(citizenId);
     }
 
-	public static boolean isAirTarget(UUID citizenId, BlockPos target) {
-		if (target == null) return false;
-		Set<BlockPos> route = AIR_ROUTES.get(citizenId);
-		return route != null && route.contains(target);
-	}
+    public static boolean isAirTarget(UUID citizenId, BlockPos target) {
+        if (target == null) return false;
+        Set<BlockPos> route = AIR_ROUTES.get(citizenId);
+        return route != null && route.contains(target);
+    }
 
     public static Boolean handleDragonFlight(
             AbstractEntityCitizen citizen,
@@ -106,11 +107,13 @@ public final class DragonNavigationHandler {
             groundTarget = null;
         }
 
-        // Bei Feindkontakt uebergibt der Handler die Kontrolle sofort an den MountedDragonController,
-        // um Konflikte zwischen Navigationsvektoren und Kampf-Positionierung zu verhindern.
+        // Bei Feindkontakt im Flug NICHT die Flugnavigation abbrechen,
+        // da der Drache sonst mitten in der Luft einfriert!
         if (riding && citizen.getTarget() != null && citizen.getTarget().isAlive()) {
-            clearTransport(id, dragon);
-            return false;
+            if (!airTarget && dragon.getTransportMode() != TransportMode.AIRBORNE) {
+                clearTransport(id, dragon);
+                return false;
+            }
         }
 
         ActiveTransport active = ACTIVE.get(id);
@@ -128,7 +131,7 @@ public final class DragonNavigationHandler {
             return true;
         }
 
-        // Zivile Fussgaengeraktionen duerfen keine Drachen-Aufstiege provozieren.
+        // Zivile Fussgaengeraktionen duerfen keine Drachen-Aufstiege provozieren
         if (!riding) {
             if (!airTarget || target.equals(groundTarget)) {
                 MOUNT_DELAY.remove(id);
@@ -163,14 +166,38 @@ public final class DragonNavigationHandler {
         citizen.getNavigation().stop();
         if (active == null) {
             Vec3 dragonTarget = toDragonTarget(target);
-            AIMovementComponent movement = dragon.getAIMovement();
-            if (movement == null) {
-                return null;
-            }
 
             BoDPathInfo.clear(dragon);
             alignDragonToTarget(dragon, dragonTarget);
-            movement.setRecalculationInterval(120);
+
+            // Wenn der Drache in der Luft ist, aber ein Bodenziel hat (z.B. Rueckkehr zum Hort),
+            // fliegt er das Ziel erst auf sicherer Hoehe an und sinkt nicht vorzeitig ab.
+            if (!airTarget && dragon.getTransportMode() == TransportMode.AIRBORNE) {
+                double distSqToGround = dragon.distanceToSqr(dragonTarget);
+                if (distSqToGround > 16.0D * 16.0D) {
+                    BlockPos highAir = getHighAirPos(level, target);
+                    dragonTarget = toDragonTarget(highAir);
+                    airTarget = true;
+                }
+            }
+
+            Vec3 diff = dragonTarget.subtract(dragon.position());
+            Vec3 dir = diff.lengthSqr() > 1.0E-4 ? diff.normalize() : Vec3.ZERO;
+
+            if (airTarget && dragon.canFly()) {
+                if (dragon.getTransportMode() != TransportMode.AIRBORNE) {
+                    dragon.setTransportMode(TransportMode.AIRBORNE);
+                    dragon.requestMoveMode(MoveMode.AIR);
+                }
+                dragon.setThrottleLevel(1.0F);
+                dragon.applyMove(new MoveIntent(dir, 1.0F, MoveMode.AIR, false));
+            } else {
+                if (dragon.getTransportMode() != TransportMode.GROUNDED) {
+                    dragon.setTransportMode(TransportMode.GROUNDED);
+                    dragon.requestMoveMode(MoveMode.GROUND);
+                }
+                dragon.applyMove(new MoveIntent(dir, 1.0F, MoveMode.GROUND, false));
+            }
 
             ActiveTransport newActive = new ActiveTransport(
                     target,
@@ -185,32 +212,6 @@ public final class DragonNavigationHandler {
             CitizenReasonResolver.ReasonInfo reason = CitizenReasonResolver.resolveReason(citizen);
             DragonColonies.debug("NAVIGATION", "Flugauftrag gestartet | Buerger: {} | Ziel: {} | Air: {} | Grund: {}",
                     citizen.getName().getString(), target.toShortString(), airTarget, reason);
-
-            movement.setWaypoint(dragonTarget, 1.0D, arrivedDragon -> {
-                ActiveTransport current = ACTIVE.get(id);
-                if (current == null || !current.target().equals(target)) {
-                    return;
-                }
-
-                CitizenReasonResolver.ReasonInfo arrivalReason = CitizenReasonResolver.resolveReason(citizen);
-
-                if (current.airTarget()) {
-                    DragonColonies.debug("NAVIGATION", "Luftziel/Patrouille erreicht (Callback) | Buerger: {} | Ziel: {} | Grund: {}",
-                            citizen.getName().getString(), current.target().toShortString(), arrivalReason);
-                    ACTIVE.remove(id);
-                    AIR_TARGET_ARRIVED.put(id, current.target());
-                    return;
-                }
-
-                DragonColonies.debug("NAVIGATION", "Bodenziel erreicht | Buerger: {} | Ziel: {} | Grund: {}",
-                        citizen.getName().getString(), current.target().toShortString(), arrivalReason);
-                ACTIVE.remove(id);
-                MOUNT_DELAY.remove(id);
-                MOUNT_DELAY_TARGET.remove(id);
-                clearAirRoute(citizen.getUUID());
-                BoDPathInfo.clear(arrivedDragon);
-                dismount(arrivedDragon, citizen);
-            });
 
             return false;
         }
@@ -239,7 +240,7 @@ public final class DragonNavigationHandler {
         }
 
         // ServerTick ueberwacht ausschliesslich Fortschritts-Timeouts und Uebergabedistanzen;
-        // Drehmomente und Kurvenradien verbleiben bei BoDs internem Physik-Executor.
+        // Drehmomente und Kurvenradien verbleiben bei FAUNAs internem Physik-Executor.
         for (Map.Entry<UUID, ActiveTransport> entry : new ArrayList<>(ACTIVE.entrySet())) {
             UUID id = entry.getKey();
             ActiveTransport active = entry.getValue();
@@ -254,11 +255,6 @@ public final class DragonNavigationHandler {
             DragonBase dragon = rider == null ? null : rider.getAssignedDragon();
 
             if (dragon == null || !dragon.isAlive() || citizen.getVehicle() != dragon) {
-                continue;
-            }
-
-            AIMovementComponent movement = dragon.getAIMovement();
-            if (movement == null) {
                 continue;
             }
 
@@ -281,35 +277,39 @@ public final class DragonNavigationHandler {
             ACTIVE.put(id, updatedActive);
             active = updatedActive;
 
+            // Ankunftspruefung fuer Luftziele (Fly-Through fuer weiche Kurven)
             if (active.airTarget()) {
                 double distSqToAirTarget = dragon.distanceToSqr(active.dragonTarget());
+
                 if (distSqToAirTarget <= AIR_PASS_BY_DISTANCE_SQ) {
+                    CitizenReasonResolver.ReasonInfo arrivalReason = CitizenReasonResolver.resolveReason(citizen);
                     DragonColonies.debug("NAVIGATION", "Luftziel erreicht (Fly-Through) | Buerger: {} | Ziel: {} | Dist: {}m",
                             citizen.getName().getString(), active.target().toShortString(), String.format("%.1f", Math.sqrt(distSqToAirTarget)));
 
                     ACTIVE.remove(id);
                     AIR_TARGET_ARRIVED.put(id, active.target());
+                    // NICHT auf MoveIntent.hold() setzen, damit der Drache seinen Schwung nicht verliert!
                     continue;
                 }
+
+                // Vektor kontinuierlich und weich in Richtung des Wegpunkts fuehren
+                Vec3 diff = active.dragonTarget().subtract(dragon.position());
+                Vec3 dir = diff.lengthSqr() > 1.0E-4 ? diff.normalize() : Vec3.ZERO;
+                dragon.setThrottleLevel(1.0F);
+                dragon.applyMove(new MoveIntent(dir, 1.0F, MoveMode.AIR, false));
             }
 
+            // Unstuck-Watchdog
             if (active.noProgressTicks() >= MAX_NO_PROGRESS_TICKS) {
                 DragonColonies.debug("NAVIGATION", "Unstuck Watchdog ausgeloest fuer {} -> Teleport zu {}",
                         citizen.getName().getString(), active.target().toShortString());
                 teleportDragonAndRiderToTarget(citizen, dragon, active.target());
                 ACTIVE.remove(id);
-                BoDPathInfo.clear(dragon);
+                clearTransport(id, dragon);
                 continue;
             }
 
-            if (movement.hasFailed()) {
-                DragonColonies.debug("NAVIGATION", "BoD meldet Navigationsfehlschlag fuer {}",
-                        active.target().toShortString());
-                ACTIVE.remove(id);
-                BoDPathInfo.clear(dragon);
-                continue;
-            }
-
+            // Bodenziel: Naeherungspruefung fuer Abstieg
             double distanceToGroundTarget = dragon.distanceToSqr(active.dragonTarget());
 
             if (!active.airTarget()) {
@@ -328,6 +328,10 @@ public final class DragonNavigationHandler {
                     }
                 }
 
+                Vec3 diff = active.dragonTarget().subtract(dragon.position());
+                Vec3 dir = diff.lengthSqr() > 1.0E-4 ? diff.normalize() : Vec3.ZERO;
+                dragon.applyMove(new MoveIntent(dir, 1.0F, MoveMode.GROUND, false));
+
                 active = new ActiveTransport(
                         active.target(),
                         active.dragonTarget(),
@@ -342,8 +346,8 @@ public final class DragonNavigationHandler {
     }
 
     public static void alignDragonToTarget(DragonBase dragon, Vec3 targetPos) {
-        // Unterbindet hartes Rotations-Snapping waehrend des Flugs, damit BoDs
-        // AIMovementExecutor Kurven ueber die eigene turnRate physikalisch austragen kann.
+        // Unterbindet hartes Rotations-Snapping waehrend des Flugs, damit FAUNAs
+        // Flugengine Kurven ueber die eigene turnRate physikalisch austragen kann.
         if (dragon.getTransportMode() == TransportMode.AIRBORNE) {
             return;
         }
@@ -464,6 +468,9 @@ public final class DragonNavigationHandler {
     private static void clearTransport(UUID id, DragonBase dragon) {
         ACTIVE.remove(id);
         BoDPathInfo.clear(dragon);
+        if (dragon != null) {
+            dragon.applyMove(null);
+        }
     }
 
     private static void forceMount(
@@ -476,17 +483,14 @@ public final class DragonNavigationHandler {
     }
 
     private static void dismount(DragonBase dragon, AbstractEntityCitizen citizen) {
-        // Nullen der Fallstrecke vor und nach stopRiding neutralisiert akkumulierte Vektoren,
-        // da Passagier-Entities waehrend des Dismounts fehlerhafte Delta-Y-Werte aufbauen koennen.
         if (citizen.getVehicle() == dragon) {
             citizen.stopRiding();
         }
 
-        AIMovementComponent movement = dragon.getAIMovement();
-        if (movement != null) {
-            movement.clearAllWaypoints();
+        if (dragon != null) {
+            dragon.applyMove(null);
+            dragon.setThrottleLevel(0.0F);
+            dragon.setTransportMode(TransportMode.GROUNDED);
         }
-
-        dragon.setTransportMode(TransportMode.GROUNDED);
     }
 }

@@ -23,6 +23,7 @@ import com.minecolonies.core.entity.ai.workers.guard.AbstractEntityAIGuard;
 import com.minecolonies.core.entity.citizen.EntityCitizen;
 import com.minecolonies.core.entity.pathfinding.navigation.EntityNavigationUtils;
 import com.minecolonies.core.entity.pathfinding.pathresults.PathResult;
+import com.minecolonies.core.entity.pathfinding.PathFindingStatus;
 import com.minecolonies.core.util.citizenutils.CitizenItemUtils;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.ComponentContents;
@@ -224,6 +225,14 @@ public class DragonRiderCombatAI extends AttackMoveAI<EntityCitizen> {
 
     @Override
     protected PathResult moveInAttackPosition(LivingEntity target) {
+        if (this.user.isPassenger()) {
+            // Die Wache reitet! Sie darf nicht zu Fuss losrennen.
+            // Wir täuschen MineColonies vor, sie sei in Position, damit der Drache die Bewegung übernimmt.
+            PathResult result = new PathResult();
+            result.setStatus(PathFindingStatus.CALCULATION_COMPLETE);
+            result.setPathReachesDestination(true);
+            return result;
+        }
         EntityNavigationUtils.walkToPos(this.user, target.blockPosition(), (int) this.getAttackDistance(), false, this.getCombatMovementSpeed());
         return this.user.getNavigation().getPathResult();
     }

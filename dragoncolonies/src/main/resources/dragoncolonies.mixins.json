@@ -6,17 +6,15 @@
   "refmap": "dragoncolonies.refmap.json", 
   "mixins": [
   "DragonBaseMixin",
+  "FaunaBaseMixin",
   "AbstractEntityCitizenMixin",
   "MinecoloniesAdvancedPathNavigateMixin",
-  "DragonBaseGoalMixin",
-  "DragonRestGoalMixin",
   "AbstractEntityCitizenMixin",
-  "AIMovementComponentMixin",
   "AbstractEntityAIGuardMixin",
   "AbstractAISkeletonAccessor",
   "EntityNavigationUtilsMixin",
-  "AIPathResolverBridgeMixin",
-  "ThreatTableMixin"
+  "ThreatTableMixin",
+  "KnowledgeMixin"
   ],
   "client": [
   "client.StructurePacksMixin",

@@ -11,7 +11,7 @@ authors="Karl Karlmann"
 logoFile="dragoncolonies.png"
 description='''
 Die ultimative Systemintegration von Book of Dragons und Minecolonies!
-Ermöglicht euren Wachen das Reiten und Koordinieren von Drachen, führt eine spezialisierte Feuerwehr zur Brandbekämpfung ein und bietet mit dem Drachenhort (inkl. eigenem NPC-Drachenpfleger) eine brandneue Zucht- und Heilungsmechanik für das Ökosystem eurer Kolonie.
+Ermöglicht euren Wachen das Reiten und Koordinieren von Drachen und bietet mit dem Drachenhort (inkl. eigenem NPC-Drachenpfleger) eine brandneue Zucht- und Heilungsmechanik für das Ökosystem eurer Kolonie.
 '''
 
 # -------------------------------------------------------------------------
@@ -46,7 +46,7 @@ side="BOTH"
 [[dependencies.dragoncolonies]]
 modId="bookofdragons"
 mandatory=true
-versionRange="[1.0.0,)"
+versionRange="[1.4-1.20.1,)"
 ordering="NONE"
 side="BOTH"
 

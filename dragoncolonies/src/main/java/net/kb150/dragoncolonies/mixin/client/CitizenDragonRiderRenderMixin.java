@@ -5,9 +5,10 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.core.client.render.RenderBipedCitizen;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
-import net.magister.bookofdragons.client.render.RiderMatrixDataflow;
 import net.magister.bookofdragons.entity.base.dragon.DragonBase;
-import net.magister.bookofdragons.entity.data.DragonRiderConfig;
+import net.magister.liberanimalium.render.RiderMatrixDataflow;
+import net.magister.liberanimalium.ride.render.RiderAnimator;
+import net.magister.liberanimalium.ride.render.RiderPoseProfile;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
@@ -35,7 +36,7 @@ public abstract class CitizenDragonRiderRenderMixin {
         if (citizen.getVehicle() instanceof DragonBase dragon) {
             int dragonId = dragon.getId();
 
-            // 1. Live-Matrix aus RiderMatrixDataflow abfragen
+            // 1. Live-Matrix aus FAUNA RiderMatrixDataflow abfragen
             Matrix4f viewMatrix = RiderMatrixDataflow.get(dragonId);
             if (viewMatrix == null) {
                 return;
@@ -47,22 +48,37 @@ public abstract class CitizenDragonRiderRenderMixin {
                 return;
             }
 
-            // 2. Offsets aus der Drachen-Config
-            DragonRiderConfig.RiderPosition riderConfig = DragonRiderConfig.getRiderPosition(dragon);
-            float seatOffsetX = riderConfig.offset.x();
-            float seatOffsetY = riderConfig.offset.y();
-            float seatOffsetZ = riderConfig.offset.z();
+            // 2. Offsets aus dem FAUNA Rider-System abfragen
+            RiderPoseProfile.Seat seat = RiderAnimator.seat(dragon);
+            float seatOffsetX = seat != null ? seat.x() : 0.0F;
+            float seatOffsetY = seat != null ? seat.y() : 0.0F;
+            float seatOffsetZ = seat != null ? seat.z() : 0.0F;
 
-            Matrix4f citizenMatrix = new Matrix4f(viewMatrix);
+            // 3. FAUNA Relativ-Vektor: Distanz zwischen Buerger und Drachen-Mitte aufholen
+            float toBodyX = (float) (Mth.lerp(partialTicks, dragon.xo, dragon.getX()) - Mth.lerp(partialTicks, citizen.xo, citizen.getX()));
+            float toBodyY = (float) (Mth.lerp(partialTicks, dragon.yo, dragon.getY()) - Mth.lerp(partialTicks, citizen.yo, citizen.getY()));
+            float toBodyZ = (float) (Mth.lerp(partialTicks, dragon.zo, dragon.getZ()) - Mth.lerp(partialTicks, citizen.zo, citizen.getZ()));
+
+            // 4. Matrix mit Kamera-Stack des Buergers verrechnen
+            Matrix4f citizenMatrix = (new Matrix4f(matrixStack.last().pose()))
+                    .translate(toBodyX, toBodyY, toBodyZ)
+                    .mul(viewMatrix);
             citizenMatrix.normalize3x3();
 
             if (Float.isFinite(citizenMatrix.m00()) && Float.isFinite(citizenMatrix.m11()) && Float.isFinite(citizenMatrix.m22())) {
-                // 3. Matrix auf den PoseStack übertragen
                 matrixStack.last().pose().set(citizenMatrix);
                 matrixStack.translate(seatOffsetX, seatOffsetY, seatOffsetZ);
 
-                float dragonYaw = Mth.rotLerp(partialTicks, dragon.yBodyRotO, dragon.yBodyRot);
-                matrixStack.mulPose(Axis.YP.rotationDegrees(dragonYaw - 180.0F));
+                // Dynamische Koerperdrehung relativ zum Drachen
+                float head = Mth.rotLerp(partialTicks, citizen.yHeadRotO, citizen.yHeadRot);
+                float vehicle = Mth.rotLerp(partialTicks, dragon.yBodyRotO, dragon.yBodyRot);
+                float offset = Mth.clamp(Mth.wrapDegrees(head - vehicle), -85.0F, 85.0F);
+                float riderBody = head - offset;
+                if (offset * offset > 2500.0F) {
+                    riderBody += offset * 0.2F;
+                }
+
+                matrixStack.mulPose(Axis.YP.rotationDegrees(riderBody - 180.0F));
 
                 RiderMatrixDataflow.notifyRendered(dragonId);
             }

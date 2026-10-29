@@ -6,6 +6,7 @@ import net.kb150.woerp.capability.ChunkRadiationProvider;
 import net.kb150.woerp.capability.PlayerRadiationProvider;
 import net.kb150.woerp.network.SyncRadiationPacket;
 import net.kb150.woerp.network.WoerpNetwork;
+import net.kb150.woerp.network.OpenMutationStudioPacket;
 import net.kb150.woerp.radiation.EmitterSavedData;
 import net.kb150.woerp.radiation.RadiationEmitter;
 import net.minecraft.commands.CommandSourceStack;
@@ -27,16 +28,24 @@ public class WoerpCommand {
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
 
-        dispatcher.register(Commands.literal("woerp")
+		dispatcher.register(Commands.literal("woerp")
             .requires(src -> src.hasPermission(2))
             .then(Commands.literal("inspect")
                 .executes(ctx -> inspectEnvironment(ctx.getSource())))
             .then(Commands.literal("setdose")
                 .then(Commands.argument("value", FloatArgumentType.floatArg(0.0f, 500.0f))
                     .executes(ctx -> setTestDose(ctx.getSource(), FloatArgumentType.getFloat(ctx, "value")))))
+            .then(Commands.literal("mutation")
+                .then(Commands.literal("studio")
+                    .executes(ctx -> openStudio(ctx.getSource()))))
         );
     }
-
+	private static int openStudio(CommandSourceStack src) {
+        ServerPlayer player = src.getPlayer();
+        if (player == null) return 0;
+        WoerpNetwork.sendToPlayer(new OpenMutationStudioPacket(), player);
+        return 1;
+    }
     private static int inspectEnvironment(CommandSourceStack src) {
         ServerLevel level = src.getLevel();
         ServerPlayer player = src.getPlayer();

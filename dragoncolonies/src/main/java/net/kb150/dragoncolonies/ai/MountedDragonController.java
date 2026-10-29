@@ -8,12 +8,14 @@ import com.minecolonies.core.colony.buildings.AbstractBuildingGuards;
 import com.minecolonies.core.entity.ai.combat.CombatUtils;
 import com.minecolonies.core.entity.ai.workers.guard.AbstractEntityAIGuard;
 import com.minecolonies.core.util.citizenutils.CitizenItemUtils;
-import net.magister.bookofdragons.entity.base.dragon.DragonBase;
-import net.magister.bookofdragons.entity.component.CombatComponent;
-import net.magister.bookofdragons.entity.component.ranged.OmniAttackHandler;
-import net.magister.bookofdragons.entity.state.GroundStance;
-import net.magister.bookofdragons.entity.state.TransportMode;
 import net.kb150.dragoncolonies.DragonColonies;
+import net.magister.bookofdragons.entity.base.dragon.DragonBase;
+import net.magister.liberanimalium.body.state.TransportMode;
+import net.magister.liberanimalium.chassis.component.CommandComponent;
+import net.magister.liberanimalium.chassis.component.melee.OmniMeleeAttackHandler;
+import net.magister.liberanimalium.chassis.component.ranged.OmniAttackHandler;
+import net.magister.liberanimalium.fauna.api.MoveIntent;
+import net.magister.liberanimalium.fauna.api.MoveMode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
@@ -29,23 +31,40 @@ import net.minecraft.world.phys.Vec3;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Steuert den Drachen im aktiven Luftkampf der Wache:
+ * - Haelt den Drachen im Flug (TransportMode.AIRBORNE) auf Kampfhoehe (+10m ueber Feind).
+ * - Fliegt dynamische Orbit- & Anflugschleifen um das Ziel.
+ * - Feuert Feuerodem via OmniAttackHandler und beisst bei Nahkontakt via OmniMeleeAttackHandler.
+ */
 public class MountedDragonController {
 
     private long combatTickCounter = 0;
+    private double combatOrbitAngle = 0.0D;
     private String currentAiPhase = "INITIALIZING";
 
     public String getCurrentAiPhase() {
         return this.currentAiPhase;
     }
 
-    public void handleFlight(AbstractEntityCitizen worker, DragonBase dragon, AbstractBuildingGuards building, long internalTickCounter, BlockPos currentPatrolPoint) {
+    public void handleFlight(
+            AbstractEntityCitizen worker,
+            DragonBase dragon,
+            AbstractBuildingGuards building,
+            long internalTickCounter,
+            BlockPos currentPatrolPoint,
+            boolean isGroundTask
+    ) {
         boolean doLog = (internalTickCounter % 40 == 0);
 
         if (dragon.isNoAi()) dragon.setNoAi(false);
         if (dragon.isOrderedToSit()) dragon.setOrderedToSit(false);
         if (dragon.isInSittingPose()) dragon.setInSittingPose(false);
-        if (dragon.getStateContext().getGroundStance() != GroundStance.IDLE && dragon.getTransportMode() != TransportMode.AIRBORNE) {
-            dragon.setGroundStance(GroundStance.IDLE);
+
+        // Weckt den Drachen sofort auf, falls FAUNA Rest/Sleep getriggert hat
+        CommandComponent cmd = (CommandComponent) dragon.componentRegistry.get(CommandComponent.class);
+        if (cmd != null) {
+            cmd.wakeFromRest();
         }
 
         LivingEntity attackTarget = worker.getTarget();
@@ -76,15 +95,15 @@ public class MountedDragonController {
             this.currentAiPhase = "PATROL";
         }
 
+        // Bei Phasenwechsel weg von Combat: Sauberes Beenden aller Angriffe
         if (!previousPhase.equals(this.currentAiPhase) && !this.currentAiPhase.equals("COMBAT")) {
             this.combatTickCounter = 0;
-            dragon.setShouldDoAerialAttack(false);
-            dragon.setDoingAerialAttack(false);
             dragon.setTarget(null);
-            
-            OmniAttackHandler attackHandler = (OmniAttackHandler) dragon.componentRegistry.get(OmniAttackHandler.class);
-            if (attackHandler != null && attackHandler.isAttacking()) {
-                attackHandler.handlePlayerFiring(false);
+            dragon.dropTrigger();
+
+            OmniAttackHandler breath = (OmniAttackHandler) dragon.componentRegistry.get(OmniAttackHandler.class);
+            if (breath != null && (breath.isCharging() || breath.isBreathing())) {
+                breath.handlePlayerAttack(false);
             }
         }
 
@@ -157,33 +176,26 @@ public class MountedDragonController {
 
     private void handleCombatPhase(AbstractEntityCitizen worker, DragonBase dragon, LivingEntity target, boolean doLog, long internalTickCounter) {
         combatTickCounter++;
-        double distToTarget = dragon.distanceTo(target);
-
-        if (doLog && DragonColonies.isLogging("COMBAT")) {
-            var handler = (OmniAttackHandler) dragon.componentRegistry.get(OmniAttackHandler.class);
-            var combat = (CombatComponent) dragon.componentRegistry.get(CombatComponent.class);
-
-            boolean canFly = dragon.canFly();
-            boolean canFire = handler != null && handler.canFire();
-            int fuel = handler != null ? handler.getCurrentFuel() : -1;
-            int cd = handler != null ? handler.getBreathCooldownTicks() : -1;
-            boolean needsOk = dragon.getNeedsSystem() == null || dragon.getNeedsSystem().canUseRangedAttack();
-
-            DragonColonies.debug("COMBAT", "[AERIAL-DIAG] CanFly: " + canFly
-                    + " | CanFire: " + canFire
-                    + " | Fuel: " + fuel
-                    + " | BreathCD: " + cd
-                    + " | NeedsOK: " + needsOk
-                    + " | ShouldAerial: " + dragon.shouldDoAerialAttack()
-                    + " | DoingAerial: " + (combat != null && combat.isDoingAerialAttack())
-            );
-        }
 
         try {
+            // 1. FAUNA VON DER LEINE LASSEN!
+            // Wir uebergeben dem Drachen lediglich das Ziel der Wache. 
+            // Ab hier uebernimmt FAUNA (FaunaTicker) komplett selbststaendig!
             if (dragon.getTarget() != target) {
                 dragon.setTarget(target);
             }
 
+            // 2. BLICK-AUSRICHTUNG der Wache
+            if (worker.getLookControl() != null) worker.getLookControl().setLookAt(target, 45.0F, 45.0F);
+
+            double distToTarget = dragon.distanceTo(target);
+
+            // 3. WACHEN-ANGRIFF: Axt-Schwung bei Nahkontakt als Unterstuetzung
+            if (distToTarget <= 6.0D && combatTickCounter % 15 == 0) {
+                worker.swing(InteractionHand.MAIN_HAND);
+            }
+
+            // 4. SCHILD-NUTZUNG der Wache
             if (internalTickCounter % 20 == 0) {
                 double shieldResearch = worker.getCitizenColonyHandler().getColonyOrRegister().getResearchManager().getResearchEffects().getEffectStrength(ResearchConstants.SHIELD_USAGE);
                 if (shieldResearch > 0.0D && worker.getItemInHand(InteractionHand.OFF_HAND).getItem() != Items.SHIELD) {
@@ -194,16 +206,11 @@ public class MountedDragonController {
                 }
             }
 
-            if (dragon.getLookControl() != null) dragon.getLookControl().setLookAt(target, 30.0F, 30.0F);
-            if (worker.getLookControl() != null) worker.getLookControl().setLookAt(target, 30.0F, 30.0F);
-
-            if (distToTarget <= 6.0D && combatTickCounter % 15 == 0) {
-                worker.swing(InteractionHand.MAIN_HAND);
-            }
-
-            if (combatTickCounter > 600 && distToTarget > 16.0D) {
+            // 5. TIMEOUT-SCHUTZ
+            if (combatTickCounter > 600 && distToTarget > 20.0D) {
                 worker.setTarget(null);
                 dragon.setTarget(null);
+                dragon.dropTrigger();
                 combatTickCounter = 0;
             }
 
