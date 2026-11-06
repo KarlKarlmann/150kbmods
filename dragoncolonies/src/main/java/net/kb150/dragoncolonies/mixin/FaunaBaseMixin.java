@@ -161,9 +161,14 @@ public abstract class FaunaBaseMixin {
         remap = false,
         require = 0
     )
-    private void dragoncolonies$silenceFaunaTickerWhileMounted(FaunaMind mind) {
+    private void dragoncolonies$muteFaunaTickerWhileMounted(FaunaMind mind) {
         FaunaBase self = (FaunaBase) (Object) this;
+        
         if (self.getFirstPassenger() instanceof AbstractEntityCitizen) {
+            // Im Kampf MUSS das Gehirn (FaunaTicker) laufen, sonst friert der Drache ein!
+            if (self.getTarget() != null) {
+                FaunaTicker.tick(mind);
+            }
             return;
         }
         FaunaTicker.tick(mind);
