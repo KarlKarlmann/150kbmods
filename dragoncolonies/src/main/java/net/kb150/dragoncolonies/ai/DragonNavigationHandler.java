@@ -10,6 +10,8 @@ import net.magister.liberanimalium.fauna.api.MoveMode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.TicketType;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -209,6 +211,12 @@ public final class DragonNavigationHandler {
             );
             ACTIVE.put(id, newActive);
 
+            // Sofortiges Chunk-Ticket zur Absicherung beim Start
+            ChunkPos dragonChunk = new ChunkPos(dragon.blockPosition());
+            level.getChunkSource().addRegionTicket(TicketType.PORTAL, dragonChunk, 2, dragon.blockPosition());
+            ChunkPos targetChunk = new ChunkPos(target);
+            level.getChunkSource().addRegionTicket(TicketType.PORTAL, targetChunk, 2, target);
+
             CitizenReasonResolver.ReasonInfo reason = CitizenReasonResolver.resolveReason(citizen);
             DragonColonies.debug("NAVIGATION", "Flugauftrag gestartet | Buerger: {} | Ziel: {} | Air: {} | Grund: {}",
                     citizen.getName().getString(), target.toShortString(), airTarget, reason);
@@ -239,8 +247,8 @@ public final class DragonNavigationHandler {
             }
         }
 
-        // ServerTick ueberwacht ausschliesslich Fortschritts-Timeouts und Uebergabedistanzen;
-        // Drehmomente und Kurvenradien verbleiben bei FAUNAs internem Physik-Executor.
+        // ServerTick ueberwacht ausschliesslich Fortschritts-Timeouts, Uebergabedistanzen
+        // und haelt Chunk-Tickets aktiv, um Chunks waehrend des Flugs am Leben zu halten.
         for (Map.Entry<UUID, ActiveTransport> entry : new ArrayList<>(ACTIVE.entrySet())) {
             UUID id = entry.getKey();
             ActiveTransport active = entry.getValue();
@@ -257,6 +265,17 @@ public final class DragonNavigationHandler {
             if (dragon == null || !dragon.isAlive() || citizen.getVehicle() != dragon) {
                 continue;
             }
+
+            // --- CHUNK-TICKETS AKTUALISIEREN ---
+            // Verhindert das serverseitige Entladen des Drachen und des Reiters mitten im Flug
+            if (dragon.level() instanceof ServerLevel level) {
+                ChunkPos dragonChunk = new ChunkPos(dragon.blockPosition());
+                level.getChunkSource().addRegionTicket(TicketType.PORTAL, dragonChunk, 2, dragon.blockPosition());
+
+                ChunkPos targetChunk = new ChunkPos(active.target());
+                level.getChunkSource().addRegionTicket(TicketType.PORTAL, targetChunk, 2, active.target());
+            }
+            // -----------------------------------
 
             Vec3 currentPosition = dragon.position();
             double movedDistance = currentPosition.distanceTo(active.lastPosition());

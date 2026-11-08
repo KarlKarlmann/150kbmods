@@ -88,16 +88,15 @@ public abstract class FaunaBaseMixin {
         }
     }
 
-    // 2. FAUNA spares() verschont alle befreundeten Ziele
-    @Inject(method = "spares", at = @At("HEAD"), cancellable = true, remap = false)
-    private void dragoncolonies$spares(LivingEntity other, CallbackInfoReturnable<Boolean> cir) {
-        if (other == null) return;
-        FaunaBase self = (FaunaBase) (Object) this;
+	// 2. FAUNA spares() verschont alle befreundeten Ziele
+	@Inject(method = "spares", at = @At("HEAD"), cancellable = true, remap = false)
+	private void dragoncolonies$spares(LivingEntity first, LivingEntity second, CallbackInfoReturnable<Boolean> cir) {
+		FaunaBase self = (FaunaBase) (Object) this;
 
-        if (self.isFriendlyTarget(other)) {
-            cir.setReturnValue(true);
-        }
-    }
+		if ((first != null && self.isFriendlyTarget(first)) || (second != null && self.isFriendlyTarget(second))) {
+			cir.setReturnValue(true);
+		}
+	}
 
     // 3. Verhindert, dass FAUNAs Nahkampf-Engine einen Angriff gegen Freunde startet
     @Inject(method = "swingAt", at = @At("HEAD"), cancellable = true, remap = false)
